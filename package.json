@@ -1,6 +1,6 @@
 {
   "name": "obsidian-taskmaster",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Task management plugin for Obsidian with SMART cards and visual board",
   "main": "main.js",
   "scripts": {
