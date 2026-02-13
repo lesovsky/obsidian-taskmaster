@@ -4,8 +4,7 @@
 
 A task management plugin for [Obsidian](https://obsidian.md) with SMART-style cards and a visual board designed for project managers.
 
-<!-- TODO: Add screenshot -->
-<!-- ![TaskMaster Board](docs/screenshots/board.png) -->
+![TaskMaster Board](docs/screenshots/board-en.png)
 
 ## Features
 
@@ -45,6 +44,25 @@ Each task contains structured SMART fields:
 | **Status** | New / In Progress / Waiting / Completed |
 
 Card indicators: priority icon, status icon, deadline, overdue border, assignee.
+
+## Why TaskMaster?
+
+There are several task management plugins for Obsidian, but none of them offer an out-of-the-box combination of:
+
+1. **Opinionated group structure** — six purpose-driven groups (Backlog, Focus, In Progress, Org Intentions, Delegated, Completed) instead of generic columns
+2. **SMART-style cards** — structured fields (What, Why, Who, When, Priority, Status) on every task, not just plain text
+3. **Visual drag & drop board** — move cards between groups with automatic status transitions
+
+| Plugin / Tool | Visual Board | Structured Fields | Fixed Methodology |
+|---------------|:---:|:---:|:---:|
+| **TaskMaster** | + | + | + |
+| Kanban (mgmeyers) | + | - | - |
+| CardBoard (roovo) | + | - | - |
+| Tasks (obsidian-tasks-group) | - | +/- | - |
+| Projects (obsidian-projects) | + | - | - |
+| Trello / Notion / ClickUp | + | + | - |
+
+Closest alternatives require assembling 2-3 plugins (Tasks + Kanban + templates) or using cloud-based SaaS tools. TaskMaster fills the gap as an **opinionated, local-first task management tool** for project managers inside Obsidian.
 
 ## Installation
 
