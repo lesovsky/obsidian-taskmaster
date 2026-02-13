@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { Board, GroupId, Task } from '../data/types';
+  import { t } from '../i18n';
   import { addTask, updateTask, removeTaskFromGroup, restoreTaskToGroup, finalDeleteTask, updateGroupSettings } from '../stores/dataStore';
   import { dataStore } from '../stores/dataStore';
   import { uiStore } from '../stores/uiStore';
@@ -195,7 +196,7 @@
   <div class="tm-toasts">
     {#each $uiStore.toasts as toast (toast.taskId)}
       <DeleteToast
-        taskName={tasks[toast.taskId]?.what ?? 'Задача'}
+        taskName={tasks[toast.taskId]?.what ?? $t('fallback.task')}
         expiresAt={toast.expiresAt}
         onUndo={() => handleUndo(toast.taskId)}
         onExpire={() => handleToastExpire(toast.taskId)}

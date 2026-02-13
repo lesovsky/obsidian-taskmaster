@@ -10,7 +10,7 @@ export function createDefaultGroup(): Group {
   };
 }
 
-export function createDefaultBoard(title = 'Новая доска'): Board {
+export function createDefaultBoard(title = 'New board'): Board {
   const groups = {} as Record<GroupId, Group>;
   for (const id of GROUP_IDS) {
     groups[id] = createDefaultGroup();
@@ -28,12 +28,13 @@ export function createDefaultBoard(title = 'Новая доска'): Board {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
+  language: 'auto',
   defaultPriority: 'medium',
 };
 
 export const DEFAULT_DATA: PluginData = {
-  version: 1,
+  version: 2,
   settings: { ...DEFAULT_SETTINGS },
-  boards: [createDefaultBoard('Мой проект')],
+  boards: [createDefaultBoard('My Project')],
   tasks: {},
 };

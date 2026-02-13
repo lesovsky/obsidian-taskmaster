@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Group, GroupId, Task } from '../data/types';
-  import { GROUP_LABELS } from '../data/types';
+  import { t, groupLabels } from '../i18n';
   import { toggleGroupCollapsed } from '../stores/dataStore';
   import { useSortable } from './useSortable';
   import EmptyState from './EmptyState.svelte';
@@ -32,7 +32,7 @@
 <div class="tm-collapsible-group">
   <button class="tm-collapsible-group__header" class:tm-collapsible-group__header--over={overLimit} on:click={toggle}>
     <span class="tm-collapsible-group__arrow" class:tm-collapsible-group__arrow--open={!collapsed}>&#9654;</span>
-    <span class="tm-collapsible-group__title">{GROUP_LABELS[groupId]}</span>
+    <span class="tm-collapsible-group__title">{$groupLabels[groupId]}</span>
     <span class="tm-collapsible-group__count" class:tm-collapsible-group__count--over={overLimit}>({counterText})</span>
     <div class="tm-collapsible-group__spacer"></div>
     {#if onSettings}
@@ -42,7 +42,7 @@
         on:keydown|stopPropagation
         role="button"
         tabindex="0"
-        title="Настройки группы"
+        title={$t('groupHeader.settings')}
       >&#9881;</span>
     {/if}
     {#if onAdd}
@@ -52,7 +52,7 @@
         on:keydown|stopPropagation
         role="button"
         tabindex="0"
-        title="Добавить задачу"
+        title={$t('groupHeader.addTask')}
       >+</span>
     {/if}
   </button>

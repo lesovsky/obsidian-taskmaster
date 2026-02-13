@@ -8,12 +8,14 @@ import { TaskMasterSettingTab } from './settings';
 import { dataStore } from './stores/dataStore';
 import { uiStore } from './stores/uiStore';
 import { pluginStore } from './stores/pluginStore';
+import { setLocale } from './i18n';
 
 export default class TaskMasterPlugin extends Plugin {
   data: PluginData = { ...DEFAULT_DATA };
 
   async onload(): Promise<void> {
     await this.loadPluginData();
+    setLocale(this.data.settings.language);
 
     pluginStore.set(this);
     dataStore.set(this.data);

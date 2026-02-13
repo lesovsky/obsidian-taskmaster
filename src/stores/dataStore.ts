@@ -5,6 +5,7 @@ import { pluginStore } from './pluginStore';
 import { uiStore } from './uiStore';
 import { formatDate } from '../utils/dateFormat';
 import { applyStatusTransition } from '../logic/statusTransitions';
+import { t } from '../i18n';
 
 export const dataStore = writable<PluginData>({ ...DEFAULT_DATA });
 
@@ -117,7 +118,8 @@ export function updateGroupSettings(boardId: string, groupId: GroupId, fields: {
 }
 
 export function createBoard(): void {
-  const board = createDefaultBoard();
+  const tr = get(t);
+  const board = createDefaultBoard(tr('board.newBoard'));
   dataStore.update(data => {
     data.boards.push(board);
     return data;

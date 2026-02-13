@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
+  import { t } from '../i18n';
 
   export let taskName: string;
   export let expiresAt: number;
@@ -25,7 +26,7 @@
 </script>
 
 <div class="tm-toast">
-  <span class="tm-toast__text">Удалено: {taskName}</span>
-  <span class="tm-toast__timer">{remaining}с</span>
-  <button class="tm-toast__undo" on:click={onUndo}>Отменить</button>
+  <span class="tm-toast__text">{$t('toast.deleted')} {taskName}</span>
+  <span class="tm-toast__timer">{remaining}{$t('toast.seconds')}</span>
+  <button class="tm-toast__undo" on:click={onUndo}>{$t('toast.undo')}</button>
 </div>

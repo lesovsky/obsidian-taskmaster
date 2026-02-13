@@ -1,0 +1,33 @@
+export type Locale = 'en' | 'ru';
+export type LanguageSetting = 'auto' | Locale;
+
+export type TranslationKey =
+  | 'group.backlog' | 'group.focus' | 'group.inProgress'
+  | 'group.orgIntentions' | 'group.delegated' | 'group.completed'
+  | 'board.newBoard' | 'board.myProject'
+  | 'settings.language' | 'settings.languageDesc'
+  | 'settings.langAuto' | 'settings.langEn' | 'settings.langRu'
+  | 'settings.defaultPriority' | 'settings.defaultPriorityDesc'
+  | 'priority.low' | 'priority.medium' | 'priority.high'
+  | 'status.new' | 'status.inProgress' | 'status.waiting' | 'status.completed'
+  | 'modal.editTask' | 'modal.newTask'
+  | 'taskCard.deleteTask'
+  | 'boardSettings.heading' | 'boardSettings.title' | 'boardSettings.description'
+  | 'boardSettings.deleteBoard' | 'boardSettings.confirmDelete'
+  | 'boardSettings.no' | 'boardSettings.cancel' | 'boardSettings.save'
+  | 'groupSettings.heading' | 'groupSettings.wipLimit' | 'groupSettings.wipPlaceholder'
+  | 'groupSettings.retentionLabel' | 'groupSettings.cancel' | 'groupSettings.save'
+  | 'groupHeader.settings' | 'groupHeader.addTask'
+  | 'boardHeader.settings' | 'boardHeader.createBoard'
+  | 'form.whatLabel' | 'form.whatPlaceholder'
+  | 'form.whyLabel' | 'form.whyPlaceholder'
+  | 'form.whoLabel' | 'form.whoPlaceholder'
+  | 'form.whenLabel' | 'form.priorityLabel' | 'form.statusLabel'
+  | 'form.createdAt' | 'form.completedAt'
+  | 'form.delete' | 'form.save'
+  | 'emptyState.backlog' | 'emptyState.focus' | 'emptyState.inProgress'
+  | 'emptyState.orgIntentions' | 'emptyState.delegated' | 'emptyState.completed'
+  | 'toast.deleted' | 'toast.seconds' | 'toast.undo'
+  | 'fallback.task';
+
+export type Translations = Record<TranslationKey, string>;

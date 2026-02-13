@@ -1,6 +1,8 @@
 import { App, Modal } from 'obsidian';
+import { get } from 'svelte/store';
 import TaskFormContent from '../ui/TaskFormContent.svelte';
 import type { Task, GroupId, Priority } from '../data/types';
+import { t } from '../i18n';
 
 export class TaskModal extends Modal {
   private component: TaskFormContent | null = null;
@@ -30,7 +32,8 @@ export class TaskModal extends Modal {
     const { contentEl } = this;
     contentEl.empty();
 
-    this.titleEl.setText(this.task ? 'Редактировать задачу' : 'Новая задача');
+    const tr = get(t);
+    this.titleEl.setText(this.task ? tr('modal.editTask') : tr('modal.newTask'));
 
     this.component = new TaskFormContent({
       target: contentEl,

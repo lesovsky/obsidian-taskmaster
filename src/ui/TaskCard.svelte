@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { Task } from '../data/types';
+  import { t } from '../i18n';
 
   export let task: Task;
   export let onClick: () => void;
@@ -48,6 +49,6 @@
   <button
     class="tm-task-card__delete clickable-icon"
     on:click|stopPropagation={onDelete}
-    title="Удалить задачу"
+    title={$t('taskCard.deleteTask')}
   >✕</button>
 </div>

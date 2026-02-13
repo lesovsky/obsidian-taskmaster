@@ -1,17 +1,10 @@
+import type { LanguageSetting } from '../i18n/types';
+
 export type Priority = 'low' | 'medium' | 'high';
 export type Status = 'new' | 'inProgress' | 'waiting' | 'completed';
 export type GroupId = 'backlog' | 'focus' | 'inProgress' | 'orgIntentions' | 'delegated' | 'completed';
 
 export const GROUP_IDS: GroupId[] = ['backlog', 'focus', 'inProgress', 'orgIntentions', 'delegated', 'completed'];
-
-export const GROUP_LABELS: Record<GroupId, string> = {
-  backlog: 'Бэклог',
-  focus: 'Фокус',
-  inProgress: 'В работе',
-  orgIntentions: 'Орг. намерения',
-  delegated: 'Делегировано',
-  completed: 'Завершённые',
-};
 
 export interface Task {
   id: string;
@@ -40,6 +33,7 @@ export interface Board {
 }
 
 export interface Settings {
+  language: LanguageSetting;
   defaultPriority: Priority;
 }
 

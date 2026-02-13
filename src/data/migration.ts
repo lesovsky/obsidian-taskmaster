@@ -1,5 +1,5 @@
 import type { PluginData } from './types';
-import { DEFAULT_DATA } from './defaults';
+import { DEFAULT_DATA, DEFAULT_SETTINGS } from './defaults';
 
 export function migrateData(data: unknown): PluginData {
   if (!data || typeof data !== 'object') {
@@ -13,5 +13,19 @@ export function migrateData(data: unknown): PluginData {
     return { ...DEFAULT_DATA, boards: [{ ...DEFAULT_DATA.boards[0] }] };
   }
 
-  return data as PluginData;
+  let result = data as PluginData;
+
+  if (version < 2) {
+    result = {
+      ...result,
+      version: 2,
+      settings: {
+        ...DEFAULT_SETTINGS,
+        ...result.settings,
+        language: 'auto',
+      },
+    };
+  }
+
+  return result;
 }

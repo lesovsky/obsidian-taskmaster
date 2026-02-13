@@ -1,0 +1,84 @@
+import type { Translations } from './types';
+
+export const ru: Translations = {
+  'group.backlog': 'Бэклог',
+  'group.focus': 'Фокус',
+  'group.inProgress': 'В работе',
+  'group.orgIntentions': 'Орг. намерения',
+  'group.delegated': 'Делегировано',
+  'group.completed': 'Завершённые',
+
+  'board.newBoard': 'Новая доска',
+  'board.myProject': 'Мой проект',
+
+  'settings.language': 'Язык',
+  'settings.languageDesc': 'Язык интерфейса плагина',
+  'settings.langAuto': 'Авто (Obsidian)',
+  'settings.langEn': 'English',
+  'settings.langRu': 'Русский',
+  'settings.defaultPriority': 'Приоритет по умолчанию',
+  'settings.defaultPriorityDesc': 'Приоритет, назначаемый новым задачам',
+
+  'priority.low': 'Низкий',
+  'priority.medium': 'Средний',
+  'priority.high': 'Высокий',
+
+  'status.new': 'Новая',
+  'status.inProgress': 'В работе',
+  'status.waiting': 'Ожидание',
+  'status.completed': 'Завершена',
+
+  'modal.editTask': 'Редактировать задачу',
+  'modal.newTask': 'Новая задача',
+
+  'taskCard.deleteTask': 'Удалить задачу',
+
+  'boardSettings.heading': 'Настройки доски',
+  'boardSettings.title': 'Название',
+  'boardSettings.description': 'Описание',
+  'boardSettings.deleteBoard': 'Удалить доску',
+  'boardSettings.confirmDelete': 'Подтвердить удаление',
+  'boardSettings.no': 'Нет',
+  'boardSettings.cancel': 'Отмена',
+  'boardSettings.save': 'Сохранить',
+
+  'groupSettings.heading': 'Настройки:',
+  'groupSettings.wipLimit': 'WIP-лимит',
+  'groupSettings.wipPlaceholder': 'Без лимита',
+  'groupSettings.retentionLabel': 'Хранить завершённые (дней)',
+  'groupSettings.cancel': 'Отмена',
+  'groupSettings.save': 'Сохранить',
+
+  'groupHeader.settings': 'Настройки группы',
+  'groupHeader.addTask': 'Добавить задачу',
+
+  'boardHeader.settings': 'Настройки доски',
+  'boardHeader.createBoard': 'Создать доску',
+
+  'form.whatLabel': 'Что нужно сделать *',
+  'form.whatPlaceholder': 'Описание задачи',
+  'form.whyLabel': 'Зачем',
+  'form.whyPlaceholder': 'Цель задачи',
+  'form.whoLabel': 'Кто',
+  'form.whoPlaceholder': 'Исполнитель',
+  'form.whenLabel': 'Когда',
+  'form.priorityLabel': 'Приоритет',
+  'form.statusLabel': 'Статус',
+  'form.createdAt': 'Создана:',
+  'form.completedAt': 'Завершена:',
+  'form.delete': 'Удалить',
+  'form.save': 'Сохранить',
+
+  'emptyState.backlog': 'Задачи на будущее. Складывайте сюда всё, что появляется на горизонте, но пока не готово к работе',
+  'emptyState.focus': 'Что сейчас требует вашего внимания? Перетащите сюда задачи, которые нельзя упускать из виду',
+  'emptyState.inProgress': 'Чем вы занимаетесь прямо сейчас? Добавьте задачи, над которыми работаете лично',
+  'emptyState.orgIntentions': 'Что запланировано на эту неделю? Разместите здесь цели, которые хотите закрыть до конца недели',
+  'emptyState.delegated': 'Что вы поручили другим? Добавьте задачи, переданные коллегам, чтобы не забыть проверить их статус',
+  'emptyState.completed': 'Пока пусто — завершённые задачи будут появляться здесь',
+
+  'toast.deleted': 'Удалено:',
+  'toast.seconds': 'с',
+  'toast.undo': 'Отменить',
+
+  'fallback.task': 'Задача',
+};

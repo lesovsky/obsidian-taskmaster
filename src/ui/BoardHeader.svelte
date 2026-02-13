@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { Board } from '../data/types';
+  import { t } from '../i18n';
   import { uiStore } from '../stores/uiStore';
   import { createBoard, updateBoard, deleteBoard } from '../stores/dataStore';
   import BoardSettingsPopup from './BoardSettingsPopup.svelte';
@@ -36,8 +37,8 @@
         <option value={b.id}>{b.title}</option>
       {/each}
     </select>
-    <button class="tm-board-header__icon clickable-icon" on:click={() => showSettings = true} title="Настройки доски">&#9881;</button>
-    <button class="tm-board-header__icon clickable-icon" on:click={onCreateBoard} title="Создать доску">+</button>
+    <button class="tm-board-header__icon clickable-icon" on:click={() => showSettings = true} title={$t('boardHeader.settings')}>&#9881;</button>
+    <button class="tm-board-header__icon clickable-icon" on:click={onCreateBoard} title={$t('boardHeader.createBoard')}>+</button>
   </div>
   {#if board.subtitle}
     <div class="tm-board-header__subtitle">{board.subtitle}</div>

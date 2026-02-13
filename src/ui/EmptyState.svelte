@@ -1,18 +1,13 @@
 <script lang="ts">
   import type { GroupId } from '../data/types';
+  import type { TranslationKey } from '../i18n/types';
+  import { t } from '../i18n';
 
   export let groupId: GroupId;
 
-  const hints: Record<GroupId, string> = {
-    backlog: 'Задачи на будущее. Складывайте сюда всё, что появляется на горизонте, но пока не готово к работе',
-    focus: 'Что сейчас требует вашего внимания? Перетащите сюда задачи, которые нельзя упускать из виду',
-    inProgress: 'Чем вы занимаетесь прямо сейчас? Добавьте задачи, над которыми работаете лично',
-    orgIntentions: 'Что запланировано на эту неделю? Разместите здесь цели, которые хотите закрыть до конца недели',
-    delegated: 'Что вы поручили другим? Добавьте задачи, переданные коллегам, чтобы не забыть проверить их статус',
-    completed: 'Пока пусто — завершённые задачи будут появляться здесь',
-  };
+  $: key = `emptyState.${groupId}` as TranslationKey;
 </script>
 
 <div class="tm-empty-state">
-  {hints[groupId]}
+  {$t(key)}
 </div>

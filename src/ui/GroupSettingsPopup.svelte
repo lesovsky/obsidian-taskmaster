@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Group, GroupId } from '../data/types';
-  import { GROUP_LABELS } from '../data/types';
+  import { t, groupLabels } from '../i18n';
 
   export let groupId: GroupId;
   export let group: Group;
@@ -24,23 +24,23 @@
 
 <div class="tm-popup-overlay" on:click={onClose} on:keydown role="presentation">
   <div class="tm-popup" on:click|stopPropagation on:keydown|stopPropagation role="dialog">
-    <h3 class="tm-popup__title">Настройки: {GROUP_LABELS[groupId]}</h3>
+    <h3 class="tm-popup__title">{$t('groupSettings.heading')} {$groupLabels[groupId]}</h3>
 
     <div class="tm-popup__field">
-      <label class="tm-popup__label" for="tm-wip">WIP-лимит</label>
-      <input id="tm-wip" class="tm-popup__input" type="number" min="1" bind:value={wipLimitStr} placeholder="Без лимита" />
+      <label class="tm-popup__label" for="tm-wip">{$t('groupSettings.wipLimit')}</label>
+      <input id="tm-wip" class="tm-popup__input" type="number" min="1" bind:value={wipLimitStr} placeholder={$t('groupSettings.wipPlaceholder')} />
     </div>
 
     {#if groupId === 'completed'}
       <div class="tm-popup__field">
-        <label class="tm-popup__label" for="tm-retention">Хранить завершённые (дней)</label>
+        <label class="tm-popup__label" for="tm-retention">{$t('groupSettings.retentionLabel')}</label>
         <input id="tm-retention" class="tm-popup__input" type="number" min="1" bind:value={retentionStr} placeholder="30" />
       </div>
     {/if}
 
     <div class="tm-popup__actions">
-      <button class="tm-popup__btn" on:click={onClose}>Отмена</button>
-      <button class="tm-popup__btn tm-popup__btn--primary" on:click={handleSave}>Сохранить</button>
+      <button class="tm-popup__btn" on:click={onClose}>{$t('groupSettings.cancel')}</button>
+      <button class="tm-popup__btn tm-popup__btn--primary" on:click={handleSave}>{$t('groupSettings.save')}</button>
     </div>
   </div>
 </div>
