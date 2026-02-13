@@ -1,0 +1,10 @@
+{
+  "id": "obsidian-taskmaster",
+  "name": "TaskMaster",
+  "version": "0.1.0",
+  "minAppVersion": "1.0.0",
+  "description": "Task management with SMART cards and visual board for project managers",
+  "author": "lesovsky",
+  "authorUrl": "https://github.com/lesovsky",
+  "isDesktopOnly": false
+}
