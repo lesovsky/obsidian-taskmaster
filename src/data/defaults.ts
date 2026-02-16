@@ -30,6 +30,7 @@ export function createDefaultBoard(title = 'New board'): Board {
 export const DEFAULT_SETTINGS: Settings = {
   language: 'auto',
   defaultPriority: 'medium',
+  cardView: 'default',
 };
 
 export const DEFAULT_DATA: PluginData = {

@@ -27,5 +27,10 @@ export function migrateData(data: unknown): PluginData {
     };
   }
 
+  // Ensure cardView exists (backward compatibility for version 2 without this field)
+  if (result.settings.cardView === undefined) {
+    result.settings.cardView = DEFAULT_SETTINGS.cardView;
+  }
+
   return result;
 }

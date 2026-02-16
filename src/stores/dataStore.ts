@@ -1,5 +1,5 @@
 import { writable, get } from 'svelte/store';
-import type { PluginData, Task, GroupId, Board } from '../data/types';
+import type { PluginData, Task, GroupId, Board, Settings } from '../data/types';
 import { DEFAULT_DATA, createDefaultBoard } from '../data/defaults';
 import { pluginStore } from './pluginStore';
 import { uiStore } from './uiStore';
@@ -157,6 +157,14 @@ export function deleteBoard(boardId: string): void {
 
   const data = get(dataStore);
   uiStore.update(ui => ({ ...ui, activeBoardId: data.boards[0]?.id ?? '' }));
+  persist();
+}
+
+export function updateSettings(newSettings: Partial<Settings>): void {
+  dataStore.update(data => {
+    data.settings = { ...data.settings, ...newSettings };
+    return data;
+  });
   persist();
 }
 

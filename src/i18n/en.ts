@@ -18,6 +18,10 @@ export const en: Translations = {
   'settings.langRu': 'Русский',
   'settings.defaultPriority': 'Default priority',
   'settings.defaultPriorityDesc': 'Priority assigned to new tasks',
+  'settings.cardView': 'Card view',
+  'settings.cardViewDesc': 'Choose how task cards are displayed',
+  'settings.cardViewDefault': 'Default (3 lines)',
+  'settings.cardViewCompact': 'Compact (1 line)',
 
   'priority.low': 'Low',
   'priority.medium': 'Medium',

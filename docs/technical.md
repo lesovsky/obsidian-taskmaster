@@ -124,9 +124,14 @@ interface Board {
   groups: Record<GroupId, Group>;  // 6 фиксированных групп
 }
 
+// Режим отображения карточек
+type CardView = 'default' | 'compact';
+
 // Глобальные настройки
 interface Settings {
+  language: LanguageSetting;      // Язык интерфейса ('auto' | 'en' | 'ru')
   defaultPriority: Priority;      // Приоритет по умолчанию
+  cardView: CardView;             // Режим отображения карточек
 }
 
 // Корневая структура data.json
@@ -424,9 +429,130 @@ SortableJS поддерживает автоскролл при перетаск
 
 | Настройка | Тип | Значение по умолчанию |
 |-----------|-----|----------------------|
+| Язык интерфейса | Dropdown: Auto (Obsidian) / English / Русский | Auto |
+| Вид карточек | Dropdown: Обычный (3 строки) / Компактный (1 строка) | Обычный |
 | Приоритет по умолчанию | Dropdown: низкий / средний / высокий | средний |
 
 Per-board настройки (WIP-лимиты, срок автоочистки) управляются через popup «...» в интерфейсе доски.
+
+---
+
+## Компактный режим карточек
+
+### Визуальная структура
+
+**Обычный режим (default):**
+- 3 строки: верхняя (иконки + дедлайн), описание, исполнитель
+- Вертикальный layout
+- Дедлайн в полном формате: `2026-03-24`
+
+**Компактный режим (compact):**
+- 1 строка: иконки → исполнитель → описание → дедлайн → кнопка удаления
+- Горизонтальный flexbox layout
+- Дедлайн в сокращённом формате через `formatDeadlineShort()`
+
+### CSS-реализация
+
+```css
+.tm-task-card--compact {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.5rem;
+  min-height: 1.75rem;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+```
+
+**Ширины секций:**
+
+| Секция | Ширина | Обрезка | Tooltip |
+|--------|--------|---------|---------|
+| Иконки (приоритет + статус) | `2.5rem` (фиксированная) | Нет | Нет |
+| Исполнитель | `7rem` (фиксированная) | `text-overflow: ellipsis` | `title={task.who}` |
+| Описание | `flex: 1` (гибкая) | `text-overflow: ellipsis` | `title={task.what}` |
+| Дедлайн | `4.5rem` (фиксированная) | Нет | Нет |
+| Кнопка удаления | `1.25rem` (фиксированная) | Нет | Нет |
+
+**Предотвращение растягивания:**
+
+Для корректной работы обрезки на всех уровнях иерархии установлены ограничения:
+
+```css
+.tm-task-group {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.tm-collapsible-group {
+  min-width: 0;
+  overflow: hidden;
+}
+```
+
+Это предотвращает растягивание групп и доски длинным содержимым карточек.
+
+### Форматирование дедлайна
+
+Функция `formatDeadlineShort()` (в `utils/dateFormat.ts`) сжимает дату в зависимости от контекста:
+
+```typescript
+export function formatDeadlineShort(dateStr: string): string {
+  if (!dateStr) return '';
+
+  const today = new Date();
+  const deadline = new Date(dateStr);
+
+  if (isNaN(deadline.getTime())) return dateStr; // fallback
+
+  const isSameYear = today.getFullYear() === deadline.getFullYear();
+  const isSameMonth = today.getMonth() === deadline.getMonth();
+
+  if (isSameYear && isSameMonth) {
+    return deadline.getDate().toString(); // "24"
+  }
+
+  const day = deadline.getDate().toString().padStart(2, '0');
+  const month = (deadline.getMonth() + 1).toString().padStart(2, '0');
+
+  if (isSameYear) {
+    return `${month}-${day}`; // "03-24"
+  }
+
+  const yearShort = deadline.getFullYear().toString().slice(-2);
+  return `${day} '${yearShort}`; // "24 '27"
+}
+```
+
+**Примеры:**
+- Сегодня 16.02.2026, дедлайн 24.02.2026 → `"24"`
+- Сегодня 16.02.2026, дедлайн 24.03.2026 → `"03-24"`
+- Сегодня 16.02.2026, дедлайн 24.03.2027 → `"24 '27"`
+
+### Переключение режимов
+
+Изменение настройки `cardView` в Settings Tab вызывает `dataStore.set()` → все компоненты TaskCard реагируют на изменение через reactive-выражение:
+
+```typescript
+$: isCompact = $dataStore.settings.cardView === 'compact';
+```
+
+Перерисовка происходит мгновенно без перезагрузки плагина.
+
+### Миграция данных
+
+При загрузке старых данных без поля `cardView`:
+
+```typescript
+if (result.settings.cardView === undefined) {
+  result.settings.cardView = DEFAULT_SETTINGS.cardView; // 'default'
+}
+```
+
+Обратная совместимость гарантирована — пользователи видят обычный режим до первого изменения настройки.
 
 ---
 
@@ -475,7 +601,7 @@ obsidian-taskmaster/
 │   ├── modals/
 │   │   └── TaskModal.ts       — Obsidian Modal обёртка для TaskFormContent
 │   ├── utils/
-│   │   └── dateFormat.ts      — утилита форматирования дат (YYYY-MM-DD)
+│   │   └── dateFormat.ts      — утилиты форматирования дат (formatDate для YYYY-MM-DD, formatDeadlineShort для компактного отображения)
 │   ├── settings.ts            — Settings Tab (глобальные настройки)
 │   └── styles.css             — все стили плагина (классы с tm- префиксом, BEM)
 ├── manifest.json
@@ -510,3 +636,6 @@ obsidian-taskmaster/
 | XSS-защита | Запрет `{@html}`, только `{variable}` | Экранирование пользовательского ввода |
 | Toast-стакинг | Макс. 3, старый вытесняется новым | Предотвращение засорения экрана |
 | Создание доски | Без модалки, дефолтное название | Минимум шагов, переименование через «...» |
+| Компактный режим | Flexbox, fixed widths, text-overflow: ellipsis | Плотное отображение для списков с 10+ задачами |
+| Дедлайн compact | Адаптивный формат (день / месяц-день / день 'год) | Экономия места, контекстная точность |
+| min-width: 0 | На всех уровнях иерархии (group, card) | Предотвращение растягивания flexbox/grid длинным контентом |

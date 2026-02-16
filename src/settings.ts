@@ -40,6 +40,23 @@ export class TaskMasterSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
+      .setName(tr('settings.cardView'))
+      .setDesc(tr('settings.cardViewDesc'))
+      .addDropdown(dd =>
+        dd
+          .addOptions({
+            default: tr('settings.cardViewDefault'),
+            compact: tr('settings.cardViewCompact'),
+          })
+          .setValue(this.plugin.data.settings.cardView)
+          .onChange(async (value) => {
+            this.plugin.data.settings.cardView = value as 'default' | 'compact';
+            dataStore.set(this.plugin.data);
+            await this.plugin.savePluginData();
+          })
+      );
+
+    new Setting(containerEl)
       .setName(tr('settings.defaultPriority'))
       .setDesc(tr('settings.defaultPriorityDesc'))
       .addDropdown(dd =>

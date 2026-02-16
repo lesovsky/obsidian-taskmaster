@@ -18,6 +18,10 @@ export const ru: Translations = {
   'settings.langRu': 'Русский',
   'settings.defaultPriority': 'Приоритет по умолчанию',
   'settings.defaultPriorityDesc': 'Приоритет, назначаемый новым задачам',
+  'settings.cardView': 'Вид карточек',
+  'settings.cardViewDesc': 'Как отображать карточки задач',
+  'settings.cardViewDefault': 'Обычный (3 строки)',
+  'settings.cardViewCompact': 'Компактный (1 строка)',
 
   'priority.low': 'Низкий',
   'priority.medium': 'Средний',
