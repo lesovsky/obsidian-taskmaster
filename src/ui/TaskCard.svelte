@@ -7,6 +7,8 @@
   export let task: Task;
   export let onClick: () => void;
   export let onDelete: () => void;
+  export let onComplete: () => void;
+  export let isInCompletedGroup: boolean = false;
 
   const priorityIcons: Record<string, string> = {
     high: '🔴',
@@ -51,6 +53,13 @@
       </span>
     {/if}
     <button
+      class="tm-task-card__complete-compact clickable-icon"
+      class:tm-task-card__complete--done={isInCompletedGroup}
+      on:click|stopPropagation={onComplete}
+      disabled={isInCompletedGroup}
+      title={isInCompletedGroup ? $t('taskCard.alreadyCompleted') : $t('taskCard.completeTask')}
+    >☑</button>
+    <button
       class="tm-task-card__delete-compact clickable-icon"
       on:click|stopPropagation={onDelete}
       title={$t('taskCard.deleteTask')}
@@ -79,6 +88,13 @@
     {#if task.who}
       <div class="tm-task-card__who">👤 {task.who}</div>
     {/if}
+    <button
+      class="tm-task-card__complete clickable-icon"
+      class:tm-task-card__complete--done={isInCompletedGroup}
+      on:click|stopPropagation={onComplete}
+      disabled={isInCompletedGroup}
+      title={isInCompletedGroup ? $t('taskCard.alreadyCompleted') : $t('taskCard.completeTask')}
+    >☑</button>
     <button
       class="tm-task-card__delete clickable-icon"
       on:click|stopPropagation={onDelete}

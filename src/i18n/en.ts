@@ -36,6 +36,8 @@ export const en: Translations = {
   'modal.newTask': 'New Task',
 
   'taskCard.deleteTask': 'Delete task',
+  'taskCard.completeTask': 'Complete task',
+  'taskCard.alreadyCompleted': 'Task already completed',
 
   'boardSettings.heading': 'Board Settings',
   'boardSettings.title': 'Title',
@@ -81,6 +83,7 @@ export const en: Translations = {
   'emptyState.completed': 'Nothing here yet — completed tasks will appear here',
 
   'toast.deleted': 'Deleted:',
+  'toast.completed': 'Completed:',
   'toast.seconds': 's',
   'toast.undo': 'Undo',
 

@@ -1,5 +1,5 @@
 import { writable, get } from 'svelte/store';
-import type { PluginData, Task, GroupId, Board, Settings } from '../data/types';
+import type { PluginData, Task, GroupId, Board, Settings, Status } from '../data/types';
 import { DEFAULT_DATA, createDefaultBoard } from '../data/defaults';
 import { pluginStore } from './pluginStore';
 import { uiStore } from './uiStore';
@@ -68,6 +68,73 @@ export function finalDeleteTask(taskId: string): void {
     delete data.tasks[taskId];
     return data;
   });
+  persist();
+}
+
+export function quickCompleteTask(
+  taskId: string,
+  sourceGroupId: GroupId,
+  boardId: string,
+): { position: number; previousStatus: Status; previousCompletedAt: string } | null {
+  let result: { position: number; previousStatus: Status; previousCompletedAt: string } | null = null;
+
+  dataStore.update(data => {
+    const board = data.boards.find(b => b.id === boardId);
+    if (!board) return data;
+
+    const sourceArr = board.groups[sourceGroupId].taskIds;
+    const idx = sourceArr.indexOf(taskId);
+    if (idx === -1) return data;
+
+    const task = data.tasks[taskId];
+    if (!task) return data;
+
+    result = {
+      position: idx,
+      previousStatus: task.status,
+      previousCompletedAt: task.completedAt,
+    };
+
+    sourceArr.splice(idx, 1);
+    board.groups.completed.taskIds.unshift(taskId);
+
+    task.status = 'completed';
+    task.completedAt = formatDate(new Date());
+
+    return data;
+  });
+
+  persist();
+  return result;
+}
+
+export function undoQuickComplete(
+  taskId: string,
+  sourceGroupId: GroupId,
+  boardId: string,
+  position: number,
+  previousStatus: Status,
+  previousCompletedAt: string,
+): void {
+  dataStore.update(data => {
+    const board = data.boards.find(b => b.id === boardId);
+    if (!board) return data;
+
+    const completedArr = board.groups.completed.taskIds;
+    const completedIdx = completedArr.indexOf(taskId);
+    if (completedIdx !== -1) completedArr.splice(completedIdx, 1);
+
+    board.groups[sourceGroupId].taskIds.splice(position, 0, taskId);
+
+    const task = data.tasks[taskId];
+    if (task) {
+      task.status = previousStatus;
+      task.completedAt = previousCompletedAt;
+    }
+
+    return data;
+  });
+
   persist();
 }
 

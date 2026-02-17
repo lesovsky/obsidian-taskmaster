@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Board, GroupId, Task } from '../data/types';
   import { t } from '../i18n';
-  import { addTask, updateTask, removeTaskFromGroup, restoreTaskToGroup, finalDeleteTask, updateGroupSettings } from '../stores/dataStore';
+  import { addTask, updateTask, removeTaskFromGroup, restoreTaskToGroup, finalDeleteTask, updateGroupSettings, quickCompleteTask, undoQuickComplete } from '../stores/dataStore';
   import { dataStore } from '../stores/dataStore';
   import { uiStore } from '../stores/uiStore';
   import { pluginStore } from '../stores/pluginStore';
@@ -59,19 +59,25 @@
     ).open();
   }
 
-  function handleDelete(taskId: string, groupId: GroupId) {
-    const result = removeTaskFromGroup(taskId, groupId, board.id);
-    if (!result) return;
-
+  function evictOldestToastIfNeeded(): void {
     uiStore.update(ui => {
       if (ui.toasts.length >= MAX_TOASTS) {
         const oldest = ui.toasts[0];
         clearTimeout(oldest.timerId);
-        finalDeleteTask(oldest.taskId);
+        if (oldest.type === 'delete') {
+          finalDeleteTask(oldest.taskId);
+        }
         ui.toasts = ui.toasts.slice(1);
       }
       return ui;
     });
+  }
+
+  function handleDelete(taskId: string, groupId: GroupId) {
+    const result = removeTaskFromGroup(taskId, groupId, board.id);
+    if (!result) return;
+
+    evictOldestToastIfNeeded();
 
     const expiresAt = Date.now() + 7000;
     const timerId = setTimeout(() => {
@@ -87,6 +93,7 @@
       toasts: [
         ...ui.toasts,
         {
+          type: 'delete',
           taskId,
           groupId,
           boardId: board.id,
@@ -98,13 +105,54 @@
     }));
   }
 
+  function handleComplete(taskId: string, sourceGroupId: GroupId) {
+    if (sourceGroupId === 'completed') return;
+
+    const result = quickCompleteTask(taskId, sourceGroupId, board.id);
+    if (!result) return;
+
+    evictOldestToastIfNeeded();
+
+    const expiresAt = Date.now() + 7000;
+    const timerId = setTimeout(() => {
+      uiStore.update(ui => ({
+        ...ui,
+        toasts: ui.toasts.filter(t => t.taskId !== taskId),
+      }));
+    }, 7000);
+
+    uiStore.update(ui => ({
+      ...ui,
+      toasts: [
+        ...ui.toasts,
+        {
+          type: 'complete',
+          taskId,
+          groupId: sourceGroupId,
+          boardId: board.id,
+          position: result.position,
+          timerId,
+          expiresAt,
+          previousStatus: result.previousStatus,
+          previousCompletedAt: result.previousCompletedAt,
+        },
+      ],
+    }));
+  }
+
   function handleUndo(taskId: string) {
     const ui = get(uiStore);
     const toast = ui.toasts.find(t => t.taskId === taskId);
     if (!toast) return;
 
     clearTimeout(toast.timerId);
-    restoreTaskToGroup(taskId, toast.groupId as GroupId, toast.boardId, toast.position);
+
+    if (toast.type === 'delete') {
+      restoreTaskToGroup(taskId, toast.groupId, toast.boardId, toast.position);
+    } else {
+      undoQuickComplete(taskId, toast.groupId, toast.boardId, toast.position, toast.previousStatus, toast.previousCompletedAt);
+    }
+
     uiStore.update(u => ({
       ...u,
       toasts: u.toasts.filter(t => t.taskId !== taskId),
@@ -129,6 +177,7 @@
       onAdd={() => openCreateModal('backlog')}
       onCardClick={(task) => openEditModal(task, 'backlog')}
       onCardDelete={(taskId) => handleDelete(taskId, 'backlog')}
+      onCardComplete={(taskId) => handleComplete(taskId, 'backlog')}
       onSettings={() => openGroupSettings('backlog')}
     />
   </div>
@@ -141,6 +190,7 @@
       onAdd={() => openCreateModal('focus')}
       onCardClick={(task) => openEditModal(task, 'focus')}
       onCardDelete={(taskId) => handleDelete(taskId, 'focus')}
+      onCardComplete={(taskId) => handleComplete(taskId, 'focus')}
       onSettings={() => openGroupSettings('focus')}
     />
     <TaskGroup
@@ -150,6 +200,7 @@
       onAdd={() => openCreateModal('inProgress')}
       onCardClick={(task) => openEditModal(task, 'inProgress')}
       onCardDelete={(taskId) => handleDelete(taskId, 'inProgress')}
+      onCardComplete={(taskId) => handleComplete(taskId, 'inProgress')}
       onSettings={() => openGroupSettings('inProgress')}
     />
   </div>
@@ -162,6 +213,7 @@
       onAdd={() => openCreateModal('orgIntentions')}
       onCardClick={(task) => openEditModal(task, 'orgIntentions')}
       onCardDelete={(taskId) => handleDelete(taskId, 'orgIntentions')}
+      onCardComplete={(taskId) => handleComplete(taskId, 'orgIntentions')}
       onSettings={() => openGroupSettings('orgIntentions')}
     />
   </div>
@@ -174,6 +226,7 @@
       onAdd={() => openCreateModal('delegated')}
       onCardClick={(task) => openEditModal(task, 'delegated')}
       onCardDelete={(taskId) => handleDelete(taskId, 'delegated')}
+      onCardComplete={(taskId) => handleComplete(taskId, 'delegated')}
       onSettings={() => openGroupSettings('delegated')}
     />
   </div>
@@ -187,6 +240,7 @@
       onAdd={null}
       onCardClick={(task) => openEditModal(task, 'completed')}
       onCardDelete={(taskId) => handleDelete(taskId, 'completed')}
+      onCardComplete={(taskId) => handleComplete(taskId, 'completed')}
       onSettings={() => openGroupSettings('completed')}
     />
   </div>
@@ -196,7 +250,9 @@
   <div class="tm-toasts">
     {#each $uiStore.toasts as toast (toast.taskId)}
       <DeleteToast
-        taskName={tasks[toast.taskId]?.what ?? $t('fallback.task')}
+        message={toast.type === 'delete'
+          ? `${$t('toast.deleted')} ${tasks[toast.taskId]?.what ?? $t('fallback.task')}`
+          : `${$t('toast.completed')} ${tasks[toast.taskId]?.what ?? $t('fallback.task')}`}
         expiresAt={toast.expiresAt}
         onUndo={() => handleUndo(toast.taskId)}
         onExpire={() => handleToastExpire(toast.taskId)}

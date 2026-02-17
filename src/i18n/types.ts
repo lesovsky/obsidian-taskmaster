@@ -12,6 +12,8 @@ export type TranslationKey =
   | 'status.new' | 'status.inProgress' | 'status.waiting' | 'status.completed'
   | 'modal.editTask' | 'modal.newTask'
   | 'taskCard.deleteTask'
+  | 'taskCard.completeTask'
+  | 'taskCard.alreadyCompleted'
   | 'boardSettings.heading' | 'boardSettings.title' | 'boardSettings.description'
   | 'boardSettings.deleteBoard' | 'boardSettings.confirmDelete'
   | 'boardSettings.no' | 'boardSettings.cancel' | 'boardSettings.save'
@@ -27,7 +29,7 @@ export type TranslationKey =
   | 'form.delete' | 'form.save'
   | 'emptyState.backlog' | 'emptyState.focus' | 'emptyState.inProgress'
   | 'emptyState.orgIntentions' | 'emptyState.delegated' | 'emptyState.completed'
-  | 'toast.deleted' | 'toast.seconds' | 'toast.undo'
+  | 'toast.deleted' | 'toast.completed' | 'toast.seconds' | 'toast.undo'
   | 'fallback.task';
 
 export type Translations = Record<TranslationKey, string>;

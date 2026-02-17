@@ -36,6 +36,8 @@ export const ru: Translations = {
   'modal.newTask': 'Новая задача',
 
   'taskCard.deleteTask': 'Удалить задачу',
+  'taskCard.completeTask': 'Завершить задачу',
+  'taskCard.alreadyCompleted': 'Задача уже завершена',
 
   'boardSettings.heading': 'Настройки доски',
   'boardSettings.title': 'Название',
@@ -81,6 +83,7 @@ export const ru: Translations = {
   'emptyState.completed': 'Пока пусто — завершённые задачи будут появляться здесь',
 
   'toast.deleted': 'Удалено:',
+  'toast.completed': 'Завершена:',
   'toast.seconds': 'с',
   'toast.undo': 'Отменить',
 

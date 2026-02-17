@@ -13,6 +13,7 @@
   export let onAdd: (() => void) | null = null;
   export let onCardClick: ((task: Task) => void) | null = null;
   export let onCardDelete: ((taskId: string) => void) | null = null;
+  export let onCardComplete: ((taskId: string) => void) | null = null;
   export let onSettings: (() => void) | null = null;
 
   $: collapsed = group.collapsed;
@@ -66,6 +67,8 @@
             {task}
             onClick={() => onCardClick && onCardClick(task)}
             onDelete={() => onCardDelete && onCardDelete(task.id)}
+            onComplete={() => onCardComplete && onCardComplete(task.id)}
+            isInCompletedGroup={groupId === 'completed'}
           />
         {/each}
       {/if}
