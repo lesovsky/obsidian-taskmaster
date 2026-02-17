@@ -227,6 +227,26 @@ export function deleteBoard(boardId: string): void {
   persist();
 }
 
+export function updateBoardNotes(boardId: string, notes: string): void {
+  dataStore.update(data => {
+    const board = data.boards.find(b => b.id === boardId);
+    if (!board) return data;
+    board.notes = notes;
+    return data;
+  });
+  persist();
+}
+
+export function toggleNotesCollapsed(boardId: string): void {
+  dataStore.update(data => {
+    const board = data.boards.find(b => b.id === boardId);
+    if (!board) return data;
+    board.notesCollapsed = !board.notesCollapsed;
+    return data;
+  });
+  persist();
+}
+
 export function updateSettings(newSettings: Partial<Settings>): void {
   dataStore.update(data => {
     data.settings = { ...data.settings, ...newSettings };

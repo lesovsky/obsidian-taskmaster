@@ -691,3 +691,71 @@
 .tm-sortable-drag {
   opacity: 0.9;
 }
+
+/* ─── Notes Section ─── */
+
+.tm-notes-section {
+  margin-top: 0.5rem;
+}
+
+.tm-notes-section__header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: none;
+  background: var(--background-secondary);
+  color: var(--text-normal);
+  cursor: pointer;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.tm-notes-section__header:hover {
+  background: var(--background-modifier-hover);
+}
+
+.tm-notes-section__arrow {
+  font-size: 0.65rem;
+  transition: transform 150ms ease;
+  color: var(--text-muted);
+}
+
+.tm-notes-section__arrow--open {
+  transform: rotate(90deg);
+}
+
+.tm-notes-section__title {
+  color: var(--text-muted);
+}
+
+.tm-notes-section__body {
+  margin-top: 0.25rem;
+}
+
+.tm-notes-section__textarea {
+  width: 100%;
+  height: 8rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  background: var(--background-primary);
+  color: var(--text-normal);
+  font-family: inherit;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.tm-notes-section__textarea::placeholder {
+  color: var(--text-faint);
+}
+
+.tm-notes-section__textarea:focus {
+  outline: none;
+  border-color: var(--interactive-accent);
+  box-shadow: 0 0 0 2px var(--interactive-accent-hover);
+}

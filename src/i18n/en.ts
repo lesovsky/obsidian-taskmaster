@@ -89,4 +89,7 @@ export const en: Translations = {
   'toast.undo': 'Undo',
 
   'fallback.task': 'Task',
+
+  'notes.title': 'Notes',
+  'notes.placeholder': 'Quick notes, links, thoughts...',
 };

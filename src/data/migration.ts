@@ -32,5 +32,17 @@ export function migrateData(data: unknown): PluginData {
     result.settings.cardView = DEFAULT_SETTINGS.cardView;
   }
 
+  if (version < 3) {
+    for (const board of result.boards) {
+      if ((board as any).notes === undefined) {
+        board.notes = '';
+      }
+      if ((board as any).notesCollapsed === undefined) {
+        board.notesCollapsed = true;
+      }
+    }
+    result.version = 3;
+  }
+
   return result;
 }

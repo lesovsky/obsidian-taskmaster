@@ -30,6 +30,7 @@ export type TranslationKey =
   | 'emptyState.backlog' | 'emptyState.focus' | 'emptyState.inProgress'
   | 'emptyState.orgIntentions' | 'emptyState.delegated' | 'emptyState.completed'
   | 'toast.deleted' | 'toast.completed' | 'toast.seconds' | 'toast.undo'
-  | 'fallback.task';
+  | 'fallback.task'
+  | 'notes.title' | 'notes.placeholder';
 
 export type Translations = Record<TranslationKey, string>;

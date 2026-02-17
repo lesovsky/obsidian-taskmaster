@@ -89,4 +89,7 @@ export const ru: Translations = {
   'toast.undo': 'Отменить',
 
   'fallback.task': 'Задача',
+
+  'notes.title': 'Заметки',
+  'notes.placeholder': 'Быстрые заметки, ссылки, мысли...',
 };

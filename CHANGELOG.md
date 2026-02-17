@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Quick Notes section below the Completed group — a collapsible textarea for jotting down quick thoughts, links, and ideas without creating a full task. Per-board, auto-saved with debounce
 - New task status "Meeting" (📞) to visually distinguish calls and meetings from regular work tasks in daily planning
 - Quick Complete button (☑) on every task card — one click moves the task to the top of the Completed group with `completed` status, without opening the edit modal
 - Undo Quick Complete via toast notification (7-second window), unified with the delete undo queue (max 3 toasts)
@@ -17,7 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Toast type is now a discriminated union (`delete` | `complete`) for type-safe handling
 - Updated settings data structure with `language` and `cardView` fields
-- Data schema version updated to `2` with automatic migration
+- Data schema version updated to `3` with automatic migration
 
 ### Fixed
 - Fixed deadline date overlapping with action buttons in normal card mode

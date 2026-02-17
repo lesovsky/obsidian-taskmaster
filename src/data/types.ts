@@ -31,6 +31,8 @@ export interface Board {
   title: string;
   subtitle: string;
   groups: Record<GroupId, Group>;
+  notes: string;
+  notesCollapsed: boolean;
 }
 
 export interface Settings {

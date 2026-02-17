@@ -11,6 +11,7 @@
   import CollapsibleGroup from './CollapsibleGroup.svelte';
   import DeleteToast from './DeleteToast.svelte';
   import GroupSettingsPopup from './GroupSettingsPopup.svelte';
+  import NotesSection from './NotesSection.svelte';
 
   export let board: Board;
   export let tasks: Record<string, Task>;
@@ -242,6 +243,14 @@
       onCardDelete={(taskId) => handleDelete(taskId, 'completed')}
       onCardComplete={(taskId) => handleComplete(taskId, 'completed')}
       onSettings={() => openGroupSettings('completed')}
+    />
+  </div>
+
+  <div class="tm-board-layout__collapsible">
+    <NotesSection
+      boardId={board.id}
+      notes={board.notes}
+      collapsed={board.notesCollapsed}
     />
   </div>
 </div>
