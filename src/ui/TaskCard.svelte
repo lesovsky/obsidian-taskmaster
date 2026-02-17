@@ -20,6 +20,7 @@
     new: '📋',
     inProgress: '🛠️',
     waiting: '⏳',
+    meeting: '📞',
     completed: '✅',
   };
 

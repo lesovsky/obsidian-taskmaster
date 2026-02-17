@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- New task status "Meeting" (📞) to visually distinguish calls and meetings from regular work tasks in daily planning
 - Quick Complete button (☑) on every task card — one click moves the task to the top of the Completed group with `completed` status, without opening the edit modal
 - Undo Quick Complete via toast notification (7-second window), unified with the delete undo queue (max 3 toasts)
 - Compact card view mode for working with large task lists

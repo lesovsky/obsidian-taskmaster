@@ -100,6 +100,7 @@
         <option value="new">{$t('status.new')}</option>
         <option value="inProgress">{$t('status.inProgress')}</option>
         <option value="waiting">{$t('status.waiting')}</option>
+        <option value="meeting">{$t('status.meeting')}</option>
         <option value="completed">{$t('status.completed')}</option>
       </select>
     </div>

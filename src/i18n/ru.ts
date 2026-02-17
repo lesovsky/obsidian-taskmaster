@@ -30,6 +30,7 @@ export const ru: Translations = {
   'status.new': 'Новая',
   'status.inProgress': 'В работе',
   'status.waiting': 'Ожидание',
+  'status.meeting': 'Звонок',
   'status.completed': 'Завершена',
 
   'modal.editTask': 'Редактировать задачу',

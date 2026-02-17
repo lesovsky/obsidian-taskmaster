@@ -30,6 +30,7 @@ export const en: Translations = {
   'status.new': 'New',
   'status.inProgress': 'In Progress',
   'status.waiting': 'Waiting',
+  'status.meeting': 'Meeting',
   'status.completed': 'Completed',
 
   'modal.editTask': 'Edit Task',

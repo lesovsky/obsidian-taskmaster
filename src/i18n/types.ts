@@ -9,7 +9,7 @@ export type TranslationKey =
   | 'settings.langAuto' | 'settings.langEn' | 'settings.langRu'
   | 'settings.defaultPriority' | 'settings.defaultPriorityDesc'
   | 'priority.low' | 'priority.medium' | 'priority.high'
-  | 'status.new' | 'status.inProgress' | 'status.waiting' | 'status.completed'
+  | 'status.new' | 'status.inProgress' | 'status.waiting' | 'status.meeting' | 'status.completed'
   | 'modal.editTask' | 'modal.newTask'
   | 'taskCard.deleteTask'
   | 'taskCard.completeTask'
