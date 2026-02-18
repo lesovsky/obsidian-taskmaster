@@ -7,6 +7,9 @@
 **Key Documentation:**
 - Product overview: [docs/overview.md](docs/overview.md)
 - Technical spec: [docs/technical.md](docs/technical.md)
+- Feature specs: [docs/specs/](docs/specs/) — спецификации фич (`{N}-feat-{description}.md`)
+- Implementation plans: [docs/plans/](docs/plans/) — планы реализации (`{N}-feat-{description}-plan.md`)
+- Test scenarios: [docs/testing/](docs/testing/) — тестовые сценарии (`{N}-feat-{description}-testing.md`)
 - Changelog: [CHANGELOG.md](CHANGELOG.md), [CHANGELOG.ru.md](CHANGELOG.ru.md)
 
 ## Technology Stack
