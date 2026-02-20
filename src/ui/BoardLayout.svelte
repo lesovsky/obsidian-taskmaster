@@ -17,6 +17,7 @@
   export let tasks: Record<string, Task>;
 
   let settingsGroupId: GroupId | null = null;
+  $: hidden = new Set(board.hiddenGroups);
 
   function openGroupSettings(groupId: GroupId) {
     settingsGroupId = groupId;
@@ -169,82 +170,100 @@
 </script>
 
 <div class="tm-board-layout">
-  <div class="tm-board-layout__collapsible">
-    <CollapsibleGroup
-      groupId="backlog"
-      group={board.groups.backlog}
-      boardId={board.id}
-      {tasks}
-      onAdd={() => openCreateModal('backlog')}
-      onCardClick={(task) => openEditModal(task, 'backlog')}
-      onCardDelete={(taskId) => handleDelete(taskId, 'backlog')}
-      onCardComplete={(taskId) => handleComplete(taskId, 'backlog')}
-      onSettings={() => openGroupSettings('backlog')}
-    />
-  </div>
+  {#if !hidden.has('backlog')}
+    <div class="tm-board-layout__collapsible">
+      <CollapsibleGroup
+        groupId="backlog"
+        group={board.groups.backlog}
+        boardId={board.id}
+        {tasks}
+        onAdd={() => openCreateModal('backlog')}
+        onCardClick={(task) => openEditModal(task, 'backlog')}
+        onCardDelete={(taskId) => handleDelete(taskId, 'backlog')}
+        onCardComplete={(taskId) => handleComplete(taskId, 'backlog')}
+        onSettings={() => openGroupSettings('backlog')}
+      />
+    </div>
+  {/if}
 
-  <div class="tm-board-layout__row tm-board-layout__row--two">
-    <TaskGroup
-      groupId="focus"
-      group={board.groups.focus}
-      {tasks}
-      onAdd={() => openCreateModal('focus')}
-      onCardClick={(task) => openEditModal(task, 'focus')}
-      onCardDelete={(taskId) => handleDelete(taskId, 'focus')}
-      onCardComplete={(taskId) => handleComplete(taskId, 'focus')}
-      onSettings={() => openGroupSettings('focus')}
-    />
-    <TaskGroup
-      groupId="inProgress"
-      group={board.groups.inProgress}
-      {tasks}
-      onAdd={() => openCreateModal('inProgress')}
-      onCardClick={(task) => openEditModal(task, 'inProgress')}
-      onCardDelete={(taskId) => handleDelete(taskId, 'inProgress')}
-      onCardComplete={(taskId) => handleComplete(taskId, 'inProgress')}
-      onSettings={() => openGroupSettings('inProgress')}
-    />
-  </div>
+  {#if !hidden.has('focus') || !hidden.has('inProgress')}
+    <!-- show row if at least one is visible; --two only when both are visible -->
+    <div
+      class="tm-board-layout__row"
+      class:tm-board-layout__row--two={!hidden.has('focus') && !hidden.has('inProgress')}
+    >
+      {#if !hidden.has('focus')}
+        <TaskGroup
+          groupId="focus"
+          group={board.groups.focus}
+          {tasks}
+          onAdd={() => openCreateModal('focus')}
+          onCardClick={(task) => openEditModal(task, 'focus')}
+          onCardDelete={(taskId) => handleDelete(taskId, 'focus')}
+          onCardComplete={(taskId) => handleComplete(taskId, 'focus')}
+          onSettings={() => openGroupSettings('focus')}
+        />
+      {/if}
+      {#if !hidden.has('inProgress')}
+        <TaskGroup
+          groupId="inProgress"
+          group={board.groups.inProgress}
+          {tasks}
+          onAdd={() => openCreateModal('inProgress')}
+          onCardClick={(task) => openEditModal(task, 'inProgress')}
+          onCardDelete={(taskId) => handleDelete(taskId, 'inProgress')}
+          onCardComplete={(taskId) => handleComplete(taskId, 'inProgress')}
+          onSettings={() => openGroupSettings('inProgress')}
+        />
+      {/if}
+    </div>
+  {/if}
 
-  <div class="tm-board-layout__row">
-    <TaskGroup
-      groupId="orgIntentions"
-      group={board.groups.orgIntentions}
-      {tasks}
-      onAdd={() => openCreateModal('orgIntentions')}
-      onCardClick={(task) => openEditModal(task, 'orgIntentions')}
-      onCardDelete={(taskId) => handleDelete(taskId, 'orgIntentions')}
-      onCardComplete={(taskId) => handleComplete(taskId, 'orgIntentions')}
-      onSettings={() => openGroupSettings('orgIntentions')}
-    />
-  </div>
+  {#if !hidden.has('orgIntentions')}
+    <div class="tm-board-layout__row">
+      <TaskGroup
+        groupId="orgIntentions"
+        group={board.groups.orgIntentions}
+        {tasks}
+        onAdd={() => openCreateModal('orgIntentions')}
+        onCardClick={(task) => openEditModal(task, 'orgIntentions')}
+        onCardDelete={(taskId) => handleDelete(taskId, 'orgIntentions')}
+        onCardComplete={(taskId) => handleComplete(taskId, 'orgIntentions')}
+        onSettings={() => openGroupSettings('orgIntentions')}
+      />
+    </div>
+  {/if}
 
-  <div class="tm-board-layout__row">
-    <TaskGroup
-      groupId="delegated"
-      group={board.groups.delegated}
-      {tasks}
-      onAdd={() => openCreateModal('delegated')}
-      onCardClick={(task) => openEditModal(task, 'delegated')}
-      onCardDelete={(taskId) => handleDelete(taskId, 'delegated')}
-      onCardComplete={(taskId) => handleComplete(taskId, 'delegated')}
-      onSettings={() => openGroupSettings('delegated')}
-    />
-  </div>
+  {#if !hidden.has('delegated')}
+    <div class="tm-board-layout__row">
+      <TaskGroup
+        groupId="delegated"
+        group={board.groups.delegated}
+        {tasks}
+        onAdd={() => openCreateModal('delegated')}
+        onCardClick={(task) => openEditModal(task, 'delegated')}
+        onCardDelete={(taskId) => handleDelete(taskId, 'delegated')}
+        onCardComplete={(taskId) => handleComplete(taskId, 'delegated')}
+        onSettings={() => openGroupSettings('delegated')}
+      />
+    </div>
+  {/if}
 
-  <div class="tm-board-layout__collapsible">
-    <CollapsibleGroup
-      groupId="completed"
-      group={board.groups.completed}
-      boardId={board.id}
-      {tasks}
-      onAdd={null}
-      onCardClick={(task) => openEditModal(task, 'completed')}
-      onCardDelete={(taskId) => handleDelete(taskId, 'completed')}
-      onCardComplete={(taskId) => handleComplete(taskId, 'completed')}
-      onSettings={() => openGroupSettings('completed')}
-    />
-  </div>
+  {#if !hidden.has('completed')}
+    <div class="tm-board-layout__collapsible">
+      <CollapsibleGroup
+        groupId="completed"
+        group={board.groups.completed}
+        boardId={board.id}
+        {tasks}
+        onAdd={null}
+        onCardClick={(task) => openEditModal(task, 'completed')}
+        onCardDelete={(taskId) => handleDelete(taskId, 'completed')}
+        onCardComplete={(taskId) => handleComplete(taskId, 'completed')}
+        onSettings={() => openGroupSettings('completed')}
+      />
+    </div>
+  {/if}
 
   <div class="tm-board-layout__collapsible">
     <NotesSection
