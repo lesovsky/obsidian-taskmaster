@@ -646,6 +646,43 @@
 .tm-popup__textarea {
   resize: vertical;
 }
+.tm-popup__section {
+}
+.tm-popup__section-title {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin-bottom: 0.25rem;
+}
+.tm-popup__section-desc {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+}
+.tm-popup__group-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+.tm-popup__group-row:last-child {
+  border-bottom: none;
+}
+.tm-popup__group-name {
+  font-size: 0.9rem;
+  color: var(--text-normal);
+}
+.tm-popup__group-count {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+.tm-popup__group-toggle:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
 .tm-popup__actions {
   display: flex;
   align-items: center;

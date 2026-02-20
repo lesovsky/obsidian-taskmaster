@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Board } from '../data/types';
+  import type { Board, GroupId } from '../data/types';
   import { t } from '../i18n';
   import { uiStore } from '../stores/uiStore';
   import { createBoard, updateBoard, deleteBoard } from '../stores/dataStore';
@@ -19,7 +19,7 @@
     createBoard();
   }
 
-  function saveSettings(fields: { title: string; subtitle: string }) {
+  function saveSettings(fields: { title: string; subtitle: string; hiddenGroups: GroupId[] }) {
     updateBoard(board.id, fields);
     showSettings = false;
   }

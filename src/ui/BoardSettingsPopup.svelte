@@ -1,22 +1,25 @@
 <script lang="ts">
-  import type { Board } from '../data/types';
-  import { t } from '../i18n';
+  import type { Board, GroupId } from '../data/types';
+  import { GROUP_IDS } from '../data/types';
+  import { t, groupLabels } from '../i18n';
 
   export let board: Board;
   export let canDelete: boolean;
-  export let onSave: (fields: { title: string; subtitle: string }) => void;
+  export let onSave: (fields: { title: string; subtitle: string; hiddenGroups: GroupId[] }) => void;
   export let onDelete: () => void;
   export let onClose: () => void;
 
   let title = board.title;
   let subtitle = board.subtitle;
+  let hiddenGroups: GroupId[] = [...board.hiddenGroups];
   let confirmDelete = false;
 
   $: canSave = title.trim().length > 0;
+  $: visibleCount = GROUP_IDS.filter(id => !hiddenGroups.includes(id)).length;
 
   function handleSave() {
     if (!canSave) return;
-    onSave({ title: title.trim(), subtitle: subtitle.trim() });
+    onSave({ title: title.trim(), subtitle: subtitle.trim(), hiddenGroups });
   }
 </script>
 
@@ -32,6 +35,40 @@
     <div class="tm-popup__field">
       <label class="tm-popup__label" for="tm-board-subtitle">{$t('boardSettings.description')}</label>
       <textarea id="tm-board-subtitle" class="tm-popup__textarea" bind:value={subtitle} maxlength="500" rows="2"></textarea>
+    </div>
+
+    <div class="tm-popup__section">
+      <div class="tm-popup__section-title">{$t('boardSettings.groupVisibility')}</div>
+      <div class="tm-popup__section-desc">{$t('boardSettings.groupVisibilityDesc')}</div>
+      {#each GROUP_IDS as groupId}
+        {@const count = board.groups[groupId].taskIds.length}
+        {@const isVisible = !hiddenGroups.includes(groupId)}
+        {@const isLastVisible = visibleCount === 1 && isVisible}
+        <div
+          class="tm-popup__group-row"
+          title={isLastVisible ? $t('boardSettings.cannotHideLastGroup') : ''}
+        >
+          <span class="tm-popup__group-name">
+            {$groupLabels[groupId]}
+            {#if count > 0}
+              <span class="tm-popup__group-count">({count})</span>
+            {/if}
+          </span>
+          <input
+            type="checkbox"
+            class="tm-popup__group-toggle"
+            checked={isVisible}
+            disabled={isLastVisible}
+            on:change={() => {
+              if (isVisible && !hiddenGroups.includes(groupId)) {
+                hiddenGroups = [...hiddenGroups, groupId];
+              } else {
+                hiddenGroups = hiddenGroups.filter(id => id !== groupId);
+              }
+            }}
+          />
+        </div>
+      {/each}
     </div>
 
     <div class="tm-popup__actions">

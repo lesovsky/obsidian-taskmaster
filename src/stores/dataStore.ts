@@ -195,12 +195,13 @@ export function createBoard(): void {
   persist();
 }
 
-export function updateBoard(boardId: string, fields: { title: string; subtitle: string }): void {
+export function updateBoard(boardId: string, fields: { title: string; subtitle: string; hiddenGroups: GroupId[] }): void {
   dataStore.update(data => {
     const board = data.boards.find(b => b.id === boardId);
     if (board) {
       board.title = fields.title;
       board.subtitle = fields.subtitle;
+      board.hiddenGroups = fields.hiddenGroups;
     }
     return data;
   });
