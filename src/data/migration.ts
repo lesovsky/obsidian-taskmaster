@@ -44,5 +44,14 @@ export function migrateData(data: unknown): PluginData {
     result.version = 3;
   }
 
+  if (version < 4) {
+    for (const board of result.boards) {
+      if ((board as any).hiddenGroups === undefined) {
+        (board as any).hiddenGroups = [];
+      }
+    }
+    result.version = 4;
+  }
+
   return result;
 }

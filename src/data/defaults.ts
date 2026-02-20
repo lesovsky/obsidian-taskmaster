@@ -26,6 +26,7 @@ export function createDefaultBoard(title = 'New board'): Board {
     groups,
     notes: '',
     notesCollapsed: true,
+    hiddenGroups: [],
   };
 }
 
@@ -36,7 +37,7 @@ export const DEFAULT_SETTINGS: Settings = {
 };
 
 export const DEFAULT_DATA: PluginData = {
-  version: 3,
+  version: 4,
   settings: { ...DEFAULT_SETTINGS },
   boards: [createDefaultBoard('My Project')],
   tasks: {},
