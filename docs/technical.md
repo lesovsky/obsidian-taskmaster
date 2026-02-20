@@ -18,7 +18,7 @@
 
 ```json
 {
-  "version": 1,
+  "version": 4,
   "settings": {
     "defaultPriority": "medium"
   },
@@ -27,6 +27,7 @@
       "id": "uuid-board-1",
       "title": "Проект Alpha",
       "subtitle": "Разработка MVP таск-менеджера для Obsidian",
+      "hiddenGroups": [],
       "groups": {
         "backlog": {
           "taskIds": ["uuid-task-5", "uuid-task-8"],
@@ -121,7 +122,8 @@ interface Board {
   id: string;                     // UUID
   title: string;                  // Название доски
   subtitle: string;               // Подзаголовок (может быть пустым)
-  groups: Record<GroupId, Group>;  // 6 фиксированных групп
+  hiddenGroups: GroupId[];        // Список скрытых групп (по умолчанию [])
+  groups: Record<GroupId, Group>; // 6 фиксированных групп
 }
 
 // Режим отображения карточек
@@ -174,7 +176,7 @@ TaskMasterPlugin (extends Plugin)
 ```
 App.svelte                    — корневой компонент
 ├── BoardHeader.svelte        — селектор досок, заголовок, подзаголовок, кнопка "+"
-├── BoardLayout.svelte        — CSS Grid раскладка доски
+├── BoardLayout.svelte        — CSS Grid раскладка доски (рендерит только видимые группы)
 │   ├── CollapsibleGroup.svelte  — сворачиваемая группа (Бэклог, Завершённые)
 │   └── TaskGroup.svelte         — рабочая группа (Фокус, В работе, Орг. намерения, Делегировано)
 │       ├── GroupHeader.svelte    — заголовок группы, счётчик, WIP-индикация, меню "..."
@@ -182,7 +184,7 @@ App.svelte                    — корневой компонент
 │       └── EmptyState.svelte     — текст-подсказка для пустой группы
 ├── TaskFormContent.svelte    — содержимое модального окна (форма задачи), монтируется в Obsidian Modal
 ├── GroupSettingsPopup.svelte  — popup настроек группы (WIP-лимит, автоочистка)
-├── BoardSettingsPopup.svelte — popup настроек доски (переименование, удаление)
+├── BoardSettingsPopup.svelte — popup настроек доски (переименование, удаление, видимость групп)
 └── DeleteToast.svelte        — toast-уведомление при удалении с кнопкой «Отменить»
 ```
 
@@ -281,7 +283,7 @@ SortableJS — «уши» (слушает перетаскивание), Svelte 
 
 Нажатие «+» в заголовке:
 
-1. Создаётся новая доска с `title: "Новая доска"`, пустым `subtitle`, 6 пустыми группами с дефолтными настройками
+1. Создаётся новая доска с `title: "Новая доска"`, пустым `subtitle`, `hiddenGroups: []`, 6 пустыми группами с дефолтными настройками
 2. `saveData()`
 3. Активная доска переключается на новую
 
@@ -340,15 +342,29 @@ function migrateData(data: any): PluginData {
   if (version < 1) {
     data = migrateV0toV1(data);
   }
-  // if (version < 2) {
-  //   data = migrateV1toV2(data);
-  // }
+  if (version < 4) {
+    data = migrateV3toV4(data);
+  }
 
   return data as PluginData;
 }
 ```
 
 Миграции выполняются последовательно. После миграции данные пересохраняются.
+
+**Миграция v3 → v4** добавляет поле `hiddenGroups: []` к каждой существующей доске:
+
+```typescript
+function migrateV3toV4(data: any): any {
+  for (const board of data.boards ?? []) {
+    if (board.hiddenGroups === undefined) {
+      board.hiddenGroups = [];
+    }
+  }
+  data.version = 4;
+  return data;
+}
+```
 
 ---
 
@@ -372,6 +388,8 @@ function applyStatusTransition(task: Task, fromGroup: GroupId, toGroup: GroupId)
   // перемещение между рабочими группами — статус не меняется
 }
 ```
+
+Автоматические переходы статусов применяются к задачам во всех группах независимо от их видимости. Скрытая группа остаётся полноценной группой с точки зрения логики.
 
 ---
 
@@ -433,7 +451,28 @@ SortableJS поддерживает автоскролл при перетаск
 | Вид карточек | Dropdown: Обычный (3 строки) / Компактный (1 строка) | Обычный |
 | Приоритет по умолчанию | Dropdown: низкий / средний / высокий | средний |
 
-Per-board настройки (WIP-лимиты, срок автоочистки) управляются через popup «...» в интерфейсе доски.
+Per-board настройки (WIP-лимиты, срок автоочистки, видимость групп) управляются через popup «...» в интерфейсе доски.
+
+---
+
+## Настройки доски (BoardSettingsPopup)
+
+Popup «...» рядом с названием доски содержит следующие секции:
+
+- **Переименование** — изменение названия и подзаголовка доски
+- **Group Visibility** — управление видимостью групп: чекбокс для каждой из 6 групп, рядом с названием группы отображается счётчик задач `(N)` если задач больше нуля
+- **Удаление доски** — с диалогом подтверждения
+
+**Поведение секции Group Visibility:**
+
+- Снятие чекбокса скрывает группу с доски (добавляет `GroupId` в `board.hiddenGroups`)
+- Постановка чекбокса возвращает группу на доску (убирает `GroupId` из `board.hiddenGroups`)
+- Нельзя скрыть последнюю видимую группу — чекбокс последней оставшейся видимой группы заблокирован (`disabled`) с tooltip-подсказкой
+- Кнопка «Cancel» и клик по overlay сбрасывают несохранённые изменения видимости
+
+**Рендеринг доски:**
+
+`BoardLayout` фильтрует группы по `board.hiddenGroups` и рендерит только видимые. Задачи в скрытых группах хранятся в `data.tasks` и в `taskIds` группы — они не удаляются и не перемещаются.
 
 ---
 
@@ -602,6 +641,11 @@ obsidian-taskmaster/
 │   │   └── TaskModal.ts       — Obsidian Modal обёртка для TaskFormContent
 │   ├── utils/
 │   │   └── dateFormat.ts      — утилиты форматирования дат (formatDate для YYYY-MM-DD, formatDeadlineShort для компактного отображения)
+│   ├── i18n/
+│   │   ├── index.ts           — ядро i18n
+│   │   ├── types.ts           — типы i18n (TranslationKey и др.)
+│   │   ├── en.ts              — английские переводы
+│   │   └── ru.ts              — русские переводы
 │   ├── settings.ts            — Settings Tab (глобальные настройки)
 │   └── styles.css             — все стили плагина (классы с tm- префиксом, BEM)
 ├── manifest.json
@@ -639,3 +683,6 @@ obsidian-taskmaster/
 | Компактный режим | Flexbox, fixed widths, text-overflow: ellipsis | Плотное отображение для списков с 10+ задачами |
 | Дедлайн compact | Адаптивный формат (день / месяц-день / день 'год) | Экономия места, контекстная точность |
 | min-width: 0 | На всех уровнях иерархии (group, card) | Предотвращение растягивания flexbox/grid длинным контентом |
+| Видимость групп | `hiddenGroups: GroupId[]` в Board, фильтрация в BoardLayout | Простое хранение, задачи не перемещаются, логика не зависит от видимости |
+| Защита от скрытия всех групп | disabled чекбокс + tooltip для последней видимой группы | Гарантия рабочей доски, без модального диалога |
+| Отмена в BoardSettingsPopup | Cancel и overlay-клик сбрасывают черновик видимости | Безопасное редактирование без немедленного применения |
