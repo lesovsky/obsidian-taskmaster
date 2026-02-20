@@ -48,6 +48,9 @@ export const en: Translations = {
   'boardSettings.no': 'No',
   'boardSettings.cancel': 'Cancel',
   'boardSettings.save': 'Save',
+  'boardSettings.groupVisibility': 'Group Visibility',
+  'boardSettings.groupVisibilityDesc': 'Show or hide groups on this board',
+  'boardSettings.cannotHideLastGroup': 'At least one group must be visible',
 
   'groupSettings.heading': 'Settings:',
   'groupSettings.wipLimit': 'WIP limit',

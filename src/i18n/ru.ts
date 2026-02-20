@@ -48,6 +48,9 @@ export const ru: Translations = {
   'boardSettings.no': 'Нет',
   'boardSettings.cancel': 'Отмена',
   'boardSettings.save': 'Сохранить',
+  'boardSettings.groupVisibility': 'Видимость групп',
+  'boardSettings.groupVisibilityDesc': 'Показывать или скрывать группы на этой доске',
+  'boardSettings.cannotHideLastGroup': 'Хотя бы одна группа должна быть видима',
 
   'groupSettings.heading': 'Настройки:',
   'groupSettings.wipLimit': 'WIP-лимит',
