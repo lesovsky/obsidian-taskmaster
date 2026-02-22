@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { Board, GroupId } from '../data/types';
+  import { GROUP_IDS } from '../data/types';
   import { t } from '../i18n';
   import { uiStore } from '../stores/uiStore';
   import { createBoard, updateBoard, deleteBoard } from '../stores/dataStore';
@@ -19,8 +20,11 @@
     createBoard();
   }
 
-  function saveSettings(fields: { title: string; subtitle: string; hiddenGroups: GroupId[] }) {
-    updateBoard(board.id, fields);
+  function saveSettings(fields: { title: string; subtitle: string; hiddenGroups: GroupId[]; fullWidths: Record<GroupId, boolean> }) {
+    const groupFullWidths = Object.fromEntries(
+      GROUP_IDS.map(id => [id, fields.fullWidths[id]])
+    ) as Record<GroupId, boolean>;
+    updateBoard(board.id, { ...fields, groupFullWidths });
     showSettings = false;
   }
 

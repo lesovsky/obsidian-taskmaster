@@ -5,13 +5,16 @@
 
   export let board: Board;
   export let canDelete: boolean;
-  export let onSave: (fields: { title: string; subtitle: string; hiddenGroups: GroupId[] }) => void;
+  export let onSave: (fields: { title: string; subtitle: string; hiddenGroups: GroupId[]; fullWidths: Record<GroupId, boolean> }) => void;
   export let onDelete: () => void;
   export let onClose: () => void;
 
   let title = board.title;
   let subtitle = board.subtitle;
   let hiddenGroups: GroupId[] = [...board.hiddenGroups];
+  let fullWidths: Record<GroupId, boolean> = Object.fromEntries(
+    GROUP_IDS.map(id => [id, board.groups[id].fullWidth])
+  ) as Record<GroupId, boolean>;
   let confirmDelete = false;
 
   $: canSave = title.trim().length > 0;
@@ -19,7 +22,7 @@
 
   function handleSave() {
     if (!canSave) return;
-    onSave({ title: title.trim(), subtitle: subtitle.trim(), hiddenGroups });
+    onSave({ title: title.trim(), subtitle: subtitle.trim(), hiddenGroups, fullWidths });
   }
 </script>
 
@@ -40,6 +43,11 @@
     <div class="tm-popup__section">
       <div class="tm-popup__section-title">{$t('boardSettings.groupVisibility')}</div>
       <div class="tm-popup__section-desc">{$t('boardSettings.groupVisibilityDesc')}</div>
+      <div class="tm-popup__group-header">
+        <span class="tm-popup__group-header-name"></span>
+        <span class="tm-popup__group-header-col">{$t('boardSettings.groupVisibility')}</span>
+        <span class="tm-popup__group-header-col">{$t('boardSettings.fullWidth')}</span>
+      </div>
       {#each GROUP_IDS as groupId}
         {@const count = board.groups[groupId].taskIds.length}
         {@const isVisible = !hiddenGroups.includes(groupId)}
@@ -66,6 +74,13 @@
                 hiddenGroups = hiddenGroups.filter(id => id !== groupId);
               }
             }}
+          />
+          <input
+            type="checkbox"
+            class="tm-popup__group-toggle"
+            bind:checked={fullWidths[groupId]}
+            disabled={!isVisible}
+            title={$t('boardSettings.fullWidthTooltip')}
           />
         </div>
       {/each}

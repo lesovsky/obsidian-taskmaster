@@ -12,12 +12,20 @@
   import DeleteToast from './DeleteToast.svelte';
   import GroupSettingsPopup from './GroupSettingsPopup.svelte';
   import NotesSection from './NotesSection.svelte';
+  import { computeGroupClasses } from './boardLayoutUtils';
 
   export let board: Board;
   export let tasks: Record<string, Task>;
 
   let settingsGroupId: GroupId | null = null;
   $: hidden = new Set(board.hiddenGroups);
+
+  const GROUP_ORDER: GroupId[] = ['backlog', 'focus', 'inProgress', 'orgIntentions', 'delegated', 'completed'];
+
+  $: visibleGroups = GROUP_ORDER
+    .filter(id => !hidden.has(id))
+    .map(id => ({ id, fullWidth: board.groups[id].fullWidth }));
+  $: groupClasses = computeGroupClasses(visibleGroups);
 
   function openGroupSettings(groupId: GroupId) {
     settingsGroupId = groupId;
@@ -171,7 +179,7 @@
 
 <div class="tm-board-layout">
   {#if !hidden.has('backlog')}
-    <div class="tm-board-layout__collapsible">
+    <div class={groupClasses['backlog']}>
       <CollapsibleGroup
         groupId="backlog"
         group={board.groups.backlog}
@@ -186,41 +194,38 @@
     </div>
   {/if}
 
-  {#if !hidden.has('focus') || !hidden.has('inProgress')}
-    <!-- show row if at least one is visible; --two only when both are visible -->
-    <div
-      class="tm-board-layout__row"
-      class:tm-board-layout__row--two={!hidden.has('focus') && !hidden.has('inProgress')}
-    >
-      {#if !hidden.has('focus')}
-        <TaskGroup
-          groupId="focus"
-          group={board.groups.focus}
-          {tasks}
-          onAdd={() => openCreateModal('focus')}
-          onCardClick={(task) => openEditModal(task, 'focus')}
-          onCardDelete={(taskId) => handleDelete(taskId, 'focus')}
-          onCardComplete={(taskId) => handleComplete(taskId, 'focus')}
-          onSettings={() => openGroupSettings('focus')}
-        />
-      {/if}
-      {#if !hidden.has('inProgress')}
-        <TaskGroup
-          groupId="inProgress"
-          group={board.groups.inProgress}
-          {tasks}
-          onAdd={() => openCreateModal('inProgress')}
-          onCardClick={(task) => openEditModal(task, 'inProgress')}
-          onCardDelete={(taskId) => handleDelete(taskId, 'inProgress')}
-          onCardComplete={(taskId) => handleComplete(taskId, 'inProgress')}
-          onSettings={() => openGroupSettings('inProgress')}
-        />
-      {/if}
+  {#if !hidden.has('focus')}
+    <div class={groupClasses['focus']}>
+      <TaskGroup
+        groupId="focus"
+        group={board.groups.focus}
+        {tasks}
+        onAdd={() => openCreateModal('focus')}
+        onCardClick={(task) => openEditModal(task, 'focus')}
+        onCardDelete={(taskId) => handleDelete(taskId, 'focus')}
+        onCardComplete={(taskId) => handleComplete(taskId, 'focus')}
+        onSettings={() => openGroupSettings('focus')}
+      />
+    </div>
+  {/if}
+
+  {#if !hidden.has('inProgress')}
+    <div class={groupClasses['inProgress']}>
+      <TaskGroup
+        groupId="inProgress"
+        group={board.groups.inProgress}
+        {tasks}
+        onAdd={() => openCreateModal('inProgress')}
+        onCardClick={(task) => openEditModal(task, 'inProgress')}
+        onCardDelete={(taskId) => handleDelete(taskId, 'inProgress')}
+        onCardComplete={(taskId) => handleComplete(taskId, 'inProgress')}
+        onSettings={() => openGroupSettings('inProgress')}
+      />
     </div>
   {/if}
 
   {#if !hidden.has('orgIntentions')}
-    <div class="tm-board-layout__row">
+    <div class={groupClasses['orgIntentions']}>
       <TaskGroup
         groupId="orgIntentions"
         group={board.groups.orgIntentions}
@@ -235,7 +240,7 @@
   {/if}
 
   {#if !hidden.has('delegated')}
-    <div class="tm-board-layout__row">
+    <div class={groupClasses['delegated']}>
       <TaskGroup
         groupId="delegated"
         group={board.groups.delegated}
@@ -250,7 +255,7 @@
   {/if}
 
   {#if !hidden.has('completed')}
-    <div class="tm-board-layout__collapsible">
+    <div class={groupClasses['completed']}>
       <CollapsibleGroup
         groupId="completed"
         group={board.groups.completed}
@@ -265,7 +270,7 @@
     </div>
   {/if}
 
-  <div class="tm-board-layout__collapsible">
+  <div class="tm-board-layout__notes">
     <NotesSection
       boardId={board.id}
       notes={board.notes}
