@@ -1,5 +1,6 @@
 import { writable, get } from 'svelte/store';
 import type { PluginData, Task, GroupId, Board, Settings, Status } from '../data/types';
+import { GROUP_IDS } from '../data/types';
 import { DEFAULT_DATA, createDefaultBoard } from '../data/defaults';
 import { pluginStore } from './pluginStore';
 import { uiStore } from './uiStore';
@@ -195,13 +196,16 @@ export function createBoard(): void {
   persist();
 }
 
-export function updateBoard(boardId: string, fields: { title: string; subtitle: string; hiddenGroups: GroupId[] }): void {
+export function updateBoard(boardId: string, fields: { title: string; subtitle: string; hiddenGroups: GroupId[]; groupFullWidths: Record<GroupId, boolean> }): void {
   dataStore.update(data => {
     const board = data.boards.find(b => b.id === boardId);
     if (board) {
       board.title = fields.title;
       board.subtitle = fields.subtitle;
       board.hiddenGroups = fields.hiddenGroups;
+      for (const id of GROUP_IDS) {
+        board.groups[id].fullWidth = fields.groupFullWidths[id];
+      }
     }
     return data;
   });
