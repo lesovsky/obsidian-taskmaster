@@ -24,6 +24,7 @@ export interface Group {
   wipLimit: number | null;
   collapsed: boolean;
   completedRetentionDays: number | null;
+  fullWidth: boolean; // true = полная ширина, false = половина
 }
 
 export interface Board {

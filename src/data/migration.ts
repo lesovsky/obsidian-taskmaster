@@ -1,5 +1,6 @@
 import type { PluginData } from './types';
-import { DEFAULT_DATA, DEFAULT_SETTINGS } from './defaults';
+import { GROUP_IDS } from './types';
+import { DEFAULT_DATA, DEFAULT_SETTINGS, DEFAULT_FULL_WIDTH } from './defaults';
 
 export function migrateData(data: unknown): PluginData {
   if (!data || typeof data !== 'object') {
@@ -51,6 +52,17 @@ export function migrateData(data: unknown): PluginData {
       }
     }
     result.version = 4;
+  }
+
+  if (version < 5) {
+    for (const board of result.boards) {
+      for (const id of GROUP_IDS) {
+        if (board.groups[id].fullWidth === undefined) {
+          (board.groups[id] as any).fullWidth = DEFAULT_FULL_WIDTH[id];
+        }
+      }
+    }
+    result.version = 5;
   }
 
   return result;
