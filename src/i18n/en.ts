@@ -51,6 +51,8 @@ export const en: Translations = {
   'boardSettings.groupVisibility': 'Group Visibility',
   'boardSettings.groupVisibilityDesc': 'Show or hide groups on this board',
   'boardSettings.cannotHideLastGroup': 'At least one group must be visible',
+  'boardSettings.fullWidth': 'Full width',
+  'boardSettings.fullWidthTooltip': 'Group spans full board width',
 
   'groupSettings.heading': 'Settings:',
   'groupSettings.wipLimit': 'WIP limit',

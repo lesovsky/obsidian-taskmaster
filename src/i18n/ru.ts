@@ -51,6 +51,8 @@ export const ru: Translations = {
   'boardSettings.groupVisibility': 'Видимость групп',
   'boardSettings.groupVisibilityDesc': 'Показывать или скрывать группы на этой доске',
   'boardSettings.cannotHideLastGroup': 'Хотя бы одна группа должна быть видима',
+  'boardSettings.fullWidth': 'Полная ширина',
+  'boardSettings.fullWidthTooltip': 'Группа занимает всю ширину доски',
 
   'groupSettings.heading': 'Настройки:',
   'groupSettings.wipLimit': 'WIP-лимит',

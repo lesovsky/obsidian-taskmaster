@@ -21,6 +21,7 @@ export type TranslationKey =
   | 'boardSettings.no' | 'boardSettings.cancel' | 'boardSettings.save'
   | 'boardSettings.groupVisibility' | 'boardSettings.groupVisibilityDesc'
   | 'boardSettings.cannotHideLastGroup'
+  | 'boardSettings.fullWidth' | 'boardSettings.fullWidthTooltip'
   | 'groupSettings.heading' | 'groupSettings.wipLimit' | 'groupSettings.wipPlaceholder'
   | 'groupSettings.retentionLabel' | 'groupSettings.cancel' | 'groupSettings.save'
   | 'groupHeader.settings' | 'groupHeader.addTask'
