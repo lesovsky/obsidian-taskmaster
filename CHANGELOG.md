@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Dynamic Layout — configure each group's width per board: full width (100%) or half width (50%). Half-width groups are automatically paired side by side; a lone half-width group stretches to full width. Collapses to single column on narrow screens (<600px)
 - Group Visibility Settings — hide or show individual task groups per board via board settings popup. Hidden groups retain their tasks; automations (task completion, status transitions) work regardless of visibility. At least one group must remain visible
 - Quick Notes section below the Completed group — a collapsible textarea for jotting down quick thoughts, links, and ideas without creating a full task. Per-board, auto-saved with debounce
 - New task status "Meeting" (📞) to visually distinguish calls and meetings from regular work tasks in daily planning
@@ -21,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated settings data structure with `language` and `cardView` fields
 - Data schema version updated to `3` with automatic migration
 - Data schema version updated to `4` with automatic migration (adds `hiddenGroups: []` to existing boards)
+- Data schema version updated to `5` with automatic migration (adds `fullWidth` to each group with defaults preserving the existing layout)
 
 ### Fixed
 - Fixed deadline date overlapping with action buttons in normal card mode
