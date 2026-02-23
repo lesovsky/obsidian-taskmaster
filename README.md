@@ -17,6 +17,8 @@ A task management plugin for [Obsidian](https://obsidian.md) with SMART-style ca
 - **Overdue highlighting** — red border on cards past their deadline
 - **Auto-cleanup** — completed tasks are automatically removed after a configurable retention period (default 30 days)
 - **Status transitions** — automatic status changes when moving cards between groups
+- **Compact card view** — single-row layout for high-density task lists
+- **Multi-column layout** — display cards in 4 columns (full-width groups) or 2 columns (half-width groups)
 - **Theme support** — uses Obsidian CSS variables, works with any theme (light/dark)
 
 ## Task Groups

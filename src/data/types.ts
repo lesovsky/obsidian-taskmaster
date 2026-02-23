@@ -4,6 +4,7 @@ export type Priority = 'low' | 'medium' | 'high';
 export type Status = 'new' | 'inProgress' | 'waiting' | 'meeting' | 'completed';
 export type GroupId = 'backlog' | 'focus' | 'inProgress' | 'orgIntentions' | 'delegated' | 'completed';
 export type CardView = 'default' | 'compact';
+export type CardLayout = 'single' | 'multi';
 
 export const GROUP_IDS: GroupId[] = ['backlog', 'focus', 'inProgress', 'orgIntentions', 'delegated', 'completed'];
 
@@ -41,6 +42,7 @@ export interface Settings {
   language: LanguageSetting;
   defaultPriority: Priority;
   cardView: CardView;
+  cardLayout: CardLayout;
 }
 
 export interface PluginData {

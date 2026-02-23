@@ -10,6 +10,8 @@ export type TranslationKey =
   | 'settings.defaultPriority' | 'settings.defaultPriorityDesc'
   | 'settings.cardView' | 'settings.cardViewDesc'
   | 'settings.cardViewDefault' | 'settings.cardViewCompact'
+  | 'settings.cardLayout' | 'settings.cardLayoutDesc'
+  | 'settings.cardLayoutSingle' | 'settings.cardLayoutMulti'
   | 'priority.low' | 'priority.medium' | 'priority.high'
   | 'status.new' | 'status.inProgress' | 'status.waiting' | 'status.meeting' | 'status.completed'
   | 'modal.editTask' | 'modal.newTask'

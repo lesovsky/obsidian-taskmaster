@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Group, GroupId, Task } from '../data/types';
   import { t, groupLabels } from '../i18n';
-  import { toggleGroupCollapsed } from '../stores/dataStore';
+  import { toggleGroupCollapsed, dataStore } from '../stores/dataStore';
   import { useSortable } from './useSortable';
   import EmptyState from './EmptyState.svelte';
   import TaskCard from './TaskCard.svelte';
@@ -24,6 +24,9 @@
   $: groupTasks = group.taskIds
     .map(id => tasks[id])
     .filter((t): t is Task => !!t);
+  $: cardLayout = $dataStore.settings.cardLayout;
+  $: isMulti = cardLayout === 'multi';
+  $: columns = isMulti ? (group.fullWidth ? 4 : 2) : 1;
 
   function toggle() {
     toggleGroupCollapsed(boardId, groupId);
@@ -58,7 +61,13 @@
     {/if}
   </button>
   {#if !collapsed}
-    <div class="tm-collapsible-group__body" data-group-id={groupId} use:useSortable={{ groupId }}>
+    <div
+      class="tm-collapsible-group__body"
+      class:tm-collapsible-group__body--multi={isMulti}
+      data-group-id={groupId}
+      use:useSortable={{ groupId }}
+      style="--tm-card-columns: {columns}"
+    >
       {#if groupTasks.length === 0}
         <EmptyState {groupId} />
       {:else}

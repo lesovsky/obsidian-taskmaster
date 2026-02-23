@@ -22,6 +22,10 @@ export const en: Translations = {
   'settings.cardViewDesc': 'Choose how task cards are displayed',
   'settings.cardViewDefault': 'Default (3 lines)',
   'settings.cardViewCompact': 'Compact (1 line)',
+  'settings.cardLayout': 'Card layout',
+  'settings.cardLayoutDesc': 'Number of cards per row in each group',
+  'settings.cardLayoutSingle': 'Single column',
+  'settings.cardLayoutMulti': 'Multi-column (4 / 2)',
 
   'priority.low': 'Low',
   'priority.medium': 'Medium',

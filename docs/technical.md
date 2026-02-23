@@ -18,9 +18,10 @@
 
 ```json
 {
-  "version": 4,
+  "version": 6,
   "settings": {
-    "defaultPriority": "medium"
+    "defaultPriority": "medium",
+    "cardLayout": "single"
   },
   "boards": [
     {
@@ -96,6 +97,12 @@ type Status = 'new' | 'inProgress' | 'waiting' | 'completed';
 // Идентификаторы групп
 type GroupId = 'backlog' | 'focus' | 'inProgress' | 'orgIntentions' | 'delegated' | 'completed';
 
+// Режим отображения карточек
+type CardView = 'default' | 'compact';
+
+// Лейаут карточек (количество колонок)
+type CardLayout = 'single' | 'multi';
+
 // Задача
 interface Task {
   id: string;           // UUID
@@ -126,14 +133,12 @@ interface Board {
   groups: Record<GroupId, Group>; // 6 фиксированных групп
 }
 
-// Режим отображения карточек
-type CardView = 'default' | 'compact';
-
 // Глобальные настройки
 interface Settings {
   language: LanguageSetting;      // Язык интерфейса ('auto' | 'en' | 'ru')
   defaultPriority: Priority;      // Приоритет по умолчанию
   cardView: CardView;             // Режим отображения карточек
+  cardLayout: CardLayout;         // Лейаут карточек: одна колонка или мультиколоночный
 }
 
 // Корневая структура data.json
@@ -345,6 +350,9 @@ function migrateData(data: any): PluginData {
   if (version < 4) {
     data = migrateV3toV4(data);
   }
+  if (version < 6) {
+    data = migrateV5toV6(data);
+  }
 
   return data as PluginData;
 }
@@ -362,6 +370,18 @@ function migrateV3toV4(data: any): any {
     }
   }
   data.version = 4;
+  return data;
+}
+```
+
+**Миграция v5 → v6** добавляет поле `cardLayout: 'single'` в настройки:
+
+```typescript
+function migrateV5toV6(data: any): any {
+  if (!data.settings.cardLayout) {
+    data.settings.cardLayout = 'single';
+  }
+  data.version = 6;
   return data;
 }
 ```
@@ -428,6 +448,7 @@ function cleanupCompletedTasks(board: Board, tasks: Record<string, Task>): void 
 - **BEM-нотация** — классы следуют BEM: `tm-block__element--modifier` (например, `tm-task-card__deadline--overdue`, `tm-collapsible-group__count--over`)
 - **Obsidian CSS-переменные** (`--background-primary`, `--text-normal`, `--interactive-accent`) — корректное отображение в любой теме (тёмная, светлая, кастомная)
 - **Относительные единицы** (`rem`, `%`, `fr`) — подготовка к мобильной адаптации
+- **CSS Grid в теле групп** — `.tm-task-group__body` и `.tm-collapsible-group__body` используют `display: grid` с CSS custom property `--tm-card-columns`. В режиме `single` — 1 колонка (поведение идентично прежнему flex-лейауту), в режиме `multi` — 4 колонки для full-width групп, 2 для half-width. На экранах `<600px` принудительно 1 колонка через media query
 
 ---
 
@@ -449,6 +470,7 @@ SortableJS поддерживает автоскролл при перетаск
 |-----------|-----|----------------------|
 | Язык интерфейса | Dropdown: Auto (Obsidian) / English / Русский | Auto |
 | Вид карточек | Dropdown: Обычный (3 строки) / Компактный (1 строка) | Обычный |
+| Лейаут карточек | Dropdown: Одна колонка / Несколько колонок (4 / 2) | Одна колонка |
 | Приоритет по умолчанию | Dropdown: низкий / средний / высокий | средний |
 
 Per-board настройки (WIP-лимиты, срок автоочистки, видимость групп) управляются через popup «...» в интерфейсе доски.
@@ -595,6 +617,82 @@ if (result.settings.cardView === undefined) {
 
 ---
 
+## Мультиколоночный лейаут карточек
+
+### Визуальная структура
+
+**Режим `single` (по умолчанию):** каждая карточка занимает 100% ширины группы — текущее поведение.
+
+**Режим `multi`:**
+- **4 карточки в строку** — для full-width групп
+- **2 карточки в строку** — для half-width групп
+- Одиночная карточка (и любое неполное количество в строке) занимает 25% ширины, не растягивается
+- На экранах `<600px` принудительно 1 колонка через media query
+
+Режим применяется ко всем видам карточек (`default` и `compact`) и переключается глобально в настройках плагина.
+
+### CSS-реализация
+
+Тело группы использует CSS Grid с CSS custom property `--tm-card-columns`:
+
+```css
+.tm-task-group__body {
+  display: grid;
+  grid-template-columns: repeat(var(--tm-card-columns, 1), minmax(0, 1fr));
+  align-content: start;
+  gap: 0.35rem;
+  padding: 0.35rem;
+}
+
+.tm-task-group__body > .tm-empty-state {
+  grid-column: 1 / -1; /* Empty State занимает всю ширину */
+}
+
+/* CollapsibleGroup аналогично */
+.tm-collapsible-group__body {
+  display: grid;
+  grid-template-columns: repeat(var(--tm-card-columns, 1), minmax(0, 1fr));
+  align-content: start;
+  gap: 0.35rem;
+}
+
+/* Мобильные: принудительно 1 колонка */
+@media (max-width: 600px) {
+  .tm-task-group__body,
+  .tm-collapsible-group__body {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Multi-режим: поле «Что» обрезается в одну строку */
+.tm-task-group__body--multi .tm-task-card__what,
+.tm-collapsible-group__body--multi .tm-task-card__what {
+  display: block;
+  -webkit-line-clamp: unset;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+```
+
+### Логика вычисления колонок
+
+В `TaskGroup.svelte` и `CollapsibleGroup.svelte`:
+
+```typescript
+$: cardLayout = $dataStore.settings.cardLayout;
+$: isMulti = cardLayout === 'multi';
+$: columns = isMulti ? (group.fullWidth ? 4 : 2) : 1;
+```
+
+Значение `columns` передаётся через CSS custom property `style="--tm-card-columns: {columns}"` на контейнер тела группы.
+
+### Переключение режима
+
+Изменение настройки `cardLayout` в Settings Tab мгновенно перестраивает все группы — аналогично `cardView`.
+
+---
+
 ## Безопасность
 
 - **Запрет `{@html}`** — директива `{@html}` не используется нигде в проекте. Все пользовательские данные (поля задач, названия досок) отображаются через стандартную интерполяцию `{variable}`, которая автоматически экранирует HTML
@@ -686,3 +784,7 @@ obsidian-taskmaster/
 | Видимость групп | `hiddenGroups: GroupId[]` в Board, фильтрация в BoardLayout | Простое хранение, задачи не перемещаются, логика не зависит от видимости |
 | Защита от скрытия всех групп | disabled чекбокс + tooltip для последней видимой группы | Гарантия рабочей доски, без модального диалога |
 | Отмена в BoardSettingsPopup | Cancel и overlay-клик сбрасывают черновик видимости | Безопасное редактирование без немедленного применения |
+| Мультиколоночный лейаут | CSS Grid + `--tm-card-columns`, глобальная настройка `cardLayout` | Больше задач на экране без горизонтального скролла; SortableJS поддерживает grid-контейнеры |
+| Колонки по умолчанию | `single` (1 колонка) | Обратная совместимость, поведение идентично предыдущим версиям |
+| Число колонок в multi | 4 для full-width, 2 для half-width | Пропорционально ширине группы, фиксировано (не настраивается) |
+| Мобильный breakpoint | media query `<600px` → 1 колонка | Корректное отображение на узких экранах без логики в JS |

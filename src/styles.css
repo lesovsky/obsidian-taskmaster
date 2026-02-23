@@ -109,11 +109,16 @@
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 0.35rem;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(var(--tm-card-columns, 1), minmax(0, 1fr));
+  align-content: start;
   gap: 0.35rem;
+  padding: 0.35rem;
   min-height: 2rem;
+}
+
+.tm-task-group__body > .tm-empty-state {
+  grid-column: 1 / -1;
 }
 
 /* GroupHeader */
@@ -250,10 +255,15 @@
   max-height: 50vh;
   overflow-y: auto;
   overflow-x: hidden;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(var(--tm-card-columns, 1), minmax(0, 1fr));
+  align-content: start;
   gap: 0.35rem;
   min-height: 2rem;
+}
+
+.tm-collapsible-group__body > .tm-empty-state {
+  grid-column: 1 / -1;
 }
 
 /* TaskCard */
@@ -834,4 +844,24 @@
   outline: none;
   border-color: var(--interactive-accent);
   box-shadow: 0 0 0 2px var(--interactive-accent-hover);
+}
+
+/* Card layout: multi-column */
+@media (max-width: 600px) {
+  .tm-task-group__body,
+  .tm-collapsible-group__body {
+    --tm-card-columns: 1;
+  }
+}
+
+/* Multi-режим: поле «Что» обрезается в одну строку.
+   Базовый .tm-task-card__what имеет display:-webkit-box и -webkit-line-clamp:3,
+   несовместимые с white-space:nowrap — сбрасываем явно. */
+.tm-task-group__body--multi .tm-task-card__what,
+.tm-collapsible-group__body--multi .tm-task-card__what {
+  display: block;
+  -webkit-line-clamp: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }

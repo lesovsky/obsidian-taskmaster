@@ -22,6 +22,10 @@ export const ru: Translations = {
   'settings.cardViewDesc': 'Как отображать карточки задач',
   'settings.cardViewDefault': 'Обычный (3 строки)',
   'settings.cardViewCompact': 'Компактный (1 строка)',
+  'settings.cardLayout': 'Лейаут карточек',
+  'settings.cardLayoutDesc': 'Количество карточек в строке',
+  'settings.cardLayoutSingle': 'Одна колонка',
+  'settings.cardLayoutMulti': 'Несколько колонок (4 / 2)',
 
   'priority.low': 'Низкий',
   'priority.medium': 'Средний',

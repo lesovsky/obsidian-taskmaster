@@ -44,10 +44,11 @@ export const DEFAULT_SETTINGS: Settings = {
   language: 'auto',
   defaultPriority: 'medium',
   cardView: 'default',
+  cardLayout: 'single',
 };
 
 export const DEFAULT_DATA: PluginData = {
-  version: 5,
+  version: 6,
   settings: { ...DEFAULT_SETTINGS },
   boards: [createDefaultBoard('My Project')],
   tasks: {},

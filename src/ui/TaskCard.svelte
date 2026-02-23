@@ -85,7 +85,7 @@
         </span>
       {/if}
     </div>
-    <div class="tm-task-card__what">{task.what}</div>
+    <div class="tm-task-card__what" title={task.what}>{task.what}</div>
     {#if task.who}
       <div class="tm-task-card__who">👤 {task.who}</div>
     {/if}

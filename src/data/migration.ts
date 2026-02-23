@@ -65,5 +65,12 @@ export function migrateData(data: unknown): PluginData {
     result.version = 5;
   }
 
+  if (version < 6) {
+    if (result.settings.cardLayout === undefined) {
+      result.settings.cardLayout = 'single';
+    }
+    result.version = 6;
+  }
+
   return result;
 }

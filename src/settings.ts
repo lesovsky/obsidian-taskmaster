@@ -4,6 +4,7 @@ import type TaskMasterPlugin from './main';
 import { dataStore } from './stores/dataStore';
 import { t, setLocale } from './i18n';
 import type { LanguageSetting } from './i18n/types';
+import type { CardLayout } from './data/types';
 
 export class TaskMasterSettingTab extends PluginSettingTab {
   private plugin: TaskMasterPlugin;
@@ -51,6 +52,23 @@ export class TaskMasterSettingTab extends PluginSettingTab {
           .setValue(this.plugin.data.settings.cardView)
           .onChange(async (value) => {
             this.plugin.data.settings.cardView = value as 'default' | 'compact';
+            dataStore.set(this.plugin.data);
+            await this.plugin.savePluginData();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName(tr('settings.cardLayout'))
+      .setDesc(tr('settings.cardLayoutDesc'))
+      .addDropdown(dd =>
+        dd
+          .addOptions({
+            single: tr('settings.cardLayoutSingle'),
+            multi:  tr('settings.cardLayoutMulti'),
+          })
+          .setValue(this.plugin.data.settings.cardLayout)
+          .onChange(async (value) => {
+            this.plugin.data.settings.cardLayout = value as CardLayout;
             dataStore.set(this.plugin.data);
             await this.plugin.savePluginData();
           })
