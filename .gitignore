@@ -3,3 +3,11 @@ node_modules/
 /styles.css
 dist/
 *.js.map
+
+# Playwright
+test-results/
+playwright-report/
+
+# Test harness build artifacts
+tests/harness/harness.js
+tests/harness/styles.css

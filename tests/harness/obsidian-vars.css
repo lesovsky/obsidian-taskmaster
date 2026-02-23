@@ -1,0 +1,37 @@
+/* Obsidian CSS variables — minimal set for test harness */
+:root {
+  --background-primary: #ffffff;
+  --background-secondary: #f2f3f5;
+  --background-secondary-alt: #e9eaec;
+  --background-modifier-border: #ddd;
+  --background-modifier-hover: rgba(0, 0, 0, 0.05);
+  --background-modifier-error: #ffc0c0;
+
+  --text-normal: #2e3338;
+  --text-muted: #888888;
+  --text-faint: #aaaaaa;
+  --text-on-accent: #ffffff;
+  --text-error: #c63030;
+  --text-accent: #7b6cd9;
+  --text-accent-hover: #6a5bc8;
+
+  --interactive-normal: #f2f3f5;
+  --interactive-hover: #e9eaec;
+  --interactive-accent: #7b6cd9;
+  --interactive-accent-hover: #6a5bc8;
+
+  --font-ui-small: 13px;
+  --font-ui-medium: 15px;
+
+  --radius-s: 4px;
+  --radius-m: 8px;
+  --radius-l: 12px;
+
+  --icon-size: 18px;
+
+  --input-height: 30px;
+
+  --color-red: #e03131;
+  --color-green: #2f9e44;
+  --color-yellow: #f08c00;
+}
