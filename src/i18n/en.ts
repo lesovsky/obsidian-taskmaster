@@ -57,6 +57,7 @@ export const en: Translations = {
   'boardSettings.cannotHideLastGroup': 'At least one group must be visible',
   'boardSettings.fullWidth': 'Full width',
   'boardSettings.fullWidthTooltip': 'Group spans full board width',
+  'boardSettings.notes': 'Notes',
 
   'groupSettings.heading': 'Settings:',
   'groupSettings.wipLimit': 'WIP limit',

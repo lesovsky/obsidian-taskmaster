@@ -72,5 +72,14 @@ export function migrateData(data: unknown): PluginData {
     result.version = 6;
   }
 
+  if (version < 7) {
+    for (const board of result.boards) {
+      if ((board as any).notesHidden === undefined) {
+        (board as any).notesHidden = false;
+      }
+    }
+    result.version = 7;
+  }
+
   return result;
 }

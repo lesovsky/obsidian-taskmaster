@@ -270,13 +270,15 @@
     </div>
   {/if}
 
-  <div class="tm-board-layout__notes">
-    <NotesSection
-      boardId={board.id}
-      notes={board.notes}
-      collapsed={board.notesCollapsed}
-    />
-  </div>
+  {#if !board.notesHidden}
+    <div class="tm-board-layout__notes">
+      <NotesSection
+        boardId={board.id}
+        notes={board.notes}
+        collapsed={board.notesCollapsed}
+      />
+    </div>
+  {/if}
 </div>
 
 {#if $uiStore.toasts.length > 0}

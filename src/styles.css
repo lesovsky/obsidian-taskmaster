@@ -717,6 +717,14 @@
 .tm-popup__group-row:last-child {
   border-bottom: none;
 }
+.tm-popup__group-row:has(+ .tm-popup__divider) {
+  border-bottom: none;
+}
+.tm-popup__divider {
+  height: 1px;
+  background-color: var(--background-modifier-border);
+  margin: 4px 0;
+}
 .tm-popup__group-name {
   font-size: 0.9rem;
   color: var(--text-normal);

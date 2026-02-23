@@ -5,13 +5,14 @@
 
   export let board: Board;
   export let canDelete: boolean;
-  export let onSave: (fields: { title: string; subtitle: string; hiddenGroups: GroupId[]; fullWidths: Record<GroupId, boolean> }) => void;
+  export let onSave: (fields: { title: string; subtitle: string; hiddenGroups: GroupId[]; fullWidths: Record<GroupId, boolean>; notesHidden: boolean }) => void;
   export let onDelete: () => void;
   export let onClose: () => void;
 
   let title = board.title;
   let subtitle = board.subtitle;
   let hiddenGroups: GroupId[] = [...board.hiddenGroups];
+  let notesHidden: boolean = board.notesHidden;
   let fullWidths: Record<GroupId, boolean> = Object.fromEntries(
     GROUP_IDS.map(id => [id, board.groups[id].fullWidth])
   ) as Record<GroupId, boolean>;
@@ -22,7 +23,7 @@
 
   function handleSave() {
     if (!canSave) return;
-    onSave({ title: title.trim(), subtitle: subtitle.trim(), hiddenGroups, fullWidths });
+    onSave({ title: title.trim(), subtitle: subtitle.trim(), hiddenGroups, fullWidths, notesHidden });
   }
 </script>
 
@@ -84,6 +85,17 @@
           />
         </div>
       {/each}
+      <div class="tm-popup__divider"></div>
+      <div class="tm-popup__group-row">
+        <span class="tm-popup__group-name">{$t('boardSettings.notes')}</span>
+        <input
+          type="checkbox"
+          class="tm-popup__group-toggle"
+          checked={!notesHidden}
+          on:change={() => { notesHidden = !notesHidden; }}
+        />
+        <span></span>
+      </div>
     </div>
 
     <div class="tm-popup__actions">

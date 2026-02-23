@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Notes Visibility — hide or show the Notes section per board via board settings popup. Notes content is preserved when hidden and restored when shown again; the collapsed/expanded state is also preserved. Data schema migrated to version 7
 - Dynamic Layout — configure each group's width per board: full width (100%) or half width (50%). Half-width groups are automatically paired side by side; a lone half-width group stretches to full width. Collapses to single column on narrow screens (<600px)
 - Group Visibility Settings — hide or show individual task groups per board via board settings popup. Hidden groups retain their tasks; automations (task completion, status transitions) work regardless of visibility. At least one group must remain visible
 - Quick Notes section below the Completed group — a collapsible textarea for jotting down quick thoughts, links, and ideas without creating a full task. Per-board, auto-saved with debounce

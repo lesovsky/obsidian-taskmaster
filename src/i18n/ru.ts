@@ -57,6 +57,7 @@ export const ru: Translations = {
   'boardSettings.cannotHideLastGroup': 'Хотя бы одна группа должна быть видима',
   'boardSettings.fullWidth': 'Полная ширина',
   'boardSettings.fullWidthTooltip': 'Группа занимает всю ширину доски',
+  'boardSettings.notes': 'Заметки',
 
   'groupSettings.heading': 'Настройки:',
   'groupSettings.wipLimit': 'WIP-лимит',

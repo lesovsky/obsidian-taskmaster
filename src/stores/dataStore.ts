@@ -196,13 +196,14 @@ export function createBoard(): void {
   persist();
 }
 
-export function updateBoard(boardId: string, fields: { title: string; subtitle: string; hiddenGroups: GroupId[]; groupFullWidths: Record<GroupId, boolean> }): void {
+export function updateBoard(boardId: string, fields: { title: string; subtitle: string; hiddenGroups: GroupId[]; groupFullWidths: Record<GroupId, boolean>; notesHidden: boolean }): void {
   dataStore.update(data => {
     const board = data.boards.find(b => b.id === boardId);
     if (board) {
       board.title = fields.title;
       board.subtitle = fields.subtitle;
       board.hiddenGroups = fields.hiddenGroups;
+      board.notesHidden = fields.notesHidden;
       for (const id of GROUP_IDS) {
         board.groups[id].fullWidth = fields.groupFullWidths[id];
       }

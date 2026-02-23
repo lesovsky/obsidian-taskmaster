@@ -20,7 +20,7 @@
     createBoard();
   }
 
-  function saveSettings(fields: { title: string; subtitle: string; hiddenGroups: GroupId[]; fullWidths: Record<GroupId, boolean> }) {
+  function saveSettings(fields: { title: string; subtitle: string; hiddenGroups: GroupId[]; fullWidths: Record<GroupId, boolean>; notesHidden: boolean }) {
     const groupFullWidths = Object.fromEntries(
       GROUP_IDS.map(id => [id, fields.fullWidths[id]])
     ) as Record<GroupId, boolean>;

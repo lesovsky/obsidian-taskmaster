@@ -35,6 +35,7 @@ export interface Board {
   groups: Record<GroupId, Group>;
   notes: string;
   notesCollapsed: boolean;
+  notesHidden: boolean;
   hiddenGroups: GroupId[];
 }
 
