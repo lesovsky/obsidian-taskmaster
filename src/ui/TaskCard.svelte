@@ -27,6 +27,7 @@
   $: icon = priorityIcons[task.priority] ?? '';
   $: statusIcon = statusIcons[task.status] ?? '';
   $: isOverdue = task.deadline && new Date(task.deadline) < new Date() && task.status !== 'completed';
+  $: isLowPriority = task.priority === 'low';
   $: isCompact = $dataStore.settings.cardView === 'compact';
 </script>
 
@@ -34,6 +35,7 @@
   <div
     class="tm-task-card tm-task-card--compact"
     class:tm-task-card--overdue={isOverdue}
+    class:tm-task-card--low-priority={isLowPriority}
     data-task-id={task.id}
     on:click={onClick}
     on:keydown={(e) => e.key === 'Enter' && onClick()}
@@ -70,6 +72,7 @@
   <div
     class="tm-task-card"
     class:tm-task-card--overdue={isOverdue}
+    class:tm-task-card--low-priority={isLowPriority}
     data-task-id={task.id}
     on:click={onClick}
     on:keydown={(e) => e.key === 'Enter' && onClick()}
