@@ -24,12 +24,12 @@
   },
   "quality": {
     "validation_rounds": {
-      "user_spec": 1
+      "user_spec": 2
     },
     "validation_findings": {
-      "critical": 2,
-      "major": 13,
-      "minor": 6
+      "critical": 3,
+      "major": 17,
+      "minor": 14
     },
     "review_rounds": {},
     "review_findings": {
