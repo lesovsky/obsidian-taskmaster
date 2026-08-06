@@ -23,14 +23,24 @@
     "done": null
   },
   "quality": {
-    "validation_rounds": {},
-    "validation_findings": { "critical": 0, "major": 0, "minor": 0 },
+    "validation_rounds": {
+      "user_spec": 1
+    },
+    "validation_findings": {
+      "critical": 2,
+      "major": 13,
+      "minor": 6
+    },
     "review_rounds": {},
-    "review_findings": { "critical": 0, "major": 0, "minor": 0 },
+    "review_findings": {
+      "critical": 0,
+      "major": 0,
+      "minor": 0
+    },
     "first_pass_rate_pct": null
   },
   "volume": {
-    "interview_questions": 35,
+    "interview_questions": 39,
     "tasks_count": 0,
     "waves_count": 0,
     "agents_spawned": 0,
