@@ -1,0 +1,130 @@
+{
+  "validator": "dev-reality-checker",
+  "feature_base": "docs/features/0011-feat-group-customization/0011-feat-group-customization",
+  "tasks_checked": ["10", "11", "12"],
+  "status": "changes_required",
+  "findings": [
+    {
+      "severity": "critical",
+      "category": "feasibility",
+      "task": "11",
+      "issue": "Task 11 and Task 12 both declare `wave: 7` and `depends_on: [\"10\"]`, so a wave runner executes them in parallel — but Task 11 is written as if Task 12 has not started. Concrete collisions: (a) Task 11 AC «Продуктовый код не изменён» and Verification Step 8 `git status` — «изменения только в отчёте и decisions log» — will see Task 12's concurrent edits to docs/technical.md, CHANGELOG.md, CHANGELOG.ru.md and produce a false negative or a false positive; (b) Details says «Задача 12 (документация) идёт после и в объём приёмки не входит», which contradicts the shared wave; (c) both tasks append to the same file 0011-feat-group-customization-decisions.md concurrently — lost-update risk. Tech-spec puts both under a single «Final Wave», so the tech-spec has the same ambiguity.",
+      "fix": "Pick one: (1) add \"11\" to Task 12's `depends_on` and move Task 12 to `wave: 8`; or (2) keep them parallel but scope Task 11's git check to `git status -- src/ tests/` (product code only), drop the «Задача 12 идёт после» sentence, and give each task its own decisions-log append step ordered by the orchestrator. Mirror the choice in the tech-spec Implementation Tasks section."
+    },
+    {
+      "severity": "major",
+      "category": "feasibility",
+      "task": "11",
+      "issue": "Task 11 step 3 makes `node -v` ≥ 22.12 a hard stop («Несоответствие — critical: дальше идти нельзя»). Verified on the current machine: `node -v` → v18.19.1, there is no `.nvmrc` and no `engines` field in package.json, and `npx vitest run` already fails with `ERR_REQUIRE_ESM` while loading the vite config (vitest ^4.0.18 requires Node 20.19+/22.12+). Task 1 is scoped to *pin* the version and stop the pipeline, not to perform the upgrade — so nothing in tasks 1–12 makes this precondition true. As written, Task 11 (and in fact the whole pipeline from Task 1 onward) cannot complete in this environment.",
+      "fix": "No edit to the task text is required, but the orchestrator must upgrade the runtime to Node ≥ 22.12 before wave 0 starts. Surface this as an explicit pipeline precondition rather than discovering it at wave 7. Optionally add a note in Task 11 Details that the runtime check is expected to have been satisfied outside the feature pipeline."
+    },
+    {
+      "severity": "major",
+      "category": "hallucination",
+      "task": "12",
+      "issue": "Details / CHANGELOG claims: «две последние по времени записи (v6 и v7) не добавляли строку в `### Changed`, а упоминали версию прямо внутри записи `Added` («Data schema migrated to version 7»)». Only ONE such entry exists. Verified mapping from src/data/migration.ts: v3 = notes/notesCollapsed, v4 = hiddenGroups, v5 = fullWidth, v6 = cardLayout, v7 = notesHidden. In CHANGELOG.md the v7 feature («Notes Visibility … Data schema migrated to version 7») is the only inline-version entry; the v6 bump (cardLayout / multi-column card layout, feature 0008) has NO CHANGELOG entry at all — neither in `### Added` nor in `### Changed`. The `### Changed` block (lines 24–26, correctly cited) covers versions 3/4/5 only. Same in CHANGELOG.ru.md.",
+      "fix": "Rewrite the precedent as «последняя по времени запись (v7, Notes Visibility) упоминает версию прямо внутри записи Added — следовать ей». Additionally instruct the executor to record the missing v6 / multi-column-layout CHANGELOG entry as documentation drift in the decisions log (it is outside the editable blocks, so it should be reported, not silently fixed)."
+    },
+    {
+      "severity": "minor",
+      "category": "feasibility",
+      "task": "12",
+      "issue": "Context Files describes the decisions log as «отчёты задач 1–11», but Task 12 declares `depends_on: [\"10\"]` and shares wave 7 with Task 11 — Task 11's entry may not exist when Task 12 reads the file.",
+      "fix": "Change to «отчёты задач 1–10 (запись Task 11 может отсутствовать — задачи идут в одной волне)», or resolve together with the wave fix above."
+    },
+    {
+      "severity": "minor",
+      "category": "hints",
+      "task": "12",
+      "issue": "The «уже накопленный дрейф» edge case enumerates only `src/ui/boardLayoutUtils.ts` and the missing `tests/` directory for the «Структура проекта» block. Verified additional omissions inside that same editable block: `src/ui/NotesSection.svelte` (exists in src/ui and is referenced by BoardLayout.svelte), plus root-level `playwright.config.ts`, `vitest.config.ts`, `esbuild.harness.mjs`, and the `docs/specs/`, `docs/plans/`, `docs/testing/`, `docs/features/` subdirectories. The task's own rule («оставлять заведомо неверный текст в строках, которые всё равно редактируешь, значит осознанно сохранять ложь») applies to all of them, but the executor may treat the two named items as the exhaustive list. The data.json example block has similar drift: `settings` at line 22 lacks `language` and `cardView`.",
+      "fix": "Rephrase as «в частности, но не только: …» and add an instruction to diff the whole «Структура проекта» tree against `ls -R src/` plus the repository root, and the data.json example against `src/data/defaults.ts`."
+    },
+    {
+      "severity": "minor",
+      "category": "tdd",
+      "task": "10",
+      "issue": "The reload simulation via `window.__test.resetData(snapshot)` has side effects the task does not mention: tests/harness/main.ts:111 resets `uiStore` to `{ activeBoardId: data.boards[0]?.id, toasts: [] }`, line 100 forces `settings.language = 'en'`, and lines 103–105 back-fill `hiddenGroups: []` on every board. Any scenario that «reloads» while a non-first board is active silently lands back on board A. Сц.1 is single-board so it is safe today, but the Сц.9 (two boards) + persistence combination would break, and there is no warning in Edge cases.",
+      "fix": "Add to Edge cases: «resetData сбрасывает активную доску на boards[0] — после симуляции перезагрузки на многодосочном сценарии переключись на нужную доску через `page.selectOption('.tm-board-header__select', boardId)` перед проверками»."
+    },
+    {
+      "severity": "minor",
+      "category": "tdd",
+      "task": "10",
+      "issue": "Сц.5 DOM-probe instruction says «перед сменой порядка пометить тела групп (`[data-group-id]`)». Verified in src/ui/CollapsibleGroup.svelte:61-68: the body carrying `data-group-id` lives inside `{#if !collapsed}`, so for `backlog`/`completed` it does not exist until `expandGroup` runs, and it is destroyed/recreated on every collapse toggle — a probe placed before expanding would be absent for reasons unrelated to reordering, and the check would fail spuriously (or be skipped silently if the locator resolves to zero elements).",
+      "fix": "State explicitly: expand the collapsible group first, then set the probe on all `[data-group-id]` bodies, and do not toggle collapse between probing and checking. Alternatively probe the wrapper `[data-group-container]`, which is the node Decision 1 actually promises to preserve."
+    },
+    {
+      "severity": "minor",
+      "category": "feasibility",
+      "task": "10",
+      "issue": "Сц.5 offers `completed` as an alternative to `backlog` for the collapsible pair. Verified in src/ui/BoardLayout.svelte: CollapsibleGroup for `completed` is rendered with `onAdd={null}`, so there is no add button and `createTask(page, 'completed', …)` from helpers.ts (which clicks `.tm-collapsible-group__add`) cannot work there. Also, dragging into/out of `completed` fires the status transitions in src/logic/statusTransitions.ts (sets/clears `completedAt`, flips status), adding noise to a scenario whose subject is drag survival.",
+      "fix": "Recommend `backlog` explicitly as the collapsible group for Сц.5 and note that tasks cannot be created directly in `completed` (no add button), so `completed` may only be a drag target, never the source of a freshly created card."
+    },
+    {
+      "severity": "minor",
+      "category": "feasibility",
+      "task": "10",
+      "issue": "The task forbids locating groups by displayed name, then relies on `expandGroup` from helpers.ts. In the current (pre-Task-9) edition, helpers.ts:99-107 locates the collapsible header by English label text (`COLLAPSIBLE_GROUP_LABELS`, `.filter({ hasText: label })`). In Сц.1 and Сц.5 the group under test is renamed before `expandGroup` is called, so if Task 9 leaves any label-based lookup in place the helper breaks at runtime. The task only says «читай файл в актуальном виде», which is not a check.",
+      "fix": "Add an explicit first step: verify that `expandGroup` (and every other helper used after a rename) no longer matches on displayed text; if it still does, stop and report to the orchestrator rather than working around it locally."
+    },
+    {
+      "severity": "minor",
+      "category": "feasibility",
+      "task": "11",
+      "issue": "AC states «Итоговый `status` выставлен по правилу: `passed` при нуле critical, иначе `failed`». The skill (~/.claude/skills/pre-deploy-qa/SKILL.md) says `passed` if zero criticals AND environment is healthy. Since Phase 1 is skipped in this project, `environment.status` is never established by the task, leaving the skill's second condition undefined.",
+      "fix": "Add: «при пропущенной Phase 1 `environment.status` выставляется `healthy` на основании успешной production-сборки и поднявшегося харнесса — это и есть местный аналог здоровья окружения», so the skill's rule stays applicable."
+    },
+    {
+      "severity": "minor",
+      "category": "feasibility",
+      "task": "12",
+      "issue": "Frontmatter has bare `verify: bash` with no command, unlike Task 10 (`npx playwright test …`) and Task 11 (`npm test && npx playwright test && npm run build`). The tech-spec per-task verification table specifies a concrete command for Task 12: `grep -n \"groupOrder\\|title\" docs/technical.md`.",
+      "fix": "Set `verify: bash — `grep -n \"groupOrder\" docs/technical.md && grep -n \"data-group-container\" docs/technical.md`` to match the tech-spec and the sibling tasks."
+    }
+  ],
+  "verified_claims": {
+    "task_10": [
+      "tests/harness/main.ts:55 initialises via `migrateData(null)` and never calls `loadData()` — the harness genuinely does NOT read localStorage at startup, so `page.goto('/')` blanks the board. The task's central claim is CORRECT.",
+      "tests/harness/main.ts:92-98 — `resetData(partial)` routes a snapshot containing `version` through `migrateData(partial)`, so the localStorage-snapshot + resetData round trip is a valid persistence check. CORRECT.",
+      "tests/harness/obsidian-mock.ts:29-31 — `saveData()` writes `localStorage['tm-test-data']`. CORRECT.",
+      "No existing E2E performs a real mouse drag: only `moveTask` / `window.__test.moveTask` (core.spec.ts:203-232,397; 0006:214,245; 0008:155,169). The two `hover()` calls in core.spec.ts:114,170 reveal card action buttons, not drags. CORRECT.",
+      "src/stores/dataStore.ts:13 — `async function persist(): Promise<void>`. CORRECT.",
+      "src/styles.css:89 — `@media (max-width: 600px)` forces `.tm-board-layout__group--half`/`--half-alone` to `grid-column: 1 / -1`; a second block at line 861 drops card columns to 1. Referenced 0007 Сц.21 exists (0007-dynamic-layout.spec.ts:289). CORRECT.",
+      "`window.__test` exposes exactly resetData / getDataStore / moveTask / updateSettings (main.ts:78-125). CORRECT.",
+      "All helpers named in Details exist in tests/e2e/helpers.ts: standardBeforeEach, resetData, createTask, fillTaskForm, moveTask, expandGroup, waitForToast, openBoardSettings, saveBoardSettings, closeBoardSettings, openGroupSettings, saveGroupSettings.",
+      "src/ui/useSortable.ts — `draggable: '[data-task-id]'`, `filter: '.tm-task-card__delete'`, cancel-DOM-then-update-store in `onEnd`. CORRECT. Sortable is attached to both TaskGroup and CollapsibleGroup bodies with no `disabled`.",
+      "CSS classes `.tm-group-header__title`, `.tm-collapsible-group__title`, `.tm-collapsible-group__body`, `.tm-board-layout__notes`, `.tm-popup-overlay` all exist; 0006 Сц.4 (line 85-91) does close via overlay click as claimed.",
+      "Board creation/switching locators `.tm-board-header__icon[title=\"Create board\"]` and `.tm-board-header__select` are used in 0007 Сц.7 and Сц.8 as claimed.",
+      "EN default group labels in src/i18n/en.ts:4-9 are exactly Backlog / Focus / In Progress / Org Intentions / Delegated / Completed.",
+      "The 12 scenarios match the tech-spec Testing Strategy / E2E tests list one-for-one.",
+      "playwright.config.ts — `workers: 1`, `fullyParallel: false`, default project is Chromium; sibling specs use `page.goto('/')` + `standardBeforeEach(page)` in beforeEach as claimed.",
+      "depends_on [\"09\"] is sufficient: Task 7 (wave 3) and Task 8 (wave 4) precede wave 6 transitively per the tech-spec waves."
+    ],
+    "task_11": [
+      "No Makefile, GNUmakefile, docker-compose*.yml or compose*.yml in the repository root — the Phase 1 skip is factually grounded, and the skill does say «If neither found — skip this phase entirely and proceed to Phase 2».",
+      "playwright.config.ts — `webServer: { command: 'node esbuild.harness.mjs --serve', url: 'http://localhost:5173', reuseExistingServer: !process.env.CI }`. CORRECT verbatim.",
+      "vitest.config.ts — `include: ['tests/unit/**/*.test.ts']`, and `src/ui/boardLayoutUtils.test.ts` sits outside that glob, confirming the «board-layout suite not collected» premise behind Task 1.",
+      "package.json — `test: vitest run`, `test:e2e: playwright test`, `test:all: vitest run && playwright test`. CORRECT.",
+      "logs/ contains only reviews/ — logs/working/ does not exist and must be created. CORRECT.",
+      "User-spec «Критерии приёмки» has exactly 27 checkboxes; tech-spec «Acceptance Criteria» has exactly 9. The 27+9=36 arithmetic is right.",
+      "pre-deploy-qa skill schema matches: logs/working/qa-report.json with status / environment{status,rebuildAttempts,services,fixCommits} / summary / testSuite / acceptanceCriteria / findings, plus deferredToPostDeploy, and «Max 3 fix attempts».",
+      "`npx tsc --noEmit` currently reports 2 errors (src/i18n/en.ts:60 and ru.ts:60 — `'boardSettings.notes' does not exist in type 'Translations'`). This is the key Task 2 is scoped to add, so the clean-tsc AC is reachable, but it is a hard dependency on Task 2."
+    ],
+    "task_12": [
+      "docs/technical.md line 21 is `\"version\": 7`. CORRECT.",
+      "`interface Group` occupies lines 121-126 and lacks `fullWidth`; src/data/types.ts:23-29 has it. CORRECT.",
+      "`interface Board` occupies lines 129-136 and lacks `notes` and `notesCollapsed`; src/data/types.ts:31-40 has both. CORRECT.",
+      "«Миграция данных» heading at line 341, section ends before the next heading at 412; the listing contains branches `< 1`, `< 4`, `< 6`, `< 7` exactly as claimed (the real migration.ts also has `< 2`, `< 3`, `< 5` — the doc listing is already abridged, which the task does not have to fix).",
+      "«Настройки доски (BoardSettingsPopup)» heading at 501, next heading at 540 → 501-537 correct. «Мультиколоночный лейаут карточек» at 659 correct. «Структура проекта» 742-793 correct. «Ключевые решения» table 799-831 correct (file is 831 lines).",
+      "«Структура проекта» tree omits src/ui/boardLayoutUtils.ts and the tests/ directory. CORRECT (see minor finding for further omissions).",
+      "src/ui/boardLayoutUtils.ts exists; src/ui/groupOrderUtils.ts and src/ui/groupTitle.ts do not yet exist and are created by Tasks 4 and 5 per the tech-spec — correctly listed as post-Task-10 reads.",
+      "CHANGELOG.md and CHANGELOG.ru.md exist; `### Changed` lines 24-26 are the version 3/4/5 rows as claimed; the newest `### Added` entry is the Notes-visibility one, i.e. the list is sorted newest-first as claimed.",
+      "docs/overview.md — «Видимость групп и секции Notes» at line 155 and «Динамический лейаут групп» at line 178. CORRECT."
+    ]
+  },
+  "stats": {
+    "tasks_checked": 3,
+    "claims_verified": 45,
+    "issues_found": 11
+  }
+}

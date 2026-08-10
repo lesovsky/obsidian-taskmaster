@@ -1,7 +1,7 @@
 ---
 status: planned
 depends_on: ["01"]
-wave: 1
+wave: 2
 skills: [code-writing]
 verify: bash
 reviewers: [dev-code-reviewer, dev-security-auditor, dev-test-reviewer]

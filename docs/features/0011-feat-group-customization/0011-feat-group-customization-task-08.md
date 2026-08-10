@@ -1,7 +1,7 @@
 ---
 status: planned                    # planned -> in_progress -> done
 depends_on: ["04", "05", "07"]     # ID задач-зависимостей (строки: ["01", "02"])
-wave: 4                            # волна параллельного выполнения
+wave: 5                            # волна параллельного выполнения
 skills: [code-writing]             # МАССИВ скиллов для загрузки
 verify: bash                       # npm run build && npm test && npx playwright test tests/e2e/core.spec.ts
 reviewers: [dev-code-reviewer, dev-security-auditor, dev-test-reviewer]  # явно указать. Пусто = fallback на defaults

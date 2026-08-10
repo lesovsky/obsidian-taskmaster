@@ -1,0 +1,85 @@
+{
+  "validator": "dev-reality-checker",
+  "feature_base": "docs/features/0011-feat-group-customization/0011-feat-group-customization",
+  "tasks_checked": ["04", "05", "06"],
+  "status": "approved",
+  "findings": [
+    {
+      "severity": "major",
+      "category": "feasibility",
+      "task": "06",
+      "issue": "Cross-task contradiction on the \"is this group renamed?\" predicate. Task 06 hint says: \"If src/ui/groupTitle.ts already exports a predicate for this, prefer that helper over a hand-rolled check — but do not extend groupTitle.ts\". Task 05 makes that branch impossible: its AC states \"Существует src/ui/groupTitle.ts с ОДНОЙ экспортируемой функцией\" and its hints explicitly forbid a second export (\"Не добавлять второй экспорт «на будущее» ... YAGNI, ревьюеры это отметят\"). So Task 06 will necessarily hand-roll a second trim-emptiness check in EmptyState.svelte — a second, unit-untestable copy of exactly the rule tech-spec Decision 4 centralized to avoid copies.",
+      "fix": "Resolve ownership before wave 1 runs: either (a) let Task 05 export a second pure predicate (e.g. hasCustomTitle(storedTitle): boolean) with its own unit tests and update Task 05's AC/hints accordingly, and have Task 06 call it; or (b) delete the dead \"if groupTitle.ts already exports a predicate\" sentence from Task 06 and state plainly that EmptyState performs its own `title.trim() !== ''` check, accepting the duplication."
+    },
+    {
+      "severity": "major",
+      "category": "tdd",
+      "task": "06",
+      "issue": "AC \"A whitespace-only stored title behaves exactly as an empty one — default name AND original semantic hint\" has no reachable verification. Task 06 adds no automated test by design; tests/e2e/core.spec.ts does not touch titles; and Task 03 normalizes titles both on save and on load (tech-spec Decision 7 — whitespace-only becomes ''), so no UI path can produce a whitespace-only stored title for the Task 10 E2E suite either. The AC is therefore verified only by \"manual read-through\", while the task itself calls this the \"real risk here, because the two decisions are made in different components\".",
+      "fix": "Either move the whitespace rule for the hint behind the Task 05 helper/predicate so it is unit-covered (see previous finding), or restate this AC in Task 06 as a defensive-implementation requirement (both name and hint derived from one and the same expression) rather than an observable behavior, so no reviewer expects test evidence for it."
+    },
+    {
+      "severity": "minor",
+      "category": "feasibility",
+      "task": "04",
+      "issue": "Runtime precondition is currently unmet: `node -v` in this working copy reports v18.19.1. vitest 4.0.18 pulls vite 7.3.1, whose engines are ^20.19.0 || >=22.12.0, so `npx vitest run tests/unit/groupOrderUtils.test.ts` — the only verify gate of this task — cannot run today. This is anticipated (depends_on: [\"01\"], tech-spec Decision 8, Task 01 step 1 stops and reports a blocker), but it means the whole of wave 1 stalls until the runtime is upgraded outside the repo.",
+      "fix": "No change to the task file needed. Flag to the orchestrator that Node must be raised to >= 22.12 before wave 1 is dispatched, otherwise Task 01 will legitimately halt and Tasks 03/04/05 have no verification path."
+    },
+    {
+      "severity": "minor",
+      "category": "hints",
+      "task": "06",
+      "issue": "The Files section understates the CSS edit surface. It names only `.tm-group-header__title` (lines 135-139) and `.tm-collapsible-group__title` (lines 219-221) — both line ranges verified correct, both indeed font-only. But the AC requires the counter and the settings/add buttons to stay visible on the row, and none of `.tm-group-header__counter` (140-143), `.tm-group-header__settings` (151-163), `.tm-group-header__add` (168-180), `.tm-collapsible-group__count` (222-225) or the collapsible settings/add rules currently set `flex-shrink: 0`; as flex items with `display:flex` they will be squeezed before the title is. The Implementation hints do mention `flex-shrink: 0` on them, so the requirement is not lost, but the file list implies two blocks when the change touches six or more.",
+      "fix": "In the Files section for src/styles.css, add that the counter and the two icon-button rules in both header variants also need `flex-shrink: 0`, so the executor and the reviewer expect edits beyond lines 135-139 / 219-221."
+    }
+  ],
+  "stats": {
+    "tasks_checked": 3,
+    "claims_verified": 46,
+    "issues_found": 4
+  },
+  "verified_claims": {
+    "task_04": [
+      "vitest.config.ts include is ['tests/unit/**/*.test.ts'] and environment is 'node' — a new tests/unit/groupOrderUtils.test.ts is picked up automatically, and a pure node module needs no DOM",
+      "src/ui/groupOrderUtils.ts and tests/unit/groupOrderUtils.test.ts do not exist — expected, both are created here",
+      "src/ui/boardLayoutUtils.ts exists and imports only `import type { GroupId } from '../data/types'` — the cited precedent is accurate",
+      "src/ui/boardLayoutUtils.test.ts is indeed still outside tests/unit/; Task 01 step 4 git-mv's it, as claimed",
+      "tests/unit/statusTransitions.test.ts uses `import { describe, it, expect } from 'vitest'` and `'../../src/logic/...'` relative imports — the cited style sample matches",
+      "GroupId union and GROUP_IDS exist in src/data/types.ts (lines 5 and 9) and are untouched by this feature",
+      "BoardSettingsPopup.svelte:14 is exactly `let hiddenGroups: GroupId[] = [...board.hiddenGroups];` — the array-not-Set hint is correct",
+      "Arrow semantics match the user-spec verbatim (line ~102: visible group steps over hidden, hidden keep their positions; line 130 edge case; line 146 acceptance criterion on disabled arrows)",
+      "tech-spec Decision 5 exists and says what the task quotes",
+      "No overlap with Task 03's files (src/data/types.ts, defaults.ts, migration.ts) — the wave-1 parallelism claim holds"
+    ],
+    "task_05": [
+      "src/i18n/index.ts:16 exports `groupLabels` as `derived(locale, ...)` returning `Record<GroupId, string>` — exactly as described",
+      "A plain (storedTitle: string, defaultLabel: string) => string signature genuinely needs no import from src/data/types, src/i18n or src/stores",
+      "src/ui/groupTitle.ts and tests/unit/groupTitle.test.ts do not exist — expected",
+      "tests/unit/**/*.test.ts include pattern covers the proposed test file; node environment is fine for a string-only module",
+      "camelCase naming claim holds: src/ui/ contains boardLayoutUtils.ts and useSortable.ts as .ts utilities, PascalCase only for .svelte",
+      "User-spec line refs are accurate: 101 (поле названия, 40 chars, trim, empty = default), 127-128 (edge cases), 144 (acceptance criterion)",
+      "tech-spec Decisions 4 and 7 exist and match the quoted rationale, including \"The helper takes plain strings, not the group object\"",
+      "Testing Strategy → Unit tests does list title resolution (empty / whitespace-only / non-empty)"
+    ],
+    "task_06": [
+      "GroupHeader.svelte:17 — `<span class=\"tm-group-header__title\">{$groupLabels[groupId]}</span>`; file is 26 lines; props are groupId, group, onAdd, onSettings — all as stated",
+      "CollapsibleGroup.svelte:39 — collapsible title reads $groupLabels[groupId]; :72 — `<EmptyState {groupId} />`; file is 87 lines — all as stated",
+      "GroupSettingsPopup.svelte:27 — `<h3 class=\"tm-popup__title\">{$t('groupSettings.heading')} {$groupLabels[groupId]}</h3>`; `group` is already a prop (line 6); file is 47 lines — all as stated",
+      "EmptyState.svelte is 13 lines with exactly one prop `groupId: GroupId` and `$: key = `emptyState.${groupId}` as TranslationKey`",
+      "EmptyState is rendered from exactly two places — TaskGroup.svelte:36 and CollapsibleGroup.svelte:72 — and both parents hold `group` (TaskGroup.svelte:10, CollapsibleGroup.svelte:10)",
+      "TaskGroup.svelte:27 renders `<GroupHeader {groupId} {group} ... />`; file is 49 lines",
+      "A full grep of src/ finds only five $groupLabels display sites: the three here, EmptyState's sibling case, and BoardSettingsPopup.svelte:61 (Task 08) — matching Decision 4's \"five call sites\"",
+      "src/styles.css: .tm-group-header__title occupies lines 135-139 and sets only font-weight / font-size / color; .tm-collapsible-group__title occupies 219-221 and sets only font-weight — no overflow, text-overflow, white-space or min-width in either",
+      ".tm-task-group starts at line 97 and carries min-width: 0 (line 105); .tm-collapsible-group starts at 187 and carries min-width: 0 (line 191) — the \"grandparents are already handled, solve truncation inside the header rows\" claim is correct",
+      ".tm-group-header (line 125) and .tm-collapsible-group__header (line 194) are both display: flex, as stated",
+      "Task 02 does add the neutral key: the union member is 'emptyState.renamed' and the English string is exactly \"Nothing here yet — drag tasks in\", so Task 06's grep instruction resolves uniquely (it does not collide with the existing 'emptyState.completed': \"Nothing here yet — completed tasks will appear here\")",
+      "Task 03 does add `Group.title: string` plus a 40-char cap and trim normalization — the cited dependency is real",
+      "tests/e2e/core.spec.ts really does exercise both rewritten sites: .tm-group-header__counter (lines 53, 267, 279, 292) and .tm-collapsible-group__header filtered by text 'Backlog' (line 251)",
+      "playwright.config.ts webServer runs `node esbuild.harness.mjs --serve`, and that script copyFileSync's src/styles.css into tests/harness/styles.css before serving — so CSS edits do reach the E2E run with no extra build step, exactly as the task claims",
+      "tests/harness/harness.js and tests/harness/styles.css are gitignored build artifacts — correctly absent from the task's file list",
+      "The claim that `npx tsc --noEmit` does not type-check .svelte despite tsconfig's include is consistent with the config (tsconfig includes src/**/*.svelte; tsc itself cannot parse them) and with tech-spec Decision 11",
+      "No wave conflict on src/styles.css: Task 07 (also editing styles.css) is wave 3 and depends_on [\"03\",\"06\"], and it explicitly reserves a different section",
+      "depends_on [\"02\",\"03\",\"05\"] is complete for the files this task reads: i18n key (02), Group.title (03), groupTitle.ts (05). Task 01 is not needed — the gates here are `npm run build` (esbuild) and playwright 1.50, both fine on the current Node 18"
+    ]
+  }
+}

@@ -102,11 +102,17 @@ than either of the other two, because the popup and the board are in the DOM sim
 **Rationale:** Testing Strategy requires unit coverage of the fallback rules, but
 `vitest.config.ts` sets `environment: 'node'` and the project has no DOM testing library, so
 logic inside `.svelte` files cannot be unit-tested at all. A pure helper is testable and keeps
-all five call sites identical — four on the board side (Task 6) plus the settings popup row
-(Task 8), where the resolved name becomes the input's current value and the localized default
-becomes its placeholder. All display sites already receive `group` or `board`, so no new props
-are needed except in `EmptyState`. The helper takes plain strings, not the group object, so it
-does not depend on the model change happening in the same wave.
+the four display sites identical. All display sites already receive `group` or `board`, so no
+new props are needed except in `EmptyState`. The helper takes plain strings, not the group
+object, so it does not depend on the model change happening in the same wave.
+
+**The editing field is not a display site and must not use the helper.** Its value is the
+stored title verbatim — empty when the group was never renamed — and the localized default is
+its placeholder. Routing the field through the helper would put the default name into the field
+as literal text: the placeholder would never be visible, and pressing Save without editing
+anything would store the default as an explicit title for all six groups, silently freezing the
+current language and flipping every empty group to the neutral hint.
+**Alternatives considered:** Using the helper for the field too — rejected for the reason above.
 **Alternatives considered:** Inline `group.title || $groupLabels[id]` in each component —
 rejected: four copies of a rule that the test plan requires to be covered.
 

@@ -1,0 +1,140 @@
+{
+  "validator": "dev-reality-checker",
+  "feature_base": "docs/features/0011-feat-group-customization/0011-feat-group-customization",
+  "tasks_checked": ["01", "02", "03"],
+  "status": "changes_required",
+  "findings": [
+    {
+      "severity": "critical",
+      "category": "feasibility",
+      "task": "01",
+      "issue": "Environment precondition is unmet right now: `node -v` reports v18.19.1, below the 22.12 floor. Task 01 step 1 therefore stops and reports a blocker by design, which leaves `npm test` still broken (ERR_REQUIRE_ESM confirmed live) and makes Task 03's verification steps ('npm test passes', 'confirm the new tests failed before implementation') literally unexecutable, along with every downstream wave. This is not a defect in the task files — they handle the case correctly — but the batch cannot be dispatched in the current environment.",
+      "fix": "No task-file edit required. Upgrade the developer machine to Node 22.12.x (nvm install 22.12+) before dispatching Wave 0/1, or hold execution of the whole feature until that happens. Verify with `node -v && npm test` — the runner must start and collect the unit files."
+    },
+    {
+      "severity": "major",
+      "category": "feasibility",
+      "task": "01",
+      "issue": "The prescribed `engines` value contradicts the task's own rationale. Acceptance Criteria and step 2 require Node `>= 22.12`, but `>=22.12` admits the 23.x line, which Verification Step 1 declares unacceptable ('23.x не годится') and which vitest@4.0.18 excludes via `engines.node: ^20.0.0 || ^22.0.0 || >=24.0.0` (verified from node_modules). Tech-spec Decision 8 repeats the same error ('a floor of 22.12 ... deliberately excludes the 23.x line' — it does not). The manifest would document a range the project does not support.",
+      "fix": "Set `engines.node` to an expression that actually encodes the intersection, e.g. `\"^22.12.0 || >=24.0.0\"` (or `\">=22.12.0 <23\"` if only the 22 line is supported per Decision 8), and update the AC wording plus Decision 8 in the tech-spec to match."
+    },
+    {
+      "severity": "major",
+      "category": "feasibility",
+      "task": "03",
+      "issue": "The instruction to bump the hardcoded 7 in 'three source locations' is wrong for two of the three. Verified: `src/data/defaults.ts:52` is `version: 7` (must become 8), but `src/data/migration.ts:75` is `if (version < 7)` — a historical guard for the notesHidden step — and `:81` is `result.version = 7` inside that same block. Turning L75 into `if (version < 8)` collides with the new `version < 8` block that step 5 asks to insert after L82, producing two identical conditions or silently erasing the v7 migration boundary. Description ('bumped to 8 in place, in the three source locations', echoing tech-spec Decision 10) and What-to-do step 5 / Details ('Insert the v8 block after L82') give contradictory instructions.",
+      "fix": "Bump only `defaults.ts:52` to 8. Leave `if (version < 7)` and `result.version = 7` untouched as historical steps, and set `result.version = 8` inside the newly added `if (version < 8)` block. Reword the Description and tech-spec Decision 10 to say 'one source location plus the nine test expectations'."
+    },
+    {
+      "severity": "major",
+      "category": "hints",
+      "task": "03",
+      "issue": "The schema-version change is not propagated to project documentation. `docs/technical.md` hardcodes the old version in three places — `\"version\": 7` (L21, data.json schema example), `if (version < 7) {` (L358) and `data.version = 7;` (L403) — and CLAUDE.md ('Common Tasks', 'When modifying data') requires updating docs/technical.md when the data schema changes. Neither What to do, nor Acceptance Criteria, nor Post-completion mentions it, so the documented schema will silently drift one version behind.",
+      "fix": "Add a step and an AC item: update the version number, the migration listing and the schema example in docs/technical.md to reflect version 8 and the two new fields (`Group.title`, `Board.groupOrder`)."
+    },
+    {
+      "severity": "minor",
+      "category": "hallucination",
+      "task": "02",
+      "issue": "The text table is introduced as 'взяты из user-spec, менять формулировки нельзя', but only two of the eight strings are traceable to the user-spec: «Пока пусто — перетащите сюда задачи» / «Nothing here yet — drag tasks in» (user-spec L48, L86) and the Russian column header «Группа» (ASCII layout, L94). `Move up`, `Move down`, `Переместить вверх`, `Переместить вниз` and the English `Group` appear nowhere in the user-spec or tech-spec (grep confirms) — they are the task author's wording presented as spec-sourced and locked against change.",
+      "fix": "Keep the strings, but mark the four arrow labels and the EN column header as task-authored defaults that the implementer may adjust, rather than claiming user-spec provenance."
+    },
+    {
+      "severity": "minor",
+      "category": "feasibility",
+      "task": "02",
+      "issue": "Frontmatter `verify: bash — `npx tsc --noEmit`` deviates from the single-token form used by tasks 01 and 03 (`verify: bash`). If the field is consumed as a tool identifier it will not match `bash`.",
+      "fix": "Set `verify: bash` and keep the concrete command in Verification Steps (it is already there, steps 1-2)."
+    },
+    {
+      "severity": "minor",
+      "category": "feasibility",
+      "task": "03",
+      "issue": "Step 7 says to retarget 'the nine existing toBe(7) expectations and the three test names'. The nine expectations are correct (verified at lines 22, 29, 37, 57, 72, 91, 107, 120, 129), but nine test titles carry the version, not three: lines 20, 27 ('version=7'), 33, 54, 64, 83, 99, 112 ('vN → v7') and 124 ('v7 → v7'). There is also the local `v7data` at lines 126-127 and the comment at 125. TDD Anchor contradicts step 7 by saying each `vN → v7` case becomes `vN → v8`.",
+      "fix": "Reword step 7 to 'retarget the nine expectations and every test title carrying the version (9 titles), plus the `v7data` local and the comment at L125'."
+    },
+    {
+      "severity": "minor",
+      "category": "tdd",
+      "task": "03",
+      "issue": "The test '::two boards get independent groupOrder arrays' does not cover the reset path. `migrateData(null)` returns `{ ...DEFAULT_DATA, boards: [{ ...DEFAULT_DATA.boards[0] }] }` (migration.ts:7,14) — a shallow board copy that shares `groups` and would share `groupOrder` with the module-level `DEFAULT_DATA`. If the order sanitizer returns the input array by reference when it is already valid, two resets alias one array and a later reorder mutates `DEFAULT_DATA` in place for the whole session. The idempotency test uses `JSON.stringify`, so it cannot catch this.",
+      "fix": "State explicitly that the order sanitizer must always return a freshly allocated array (including on the already-valid path), and add an assertion that `migrateData(null).boards[0].groupOrder !== migrateData(null).boards[0].groupOrder` by reference."
+    },
+    {
+      "severity": "minor",
+      "category": "feasibility",
+      "task": "03",
+      "issue": "Acceptance Criteria requires `npx tsc --noEmit` to be clean, but the two pre-existing TS2353 errors in src/i18n/en.ts(60,3) and ru.ts(60,3) are fixed by Task 02, while Details state 'Nothing in this task depends on Task 2' and `depends_on` lists only ['01']. Correct ordering is currently guaranteed only by Task 02 being in wave 0 and Task 03 in wave 1.",
+      "fix": "Either add '02' to `depends_on`, or reword Details to 'no code dependency on Task 2, but the clean-tsc gate assumes Task 2 has already landed in wave 0'."
+    },
+    {
+      "severity": "minor",
+      "category": "tdd",
+      "task": "03",
+      "issue": "Adding required `Group.title` and `Board.groupOrder` makes the helpers in tests/unit/cleanup.test.ts type-incomplete: `makeGroup(): Group` (L12) and `makeBoard(): Board` (L23) build literals without the new fields. Runtime is unaffected (vitest transpiles without type checking, and tsconfig.json includes only `src/**`), but the file will show errors in the editor and in any future type-checked test config. The task lists cleanup.ts as read-only and does not mention cleanup.test.ts at all.",
+      "fix": "Add a note (or a step) to update the two helpers in tests/unit/cleanup.test.ts with `title: ''` and a default `groupOrder`, and state that this is cosmetic/type-level, not behavioural."
+    },
+    {
+      "severity": "minor",
+      "category": "hints",
+      "task": "01",
+      "issue": "Task 01 asserts the feature 'переиспользует computeGroupClasses без изменений', but src/ui/boardLayoutUtils.ts carries an explicit directive at lines 3-4: 'ВАЖНО: зависит от фиксированного порядка групп. При появлении настраиваемого порядка — переработать.' Feature 0011 introduces exactly that configurable order. The reuse itself is sound (the function is order-sensitive to the array it receives, so a pre-sorted array works), but the comment becomes actively misleading and no task in this batch retires it.",
+      "fix": "Note in Task 01 (or hand to Task 07) that the stale comment in src/ui/boardLayoutUtils.ts must be updated to say the caller supplies the order, since the premise it warns about now holds."
+    },
+    {
+      "severity": "minor",
+      "category": "missing_file",
+      "task": "01",
+      "issue": "All three tasks list `0011-feat-group-customization-decisions.md` under Context Files → Feature artifacts (a file to read) and in Post-completion (a file to write). The file does not exist in docs/features/0011-feat-group-customization/.",
+      "fix": "Either create the decisions log up front, or move the reference out of Context Files and keep it only in Post-completion, marked 'create if absent'."
+    }
+  ],
+  "verified_claims": {
+    "task_01": [
+      "`npm test` fails with ERR_REQUIRE_ESM while loading vitest.config.ts, before any test file is collected — reproduced live",
+      "vitest.config.ts contains exactly `include: ['tests/unit/**/*.test.ts']` and `environment: 'node'`",
+      "vitest@4.0.18 engines.node = ^20.0.0 || ^22.0.0 || >=24.0.0 (read from node_modules)",
+      "vite@7.3.1 engines.node = ^20.19.0 || >=22.12.0 (read from node_modules)",
+      "npm 11.13.0 supports ^20.17.0 || >=22.9.0 (emitted by npm itself)",
+      "src/ui/boardLayoutUtils.test.ts exists, holds exactly 5 computeGroupClasses cases matching the five described in the TDD Anchor, and imports './boardLayoutUtils' + '../data/types'",
+      "tests/unit/ currently holds 3 files (cleanup, migration, statusTransitions) → 4 after the move",
+      "tests/unit/cleanup.test.ts uses the '../../src/...' import style cited as the model",
+      ".nvmrc is absent; package.json has no engines field",
+      "src/ui/boardLayoutUtils.test.ts is the only *.test.ts under src/",
+      "tsconfig.json includes only src/**/*.ts and src/**/*.svelte — the moved file does leave tsc scope",
+      "playwright.config.ts and esbuild.harness.mjs exist",
+      "src/ui/boardLayoutUtils.ts exists and exports computeGroupClasses"
+    ],
+    "task_02": [
+      "`npx tsc --noEmit` produces exactly two errors: src/i18n/en.ts(60,3) and src/i18n/ru.ts(60,3), both TS2353 on 'boardSettings.notes'",
+      "union TranslationKey lives in src/i18n/types.ts at lines 4-41; Translations = Record<TranslationKey, string> at line 43",
+      "boardSettings.* block spans lines 21-26 and ends with 'boardSettings.fullWidth' | 'boardSettings.fullWidthTooltip'",
+      "emptyState.* block spans lines 37-38 with six per-group keys",
+      "en.ts:60 = 'boardSettings.notes': 'Notes'; ru.ts:60 = 'boardSettings.notes': 'Заметки'",
+      "en.ts emptyState section spans lines 89-94, last key emptyState.completed with the em-dash 'Nothing here yet — ...' model (ru mirror: 'Пока пусто — ...')",
+      "BoardSettingsPopup.svelte:90 uses $t('boardSettings.notes'); line 48 is an empty <span class=\"tm-popup__group-header-name\">",
+      "EmptyState.svelte:8 builds the key as `emptyState.${groupId}` — 'renamed' is not a GroupId, no collision",
+      "none of boardSettings.groupName / moveUp / moveDown / emptyState.renamed exist in the union or either dictionary",
+      "TDD Anchor RED step 2 reproduced experimentally: adding the four keys to types.ts alone yields TS2739 on both en.ts(3,14) and ru.ts(3,14) naming the four missing properties (repo restored afterwards)"
+    ],
+    "task_03": [
+      "version 7 hardcoded at src/data/defaults.ts:52, src/data/migration.ts:75 (`if (version < 7)`) and :81 (`result.version = 7`)",
+      "migration.ts structure matches the description: early returns L6-15, independent `if (version < N)` blocks all comparing the original version, last block L75-82",
+      "tests/unit/migration.test.ts has exactly nine `expect(result.version).toBe(7)` at lines 22, 29, 37, 57, 72, 91, 107, 120, 129",
+      "makeBoard (L7) and fullWidthGroups (L135) helpers exist as described; the idempotency test at L124-132 builds its input via migrateData(null)",
+      "src/data/types.ts: GroupId L5, GROUP_IDS L9, Group L23-29 (taskIds, wipLimit, collapsed, completedRetentionDays, fullWidth with a trailing comment), Board L31-40 with exactly the eight listed fields",
+      "src/data/defaults.ts: createDefaultGroup L13-21, createDefaultBoard L23-42, DEFAULT_DATA L51-56",
+      "cleanupOrphanedTasks (src/data/cleanup.ts:20-31) collects live ids via `Object.values(board.groups)` at L23 — no groupOrder dependency",
+      "migrateData is called at src/main.ts:52 inside loadPluginData(), which is awaited as the first statement of onload() (L17) before registerView/activateView, and the result is written back with saveData at L59",
+      "GROUP_IDS is exported as a mutable GroupId[], so a fresh copy per board is indeed required",
+      "no Board/Group object literals exist in src/ outside defaults.ts, so the two new required fields will not break `tsc` elsewhere",
+      "user-spec confirms the 40-character cap (L101, L127, L144, L165) and BoardSettingsPopup.svelte uses literal maxlength=\"200\"/\"500\" (L36, L41) as the cited precedent",
+      "tech-spec Decisions 6, 7, 8, 9, 10, 11 exist at the referenced places and match the task's paraphrases (except the 22.12/23.x error noted above)"
+    ]
+  },
+  "stats": {
+    "tasks_checked": 3,
+    "claims_verified": 47,
+    "issues_found": 12
+  }
+}

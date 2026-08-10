@@ -1,0 +1,80 @@
+{
+  "validator": "dev-task-validator",
+  "feature_base": "docs/features/0011-feat-group-customization/0011-feat-group-customization",
+  "tasks_checked": ["11", "12"],
+  "iteration": 1,
+  "status": "changes_required",
+  "findings": [
+    {
+      "severity": "critical",
+      "category": "consistency",
+      "task": "12",
+      "section": "frontmatter / Context Files",
+      "issue": "Task 12 assumes Task 11 has already finished, but declares no dependency on it: Context Files describes the decisions log as «отчёты задач 1–11, включая зафиксированные отклонения», while frontmatter has depends_on: [\"10\"] and wave: 7 — the same wave as Task 11. Under wave execution both tasks run in parallel, so the Task 11 entries Task 12 is told to read will not exist yet, and both tasks append to the same decisions log concurrently.",
+      "fix": "Pick one and make it consistent: either declare depends_on: [\"10\", \"11\"] with wave: 8, or keep the parallel placement (as tech-spec's Final Wave implies) and reword Context Files to «отчёты задач 1–10» — do not leave the task claiming inputs its dependency graph does not guarantee."
+    },
+    {
+      "severity": "major",
+      "category": "consistency",
+      "task": "11",
+      "section": "Details / Dependencies",
+      "issue": "Details states «Задача 12 (документация) идёт после и в объём приёмки не входит», asserting an ordering that neither task's frontmatter expresses: both are wave 7 with depends_on: [\"10\"], i.e. concurrent. The derived claim that a stale docs/technical.md «находкой не является» rests on this ordering, so the QA scoping rule is built on a false premise.",
+      "fix": "Align the prose with the dependency graph: either state that Task 12 runs in the same wave and its output is out of QA scope regardless of completion order, or introduce the real ordering (Task 12 depends_on [\"11\"], wave 8) and keep the wording."
+    },
+    {
+      "severity": "minor",
+      "category": "carry-forward",
+      "task": "12",
+      "section": "frontmatter",
+      "issue": "verify is the bare value `bash`, dropping the concrete command the tech-spec assigns to this task (Agent Verification Plan, row 12 / Implementation Tasks: `grep -n \"groupOrder\\|title\" docs/technical.md` shows both new fields documented). Task 11 in the same batch uses the full form `bash — \\`cmd\\``, so the gate for Task 12 is weaker and the batch is internally inconsistent.",
+      "fix": "Set verify: bash — `grep -n \"groupOrder\\|title\" docs/technical.md` to carry the tech-spec's verification command into the frontmatter gate."
+    },
+    {
+      "severity": "minor",
+      "category": "consistency",
+      "task": "11",
+      "section": "frontmatter",
+      "issue": "verify is `bash — npm test && npx playwright test && npm run build` and omits `npx tsc --noEmit`, although the task's own What to do (step 4), Verification Steps (step 3) and Acceptance Criteria all require a clean type check, and tech-spec Acceptance Criteria #2 lists it as a feature-level criterion. The automated gate is narrower than the task's own definition of done.",
+      "fix": "Extend verify to include the type check: `npm test && npx tsc --noEmit && npx playwright test && npm run build` (and reconcile with the tech-spec's Agent Verification Plan row for Task 11)."
+    },
+    {
+      "severity": "minor",
+      "category": "structure",
+      "task": "12",
+      "section": "Verification Steps / Details",
+      "issue": "Template scaffolding comments were not removed: line 173 still carries `<!-- How to verify task is complete. For code — run tests. For deploy — check logs. For user-action — user confirmation. -->` and line 195 `<!-- All details for task execution — technical, organizational, any other. -->`. These are author instructions from task.md.template, not task content; Task 11 has both removed, so the batch is inconsistent.",
+      "fix": "Delete both HTML comments from the task file."
+    },
+    {
+      "severity": "minor",
+      "category": "content",
+      "task": "11",
+      "section": "Details / Edge cases",
+      "issue": "The task defines the three statuses (passed / failed / not_verifiable) and gives detailed guidance for criteria that cannot be automated (themes, Obsidian restart), but gives no rule for the opposite case — a criterion for which no covering test exists at all. Tech-spec Testing Strategy lists 13 E2E scenarios while Task 10 delivers a single spec file, so a shortfall is plausible; without a rule such a criterion naturally slides into not_verifiable, which reads as a soft pass rather than a gap.",
+      "fix": "Add an explicit rule: a criterion whose only possible evidence is a test that does not exist is `failed` with a finding (missing coverage), not `not_verifiable` — `not_verifiable` is reserved for criteria that cannot be checked without a live environment or human eyes."
+    },
+    {
+      "severity": "minor",
+      "category": "content",
+      "task": "12",
+      "section": "Details / Files (CHANGELOG)",
+      "issue": "Inaccurate precedent in the implementation guidance: the task claims «две последние по времени записи (v6 и v7) не добавляли строку в ### Changed, а упоминали версию прямо внутри записи Added». Only v7 does this (CHANGELOG.md:11, «Data schema migrated to version 7»); the v6 (Quick Notes) entry mentions no schema version anywhere, and versions 3/4/5 sit in `### Changed` (CHANGELOG.md:24-26). The executor is told to follow a two-entry pattern that has one instance.",
+      "fix": "Reword to reference the single most recent precedent (v7) and state it as the convention to follow, dropping the v6 claim."
+    },
+    {
+      "severity": "minor",
+      "category": "content",
+      "task": "11",
+      "section": "Verification Steps",
+      "issue": "Step 8 uses `git status` to prove that product code was not modified, but the report is written to `logs/working/qa-report.json` and `logs/` is neither tracked nor listed in .gitignore (git status currently shows `?? logs/`). The check therefore always reports untracked noise, making the pass/fail condition ambiguous for the executor.",
+      "fix": "Scope the check to the source tree — e.g. `git status --porcelain -- src tests` must be empty — and state explicitly that an untracked `logs/working/qa-report.json` is the expected artifact, not a violation."
+    }
+  ],
+  "stats": {
+    "tasks_checked": 2,
+    "issues_found": 8,
+    "critical": 1,
+    "major": 1,
+    "minor": 6
+  }
+}

@@ -1,0 +1,111 @@
+{
+  "validator": "dev-reality-checker",
+  "feature_base": "docs/features/0011-feat-group-customization/0011-feat-group-customization",
+  "tasks_checked": ["07", "08", "09"],
+  "status": "changes_required",
+  "findings": [
+    {
+      "severity": "critical",
+      "category": "feasibility",
+      "task": "08",
+      "issue": "Step 4 prescribes seeding the group-name input with the value resolved through the Task 05 helper (`resolve(storedTitle, defaultLabel)`), i.e. a group that has never been renamed shows 'Focus' as the input VALUE, not as a placeholder. Three consequences follow, none of which the task's own Acceptance Criteria would catch: (a) the placeholder specified in the same step is dead — it can never be seen for a default-named group, contradicting user-spec 0011 line ~101 ('Пока поле пустое, в нём серым показывается дефолтное название группы') and Scenario 2 step 3; (b) any Save — even one that only toggles visibility — writes 'Focus'/'Backlog'/... into `Group.title` for all six groups, so switching the plugin language stops translating group names, contradicting user-spec Scenario 1 step 5 and line 172 ('Пока название дефолтное, перевод работает как прежде'); (c) Task 06 treats any non-empty `title` as 'renamed' and swaps the semantic empty-state hint for the neutral one (task-06 edge case: 'Group renamed to exactly its default name → non-empty stored title, so the neutral hint appears'), so after the first save every empty group loses its semantic hint. Tech-spec Decision 4 carries the same wording, so the defect originates there.",
+      "fix": "Bind the input's value to the RAW stored title (`board.groups[id].title`, possibly empty) and `$groupLabels[groupId]` to `placeholder`. The Task 05 resolve helper belongs to display sites (Task 06), not to the editable input — do not call it for the input value. Add an acceptance criterion: 'Opening board settings and saving without editing any name leaves every `Group.title` empty; group names still translate after a language switch.' Reconcile tech-spec Decision 4 with the same correction."
+    },
+    {
+      "severity": "major",
+      "category": "tdd",
+      "task": "07",
+      "issue": "TDD Anchor claims the case `перестановка разрывает пару` is 'the case that would fail if the ordered array were not actually reaching the function'. That is not true: the test calls the pure `computeGroupClasses` directly with a hand-built array, so it cannot observe whether `BoardLayout.svelte` feeds it `board.groupOrder` — the same task states the component is untestable here (`vitest.config.ts` sets `environment: 'node'`, no DOM library). The rationale gives false confidence that the central wiring of the task is covered.",
+      "fix": "Reword the anchor: the three cases prove `computeGroupClasses` is order-agnostic, nothing more. State explicitly that the wiring (board.groupOrder → visibleGroups → classes + order) has no automated coverage until Task 10, and that `npx playwright test tests/e2e/0007-dynamic-layout.spec.ts` plus the manual harness check are the only gates in this task."
+    },
+    {
+      "severity": "minor",
+      "category": "tdd",
+      "task": "07",
+      "issue": "The two markup outputs this task introduces — the inline `order` value and `data-group-container` — have no automated assertion in this task. A missing `data-group-container` surfaces two waves later in Task 09; a wrong `order` value surfaces only in Task 10 (wave 6), and only the manual harness check in Verification Steps would catch it earlier. This is a deliberate deferral (tech-spec Decision 12), but it leaves the task's central acceptance criteria machine-unverifiable at the moment of hand-off.",
+      "fix": "Either accept explicitly (note in Verification Steps that ACs 3, 4 and 6 are verified manually in this task), or add one cheap Playwright assertion in an existing file scope — e.g. that six `[data-group-container]` elements exist and their computed `order` values form a dense 1..N sequence — to give the wave a machine gate."
+    },
+    {
+      "severity": "minor",
+      "category": "feasibility",
+      "task": "07",
+      "issue": "`depends_on: [\"03\", \"06\"]` does not list Task 01, but step 7 extends `tests/unit/boardLayoutUtils.test.ts`, which does not exist yet — today the file lives at `src/ui/boardLayoutUtils.test.ts` and is not even collected by vitest (`include: ['tests/unit/**/*.test.ts']`). Task 01 performs the move. The dependency is satisfied transitively (07 → 03 → 01) and by wave ordering (0 → 1 → 3), so it is not blocking, but it is not declared.",
+      "fix": "Add \"01\" to `depends_on` of Task 07, or note in Details that the dependency is transitive through Task 03."
+    },
+    {
+      "severity": "minor",
+      "category": "hallucination",
+      "task": "09",
+      "issue": "Details attribute the comment 'Uses title text to find the header since [data-group-id] is only in the body' to the `COLLAPSIBLE_GROUP_LABELS` constant. In the real file that sentence is line 97 of `tests/e2e/helpers.ts`, part of the JSDoc block of `expandGroup` (lines 95–98); the constant's own comment is line 89, '// EN labels for collapsible groups (backlog and completed)'. Both need removing/updating, and an implementer following the description literally would delete only one of them.",
+      "fix": "Restate as: delete the constant with its line-89 comment (L89–93) and drop the now-false second line of `expandGroup`'s JSDoc (L97)."
+    },
+    {
+      "severity": "minor",
+      "category": "hallucination",
+      "task": "09",
+      "issue": "The description says reusing `data-group-id` on the wrapper 'would break twelve strict-mode assertions'; the same 'twelve' appears in Task 07 Edge cases with an explicit list of line numbers — `helpers.ts:100`, `0006-group-visibility.spec.ts:95, 108, 112, 120, 199, 200, 240, 284, 285`, `core.spec.ts:245, 248, 252`. Every one of those lines does contain a bare `[data-group-id=\"X\"]` locator (verified), but the list has thirteen entries, not twelve.",
+      "fix": "Change 'twelve' to 'thirteen' in Task 09 Description and in Task 07 Edge cases, or drop the count and keep the line list."
+    },
+    {
+      "severity": "minor",
+      "category": "feasibility",
+      "task": "08",
+      "issue": "Acceptance criterion 'that attribute name is used nowhere else in the codebase' is unsatisfiable as literally written once Task 09 lands, since Task 09 introduces `data-settings-group` locators throughout `tests/e2e/`. The task's own Verification Steps already scope the check correctly (`grep -rn \"data-settings-group\" src/`).",
+      "fix": "Scope the criterion to `src/`: 'the attribute name appears nowhere else under `src/`'."
+    },
+    {
+      "severity": "minor",
+      "category": "feasibility",
+      "task": "08",
+      "issue": "Step 10 normalizes titles at the store boundary (Decision 7) but writes `groupOrder` verbatim, with no validation. Task 03's sanitizer only runs at load, so an order arriving malformed (missing or duplicated id) would leave the board scrambled for the rest of the session and be repaired only on next start. Today the popup's local copy is a permutation by construction, so this is latent rather than live.",
+      "fix": "Either reuse Task 03's exported order sanitizer inside `updateBoard` alongside the title normalization, or state in Details that the store boundary deliberately trusts the caller for `groupOrder` and record the reason."
+    },
+    {
+      "severity": "minor",
+      "category": "missing_file",
+      "task": "07",
+      "issue": "All three tasks list `docs/features/0011-feat-group-customization/0011-feat-group-customization-decisions.md` under Context Files as material to read, but the file does not exist in the feature directory. It is only written at Post-completion, so an executor of the first task in a wave has nothing to read.",
+      "fix": "Mark the decisions log in Context Files as 'created during execution — may not exist yet', or create an empty stub during decomposition."
+    }
+  ],
+  "verified_claims": {
+    "task_07": [
+      "BoardLayout.svelte:23 declares `const GROUP_ORDER: GroupId[]` duplicating GROUP_IDS from src/data/types.ts:9 — confirmed, both arrays identical",
+      "visibleGroups/groupClasses derived at lines 25-28, `hidden` at line 21 — confirmed",
+      "Six `{#if !hidden.has(...)}` blocks span lines 181-271; wrappers at 182, 198, 213, 228, 243, 258 are bare `<div class={groupClasses['id']}>` with no other attribute — confirmed",
+      "Notes block `{#if !board.notesHidden}` at 273-281 — confirmed",
+      "useSortable.ts:26-27 reads `evt.from/to.dataset.groupId`; SortableJS is bound to the group BODY (TaskGroup.svelte:31-32, CollapsibleGroup.svelte:67-68 carry both data-group-id and use:useSortable) — confirmed, so an attribute collision on the wrapper would not break production, only tests",
+      ".tm-board-layout__notes at styles.css:86-88 declares only `grid-column: 1 / -1`, no `order`; the max-width:600px block is at 89-94 — confirmed",
+      ".tm-board-layout is `display: grid`, so CSS `order` applies to its items — confirmed",
+      "boardLayoutUtils.ts:3-4 contain the stale comment 'ВАЖНО: зависит от фиксированного порядка групп. / При появлении настраиваемого порядка — переработать', and the function body is genuinely order-agnostic — confirmed",
+      "The existing test file has exactly five cases with a local `g(id, fullWidth)` helper — confirmed (currently at src/ui/boardLayoutUtils.test.ts)",
+      "All three TDD-anchor expectations traced by hand against computeGroupClasses — all three are correct",
+      "Harness API `window.__test.resetData(partial)` exists (tests/harness/main.ts:78)"
+    ],
+    "task_08": [
+      "BoardSettingsPopup.svelte:52 iterates `{#each GROUP_IDS as groupId}`; row block 52-87; column header 47-51; notes row 89-98 reusing .tm-popup__group-row; local state 12-19; visibleCount line 22; handleSave 24-27; isLastVisible line 55; onSave prop type line 8; file is 115 lines — all confirmed",
+      "BoardHeader.saveSettings occupies lines 23-29 and forwards `{ ...fields, groupFullWidths }` — confirmed; `updateBoard` has exactly one caller, so widening the signature breaks nothing else",
+      "dataStore.ts:199 is `export function updateBoard(...)`, assigns title/subtitle/hiddenGroups/notesHidden, loops GROUP_IDS for fullWidth, ends with persist() — confirmed",
+      "styles.css: .tm-popup at 638 has neither max-height nor overflow; .tm-popup__group-header at 694-700 and .tm-popup__group-row at 713-719 both use `grid-template-columns: 1fr 4rem 4rem` — confirmed",
+      ".tm-popup is shared with GroupSettingsPopup.svelte:26 — confirmed",
+      "dataStore is importable under environment:'node' — the only Obsidian import in its transitive graph is the type-only `import type { Plugin } from 'obsidian'` in pluginStore.ts; persist() is a no-op while pluginStore holds null — confirmed",
+      "Task 02 does add boardSettings.groupName / moveUp / moveDown; Task 03 does add Group.title and Board.groupOrder; Task 04 exports a move + can-move pair in src/ui/groupOrderUtils.ts; Task 05 exports the resolve helper in src/ui/groupTitle.ts — all present in the dependency task files",
+      "Existing E2E toggle indices: visibility `.first()`, full width `.nth(1)` — confirmed; arrows as <button> keep those indices"
+    ],
+    "task_09": [
+      "Scenario totals: 0006=17, 0007=16, 0008=16, core=35, total 84 — confirmed exactly",
+      "helpers.ts: COLLAPSIBLE_GROUP_LABELS L90-93, expandGroup L99-107, groupAddButton L110-117, openGroupSettings L148-155 — confirmed",
+      "0007: COLLAPSIBLE_HEADER_TEXT + comment L18-23, getGroupWrapperClass L25-38 with two `.locator('..')` hops, setFullWidth L56-62; call sites L79/88/89/108/120/146/169/170/171/172/185/186/271 and inline row locators L99/196/206 — all confirmed exactly; L176 already iterates ids; L294 is the boundingBox wrapper hop",
+      "0006: hideGroup L19-28, showGroup L31-39; call sites L50/55/100/111/130/142/175/184/211/237/238/246/247; inline row locators L66/69/77/88/165/192/194/225 (eight, as stated); groups-array L155-157; collapsed-header assertions L82 and L232; out-of-scope `.tm-task-group:has(...)` at L52/101/121/177/185 — all confirmed exactly; GroupId is indeed not yet imported there",
+      "0008: the four `document.querySelector('[data-group-id=...]')` at L25, 35, 43, 183 all read the group BODY (`style.getPropertyValue('--tm-card-columns')`, `classList`) — confirmed; the single popup row locator is L204, inside TC-13 (L197), matching the 'TC-13 red before, green after' claim",
+      "core.spec.ts:251 is the only collapsed-header click — confirmed",
+      "After the enumerated migrations no name-based group locator remains anywhere under tests/e2e/ — verified by grep, so the acceptance criterion is reachable",
+      "playwright.config.ts serves the harness via `node esbuild.harness.mjs --serve`, no separate build step — confirmed"
+    ]
+  },
+  "stats": {
+    "tasks_checked": 3,
+    "claims_verified": 61,
+    "issues_found": 9
+  }
+}

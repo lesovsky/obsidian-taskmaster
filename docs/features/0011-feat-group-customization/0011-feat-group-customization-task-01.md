@@ -1,7 +1,7 @@
 ---
 status: planned                    # planned -> in_progress -> done
 depends_on: []                     # ID задач-зависимостей (строки: ["01", "02"])
-wave: 0                            # волна параллельного выполнения
+wave: 1                            # волна параллельного выполнения
 skills: [infrastructure-setup]     # МАССИВ скиллов для загрузки
 verify: bash                       # инструмент верификации (опционально: curl, bash, user)
 reviewers: [dev-infrastructure-reviewer, dev-code-reviewer, dev-security-auditor]

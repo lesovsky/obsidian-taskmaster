@@ -1,7 +1,7 @@
 ---
 status: planned
 depends_on: ["07", "08"]
-wave: 5
+wave: 6
 skills: [code-writing]
 verify: bash — npx playwright test
 reviewers: [dev-test-reviewer, dev-code-reviewer, dev-security-auditor]

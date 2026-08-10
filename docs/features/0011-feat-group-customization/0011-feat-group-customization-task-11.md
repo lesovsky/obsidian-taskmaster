@@ -1,7 +1,7 @@
 ---
 status: planned                    # planned -> in_progress -> done
 depends_on: ["10"]                 # ID задач-зависимостей (строки: ["01", "02"])
-wave: 7                            # волна параллельного выполнения
+wave: 8                            # волна параллельного выполнения
 skills: [pre-deploy-qa]            # МАССИВ скиллов для загрузки
 verify: bash — `npm test && npx playwright test && npm run build`  # инструмент верификации
 reviewers: []                      # ревью не требуется — задача сама является приёмкой

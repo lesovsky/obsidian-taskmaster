@@ -1,7 +1,7 @@
 ---
 status: planned                    # planned -> in_progress -> done
 depends_on: ["02", "03", "05"]     # ID задач-зависимостей (строки: ["01", "02"])
-wave: 2                            # волна параллельного выполнения
+wave: 3                            # волна параллельного выполнения
 skills: [code-writing]             # МАССИВ скиллов для загрузки
 verify: bash                       # инструмент верификации (опционально: curl, bash, user)
 reviewers: [dev-code-reviewer, dev-security-auditor, dev-test-reviewer]  # явно указать. Пусто = fallback на defaults
