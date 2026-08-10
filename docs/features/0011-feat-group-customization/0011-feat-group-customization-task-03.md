@@ -221,7 +221,7 @@ repository documentation:
 
 ## Verification Steps
 
-- Precondition: `node -v` reports ≥ 22.12 (Task 1 pins this; the unit runner does not work below it)
+- Precondition: `node -v` satisfies `^22.12.0 || >=24.0.0` (Task 1 pins this; the unit runner does not work below it)
 - **Main gate:** `npx vitest run tests/unit/migration.test.ts` — all migration and sanitization
   cases pass. This task is gated on its own suite, not on the whole set: Tasks 4 and 5 run in the
   same wave and create brand-new test files in `tests/unit/`, passing through a red phase while

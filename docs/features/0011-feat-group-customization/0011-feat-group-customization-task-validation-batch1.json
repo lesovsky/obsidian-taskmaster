@@ -2,79 +2,93 @@
   "validator": "dev-task-validator",
   "feature_base": "docs/features/0011-feat-group-customization/0011-feat-group-customization",
   "tasks_checked": ["01", "02", "03", "04", "05"],
-  "iteration": 1,
+  "iteration": 2,
   "status": "approved",
   "notes": [
-    "project.md / architecture.md отсутствуют осознанно: в проекте нет .claude/skills/project-knowledge/, все пять задач подставляют CLAUDE.md + docs/technical.md + docs/overview.md. Не считается дефектом по указанию оркестратора.",
-    "Проверено по запросу: имена ключей локализации из Task 02 (boardSettings.groupName, boardSettings.moveUp, boardSettings.moveDown, emptyState.renamed) не противоречат задачам 06 и 08 — обе не хардкодят имена, а инструктируют найти реальные ключи в src/i18n. См. finding cons-06-08-i18n-policy о расхождении fallback-политик.",
-    "Проверено по запросу: сигнатура Task 05 (resolveGroupTitle(storedTitle: string, defaultLabel: string): string) действительно свободна от типа Group; задачи 06 и 08 обе требуют прочитать реальную сигнатуру перед вызовом. Развязка с Task 03 в одной волне выдержана.",
-    "Carry-forward проверен: все пункты tech-spec / Testing Strategy / Unit tests, относящиеся к задачам 03, 04, 05, присутствуют в TDD Anchor соответствующих задач; ни один не потерян. Списки Files to modify всех пяти задач точно соответствуют tech-spec / Implementation Tasks.",
-    "Граф зависимостей всех 12 задач непротиворечив: все ID существуют, wave потребителя всегда строго больше wave зависимости, циклов нет.",
-    "Фактические утверждения Task 02 о состоянии i18n-файлов выборочно сверены с кодом (en.ts:60 / ru.ts:60 = 'boardSettings.notes'; блок emptyState.* = строки 89–94 en.ts; union TranslationKey строки 21–26 и 37–38) — совпадают."
+    "Раунд 2. Из 16 находок раунда 1 закрыто 6 (все 5 major + 1 minor). Открытыми остаются 8 minor из раунда 1 (перечислены в findings с carried_from_iteration=1) и добавлено 6 новых, из них 2 major. Критических нет ни одной — status: approved.",
+    "Перенумерация волн подтверждена по всем 12 файлам: 01,02→1; 03,04,05→2; 06→3; 07→4; 08→5; 09→6; 10→7; 11→8; 12→9. Граф зависимостей пересчитан заново: 03/04/05←[01]; 06←[02,03,05]; 07←[01,03,06]; 08←[04,05,07]; 09←[07,08]; 10←[09]; 11←[10]; 12←[10,11]. Все ID существуют, wave потребителя строго больше wave каждой зависимости, циклов нет. Требование шаблона wave ≥ 1 выполнено.",
+    "Внутренние ссылки на волны в задачах 06, 07, 09, 11, 12 пересчитаны и совпадают с новой нумерацией (в частности 09: «Waves 2–5 (Tasks 03–08)» и «Wave 7 (Task 10)» — верно; 07: Task 1 → wave 1, Task 3 → wave 2, Task 6 → wave 3 — верно).",
+    "Task 01, диапазон Node: пересечение проверено арифметически. vitest ^20||^22||>=24 ∩ vite ^20.19.0||>=22.12.0 ∩ npm ^20.17.0||>=22.9.0 = [20.19,21) ∪ [22.12,23) ∪ [24,∞). Отбрасывание 20.x по Decision 8 даёт ровно `^22.12.0 || >=24.0.0`; каретка действительно отсекает 23.x. Формулировка корректна, обоснование в задаче не противоречит само себе.",
+    "Task 01 и Task 02: проверки по конкретным путям вместо подсчёта файлов внедрены в обеих задачах (Task 01 шаг 7 — git status --porcelain по списку путей; Task 02 шаг 3 — git status по src/i18n с pathspec-исключениями). Взаимная оговорка «чужие пути в дереве — норма» присутствует в обеих. Находка cons-02-gitdiff-step закрыта.",
+    "Task 02: происхождение строк сверено с user-spec по факту. «Пока пусто — перетащите сюда задачи» / «Nothing here yet — drag tasks in» — user-spec строка 86, дословно; «Группа» — макет строки настроек, user-spec строка 94; подписей стрелок (Move up / Переместить вверх / вниз) в user-spec нет — помечены как предложенные этой задачей корректно. Таблица провенанса честная.",
+    "Task 02 ↔ Task 08: расхождение fallback-политик (cons-06-08-i18n-policy раунда 1) закрыто с обеих сторон. Task 02 объявил раздел «Контракт имён ключей», Task 08 (строки 227–232) перечисляет ровно `boardSettings.groupName` / `moveUp` / `moveDown`, запрещает изобретать варианты и добавлять near-duplicate, и требует grep-проверки наличия ключей. Task 06 использует `emptyState.renamed` — совпадает с контрактом.",
+    "Task 03: фактические утверждения о коде перепроверены по исходникам. src/data/migration.ts — блок `if (version < 7)` с `result.version = 7` действительно исторический и последний; src/data/defaults.ts:52 — `version: 7`; оба ранних возврата действительно делают поверхностный `{ ...DEFAULT_DATA.boards[0] }` и разделяют массивы с модульной константой. Правка раунда 2 (одно место вместо трёх + покрытие пути первого запуска) фактически верна.",
+    "Task 03 гейт сужен до `npx vitest run tests/unit/migration.test.ts`, Task 04 — до своей сюиты с явным отказом от полного `npm test`. Взаимные оговорки «красное у соседа по волне — не твой дефект» присутствуют в 03 и 04. Находки cons-03-npmtest-scope и cons-04-npmtest-scope закрыты.",
+    "Task 04: битая ссылка на `src/ui/boardLayoutUtils.test.ts` заменена на `tests/unit/boardLayoutUtils.test.ts` с пояснением о переносе задачей 01. Находка cont-04-stale-link закрыта.",
+    "Task 05: цитата из tech-spec Decision 4 («The editing field is not a display site and must not use the helper», строки 111–116 tech-spec) существует дословно — ссылка не выдумана. Сигнатура `resolveGroupTitle(storedTitle: string, defaultLabel: string): string` по-прежнему свободна от типа `Group`, развязка с Task 03 в одной волне выдержана.",
+    "Carry-forward tech-spec → задачи перепроверен: списки Files to modify всех пяти задач совпадают с Implementation Tasks tech-spec (Task 1 — package.json/.nvmrc/vitest.config.ts/перенос теста; Task 2 — три файла i18n; Task 3 — types/defaults/migration/migration.test; Task 4 — groupOrderUtils + тест; Task 5 — groupTitle + тест). Ни один пункт Testing Strategy / Unit tests, относящийся к 03/04/05, не потерян; Task 03 добавила два якоря сверх tech-spec (пути ранних возвратов) — расширение, не потеря."
   ],
   "findings": [
     {
-      "id": "cons-03-npmtest-scope",
-      "severity": "major",
-      "category": "consistency",
-      "task": "03",
-      "section": "Verification Steps / frontmatter verify",
-      "issue": "Гейт задачи — `npm test`, то есть весь unit-набор. Но vitest собирает `tests/unit/**/*.test.ts`, а задачи 04 и 05 в ТОЙ ЖЕ волне 1 создают новые файлы `tests/unit/groupOrderUtils.test.ts` и `tests/unit/groupTitle.test.ts` и делают это по TDD — то есть проходят через фазу RED. Пока сосед по волне в RED, `npm test` у Task 03 красный по причинам вне её зоны ответственности. Оркестратор либо получит ложный отказ, либо исполнитель Task 03 начнёт «чинить» чужой недописанный модуль.",
-      "fix": "Сузить гейт Task 03 до собственных сюит: `npx vitest run tests/unit/migration.test.ts tests/unit/cleanup.test.ts tests/unit/statusTransitions.test.ts`. Зелёный `npm test` целиком оставить проверкой выхода из волны 1 (или Task 11)."
-    },
-    {
-      "id": "cons-04-npmtest-scope",
-      "severity": "major",
-      "category": "consistency",
-      "task": "04",
-      "section": "Verification Steps",
-      "issue": "Шаг «`npm test` — остальные unit-сюиты не сломаны» тянет в проверку сюиты задач 03 и 05, идущих в той же волне 1 и в тот же момент находящихся в произвольной фазе TDD. Frontmatter-verify задачи (`npx vitest run tests/unit/groupOrderUtils.test.ts`) изолирован корректно — противоречие именно между frontmatter и телом.",
-      "fix": "Убрать шаг с `npm test` либо переформулировать как «прогнать только предсуществующие сюиты: cleanup, migration, statusTransitions, boardLayoutUtils» — и явно оговорить, что чужие новые сюиты в этой волне не являются гейтом Task 04."
-    },
-    {
-      "id": "cons-345-tsc-surface",
+      "id": "cons-05-callsite-count",
       "severity": "major",
       "category": "consistency",
       "task": "05",
-      "section": "Acceptance Criteria / Verification Steps",
-      "issue": "Все три задачи волны 1 держат в критериях `npx tsc --noEmit` — чисто. Но tsconfig.json включает `src/**/*.ts`, значит поверхность проверки у них общая: Task 03 правит src/data/types.ts, defaults.ts, migration.ts; Task 04 создаёт src/ui/groupOrderUtils.ts; Task 05 создаёт src/ui/groupTitle.ts. Недописанный модуль соседа по волне валит tsc у всех остальных. Дополнительно Task 04 импортирует `GroupId` из src/data/types.ts — файла, который Task 03 редактирует параллельно (сам union не меняется, но файл в этот момент нестабилен).",
-      "fix": "Во всех трёх задачах оговорить: ошибки tsc в файлах, не принадлежащих задаче, — не её гейт; фиксировать только ошибки в собственных файлах (например `npx tsc --noEmit 2>&1 | grep '^src/ui/groupTitle'`). Чистый tsc целиком — проверка выхода из волны."
+      "section": "Description / Details → Dependencies",
+      "new_in_iteration": 2,
+      "issue": "Правка «пять → четыре» перелетела на одну позицию: фактических мест вызова резолвера три, а не четыре. Task 05 перечисляет GroupHeader, CollapsibleGroup, GroupSettingsPopup и EmptyState. Но Task 06 (единственный потребитель) явно строит EmptyState иначе: «Three sites already receive `group` … and need no new props» (строки 29–33), а EmptyState получает проп со СТРОКОЙ сохранённого названия и сам решает `emptyState.renamed` vs `emptyState.{groupId}` через `.trim() !== ''` — и там же прямой запрет: «do not add a predicate to `src/ui/groupTitle.ts`», AC Task 06 требует, чтобы `groupTitle.ts` остался с ровно одним экспортом. Проверено по коду: `src/ui/EmptyState.svelte` рендерит подсказку `emptyState.{groupId}`, а не название группы, — местом отображения названия он не является вовсе. То есть аргумент Task 05 «четыре копии одного условия — четыре места для расхождения» опирается на несуществующее четвёртое место, а Details утверждает «Единственный потребитель — Task 6: четыре места отображения». Исполнитель Task 05 может решить, что модулю нужен предикат «переименована ли группа» для EmptyState, — ровно то, что Task 06 запрещает.",
+      "fix": "В Task 05 заменить «Мест вызова четыре» на три и убрать EmptyState из списка потребителей резолвера. Отдельной строкой зафиксировать: EmptyState использует не резолвер, а собственную проверку `trim()` внутри компонента (Task 06), поэтому второго экспорта/предиката в `groupTitle.ts` быть не должно — это согласуется с уже имеющимся хинтом «Не добавлять второй экспорт на будущее». Заодно поправить формулировку tech-spec Decision 4 («keeps the four display sites identical») и вводный абзац Task 06 («all four display sites still read `$groupLabels[groupId]` directly» — EmptyState его не читает)."
     },
     {
-      "id": "cons-03-task02-claim",
+      "id": "cons-techspec-wave-headings",
       "severity": "major",
+      "category": "decomposition",
+      "task": "01",
+      "section": "cross-task ↔ tech-spec / Implementation Tasks",
+      "new_in_iteration": 2,
+      "issue": "Волны сдвинуты только в task-файлах. В tech-spec заголовки Implementation Tasks остались прежними: «Wave 0 (предусловия)» (строка 394), «Wave 1 (чистая логика)» (416), «Wave 2 (отображение)» (447), «Wave 3 (доска)» (459), «Wave 4 (настройки)» (476), «Wave 5 (тесты)» (489), «Wave 6 (приёмка)» (500), «Final Wave» (512). После сдвига каждое из этих чисел на единицу меньше того, что стоит во frontmatter соответствующих задач: tech-spec «Wave 1» — это задачи 03/04/05, у которых `wave: 2`; tech-spec «Wave 2» — задача 06 с `wave: 3`, и так далее. Внутри самих задач ссылки на волны уже новые (Task 06: «Wave 2 produced the data … wave 1 produced the localization keys»), так что документ и задачи теперь называют одну и ту же волну разными числами. Дополнительно: «Final Wave» держит задачи 11 и 12 вместе, тогда как в файлах они разведены по волнам 8 и 9 — это расхождение существовало и до сдвига, но теперь бросается в глаза. Ни одна задача батча не назначена владельцем этой синхронизации: Post-completion Task 01 говорит про Decision 8, Post-completion Task 03 — про Decision 10 и Verify, про заголовки волн — никто.",
+      "fix": "Перенумеровать заголовки в tech-spec / Implementation Tasks на Wave 1 … Wave 9, разведя задачи 11 и 12 в отдельные волны, чтобы разбиение совпадало с frontmatter. Назначить эту правку явным пунктом Post-completion одной задачи (логичнее Task 01 — она уже правит tech-spec по Decision 8) либо выполнить сразу, до старта волны 1."
+    },
+    {
+      "id": "cons-03-postcompletion-stale",
+      "severity": "minor",
       "category": "consistency",
       "task": "03",
-      "section": "Details / Dependencies",
-      "issue": "Прямое утверждение «Nothing in this task depends on Task 2» противоречит собственным AC и Verification Steps задачи: «`npx tsc --noEmit` is clean». До Task 02 tsc падает двумя предсуществующими ошибками TS2353 на 'boardSettings.notes' (Decision 9), и критерий недостижим. Фактическая последовательность волн (02 в волне 0) спасает исполнение, но исполнитель Task 03, увидев эти две ошибки, не будет знать, что они чужие — в отличие от Task 04, где это оговорено явно (Verification Steps, строка про Decision 9).",
-      "fix": "В Task 03 либо добавить \"02\" в `depends_on`, либо (предпочтительно, чтобы не плодить связи) скопировать оговорку из Task 04: «ошибки про 'boardSettings.notes' — предсуществующие, их чинит Task 02 (Decision 9), не эта задача». Убрать утверждение «Nothing in this task depends on Task 2» или уточнить его до «не зависит по коду, но опирается на её фикс type-check»."
+      "section": "Description / Post-completion",
+      "new_in_iteration": 2,
+      "issue": "Task 03 инструктирует исправить в tech-spec то, что там уже исправлено. Description: «the tech-spec's phrase \"hardcoded in three source locations\" is imprecise … Record the tech-spec wording discrepancy in the decisions log». Фактический текст Decision 10 (tech-spec, строки 178–181) уже гласит: «The version literal appears in three source locations, but only one of them is the current-version marker that this feature raises — the other two belong to an earlier migration step and must stay where they are» — то есть ровно то, что задача собирается ему сообщить. Второй пункт Post-completion: «Verify для Task 3 указан как `npm test` — сужен до `npx vitest run tests/unit/migration.test.ts`»; в tech-spec (строка 424) уже стоит `npx vitest run tests/unit/migration.test.ts` с пояснением про соседей в красной фазе. Исполнитель либо запишет в decisions log расхождение, которого нет, либо пойдёт «чинить» уже починенное.",
+      "fix": "Убрать оба пункта Post-completion и абзац «the tech-spec's phrase … is imprecise» из Description, оставив само техническое содержание (какой литерал версии меняется, а какие два остаются историческими) — оно верно и нужно исполнителю. Вместо ссылки на расхождение сослаться на Decision 10 как на подтверждающий источник."
     },
     {
-      "id": "cons-02-gitdiff-step",
-      "severity": "major",
-      "category": "consistency",
-      "task": "02",
-      "section": "Verification Steps",
-      "issue": "Шаг 3: «`git diff --stat` — изменены ровно три файла: src/i18n/types.ts, en.ts, ru.ts» и AC «Никакие другие файлы не изменены». Task 01 идёт в ТОЙ ЖЕ волне 0 и меняет в рабочем дереве package.json, создаёт .nvmrc и делает `git mv` тест-файла. При параллельном исполнении `git diff --stat` покажет 5+ файлов, и проверка ложно провалится.",
-      "fix": "Ограничить шаг областью задачи: `git diff --stat -- src/i18n/`. AC переформулировать как «за пределами src/i18n/ эта задача файлов не меняет»."
-    },
-    {
-      "id": "cons-06-08-i18n-policy",
+      "id": "cons-01-postcompletion-stale",
       "severity": "minor",
       "category": "consistency",
-      "task": "02",
-      "section": "Details (влияет на задачи 06 и 08)",
-      "issue": "Задачи 06 и 08 обе избегают хардкода имён ключей — противоречия с Task 02 нет. Но их fallback-политики расходятся: Task 06 — «do not add the key yourself if it is missing — report the blocker instead»; Task 08 — «if a needed string is missing, add it to all three files rather than hardcoding text». Task 02 — единственный владелец src/i18n/*; разрешение из Task 08 позволяет завести второй ключ под ту же строку (например 'boardSettings.moveGroupUp' рядом с уже существующим 'boardSettings.moveUp'), причём в волне 4, когда сверять уже не с чем.",
-      "fix": "Привести обе задачи к политике Task 06 (найти ключ по английской строке; если нет — блокер), либо явно перечислить в Task 08 четыре ключа, заведённые Task 02, как контракт."
-    },
-    {
-      "id": "fm-wave-zero",
-      "severity": "minor",
-      "category": "frontmatter",
       "task": "01",
-      "section": "frontmatter",
-      "issue": "`wave: 0` в задачах 01 и 02 — шаблон и правила dev-task-creator задают волну как число ≥ 1. Нумерация с нуля унаследована из tech-spec («Wave 0 (предусловия)») и сквозная для всей фичи (0…7), но оркестратор, считающий первой волной 1, пропустит обе задачи-предусловия — то есть ровно те, что чинят запуск тестов и type-check.",
-      "fix": "Либо подтвердить, что раннер feature-execution корректно обрабатывает `wave: 0`, либо сдвинуть нумерацию всех 12 задач на +1 (0→1 … 7→8) и синхронно поправить заголовки волн в tech-spec."
+      "section": "Post-completion",
+      "new_in_iteration": 2,
+      "issue": "Пункт «Поправить формулировку Decision 8 в tech-spec: там записан \"floor of 22.12 / Node ≥ 22.12\", что противоречит соседнему же утверждению об исключении 23.x» уже неактуален. Decision 8 (tech-spec, строки 155–163) сейчас говорит `^22.12.0 || >=24.0.0` и прямым текстом отвергает голое `>= 22.12` («it admits the 23.x line, which the test runner itself declares unsupported»). Исполнитель будет искать в tech-spec формулировку, которой там нет. При этом настоящий остаток проблемы находится в другом месте и никем не адресован: Agent Verification Plan, строка 331 — «`node -v` ≥ 22.12, then `npm test` runs at all», то есть та самая свободная запись, которая пропускает 23.x.",
+      "fix": "Заменить пункт на точный адрес: «в Agent Verification Plan (строка 331) записано `node -v` ≥ 22.12 — заменить на `^22.12.0 || >=24.0.0`, чтобы таблица верификации не противоречила Decision 8». Ссылку на уже исправленный Decision 8 убрать."
+    },
+    {
+      "id": "cons-node-precondition-drift",
+      "severity": "minor",
+      "category": "consistency",
+      "task": "04",
+      "section": "Verification Steps / Details → Dependencies (затрагивает 03, 04, 05, 07)",
+      "new_in_iteration": 2,
+      "issue": "Ужесточение диапазона в Task 01 не разошлось по зависимым задачам. Task 03, Verification Steps: «Precondition: `node -v` reports ≥ 22.12». Task 04, Details: «Task 1 поднимает Node до ≥ 22.12». Task 05, Verification Steps и Details: «`node -v` ≥ 22.12». Task 07, строка 211: «Task 1 (wave 1) pins Node ≥ 22.12». Все четыре записи допускают линию 23.x, которую Task 01 теперь объявляет блокером, — и это ровно та формулировка, против которой Task 01 специально написал отдельный абзац «Почему именно такая запись, а не `>= 22.12`». Практического сбоя не вызовет: Task 01 стоит волной раньше и на 23.x остановит пайплайн, так что задачи волны 2 просто не стартуют. Но исполнитель, сверяющий предусловие по своему файлу, получит противоположный ответ.",
+      "fix": "Заменить «≥ 22.12» на `^22.12.0 || >=24.0.0` в предусловиях задач 03, 04, 05 и 07, либо сослаться на Task 01 как на единственного владельца формулировки диапазона («диапазон задаёт Task 01; здесь только факт, что Node уже пропинен»)."
+    },
+    {
+      "id": "cons-0304-dead-hedging",
+      "severity": "minor",
+      "category": "consistency",
+      "task": "03",
+      "section": "Acceptance Criteria / Verification Steps (также Task 04)",
+      "new_in_iteration": 2,
+      "issue": "Оговорка про две пре-существующие ошибки TS2353 написана в форме «может ещё не быть починено», хотя новый граф это исключает. Task 03, AC: «If Task 2 has already landed, the run is fully clean; if not, those two lines are the only allowed output»; Verification Steps: «ignore them if Task 2 has not landed yet»; Task 04, Verification Steps: «Если появляются ошибки про `boardSettings.notes` — это предсуществующая проблема, которую чинит Task 2». Task 02 стоит в волне 1, задачи 03 и 04 — в волне 2, то есть к их старту фикс всегда уже в дереве. Появление этих двух ошибок в волне 2 означает не «Task 2 ещё не доехал», а что Task 2 отработал неверно или был откачен — и это как раз повод остановиться, а не проигнорировать. Формулировка учит противоположному.",
+      "fix": "Переписать оговорку в утвердительной форме: «Task 2 закрыт волной раньше, поэтому `npx tsc --noEmit` обязан быть чистым. Если ошибки TS2353 про `boardSettings.notes` всё же видны — это регресс волны 1: остановиться и доложить, а не игнорировать». Мягкую зависимость от Task 02 в Details при этом можно оставить как есть — она описывает причину, а не режим ожидания."
+    },
+    {
+      "id": "cons-345-tsc-surface",
+      "severity": "minor",
+      "category": "consistency",
+      "task": "04",
+      "section": "Acceptance Criteria / Verification Steps",
+      "carried_from_iteration": 1,
+      "carried_status": "partially_fixed",
+      "issue": "Раунд 1 отмечал, что `npx tsc --noEmit` — общая поверхность у всей волны: tsconfig включает `src/**/*.ts`, и недописанный модуль соседа валит проверку у остальных. Task 03 теперь оговорку получил («no error in this task's files», «watch in particular for `strict` violations from the new `unknown` parameters — those would be ours»). Task 04 и Task 05 — нет: у 04 «`npx tsc --noEmit` — чисто» с единственной оговоркой про i18n, у 05 «— чисто (новый модуль не добавляет ошибок)», где скоуп задан только скобкой. Между тем в волне 2 Task 03 правит `src/data/types.ts` и `defaults.ts`, а Task 04 создаёт `src/ui/groupOrderUtils.ts` — обе поверхности попадают под tsc задачи 05.",
+      "fix": "Скопировать в задачи 04 и 05 оговорку из Task 03: гейт — отсутствие ошибок в файлах СВОЕЙ задачи; ошибки в чужих файлах волны фиксировать в отчёте, но не чинить. Чистый `tsc` целиком оставить проверкой выхода из волны (Task 11)."
     },
     {
       "id": "struct-01-tdd-anchor",
@@ -82,8 +96,10 @@
       "category": "structure",
       "task": "01",
       "section": "TDD Anchor",
-      "issue": "Задача инфраструктурная (`skills: [infrastructure-setup]`), новых тестов не пишет — шаблон предписывает удалить секцию TDD Anchor для не-кодовых задач. Секция оставлена, а её записи не соответствуют формату `tests/path::test_name — описание`: перечислены файлы целиком («tests/unit/cleanup.test.ts, tests/unit/migration.test.ts, tests/unit/statusTransitions.test.ts — продолжают собираться»), без имён кейсов.",
-      "fix": "Либо удалить секцию и перенести её содержание в Verification Steps (там оно уже почти целиком продублировано), либо оставить только перенесённый файл и записать пять существующих кейсов в формате `tests/unit/boardLayoutUtils.test.ts::<имя кейса>`."
+      "carried_from_iteration": 1,
+      "carried_status": "open",
+      "issue": "Не исправлено. Задача инфраструктурная (`skills: [infrastructure-setup]`), новых тестов не пишет — шаблон предписывает удалять TDD Anchor для не-кодовых задач. Секция оставлена, записи не в формате `tests/path::test_name — описание`: перечислены файлы целиком («`tests/unit/cleanup.test.ts`, `tests/unit/migration.test.ts`, `tests/unit/statusTransitions.test.ts` — продолжают собираться»).",
+      "fix": "Удалить секцию (её содержание почти целиком продублировано в Verification Steps 3) либо оставить только перенесённый файл и записать пять существующих кейсов как `tests/unit/boardLayoutUtils.test.ts::<имя кейса>`."
     },
     {
       "id": "struct-02-tdd-anchor",
@@ -91,8 +107,10 @@
       "category": "structure",
       "task": "02",
       "section": "TDD Anchor",
-      "issue": "Секция не содержит ни одной записи вида `tests/path::test_name` — это связный текст, где роль теста играет `npx tsc --noEmit` (RED → RED → GREEN). Обоснование убедительное (тестового файла для i18n в проекте нет, Testing Strategy tech-spec его не требует), но формат шаблона нарушен, и автоматический контроль «в TDD Anchor есть якоря» на этой задаче даст ложный отказ.",
-      "fix": "Оставить первым абзацем однострочную явную пометку «TDD-якорей нет намеренно: тестового файла i18n в проекте нет, гейт — компилятор (Testing Strategy tech-spec)», а сам цикл RED/RED/GREEN перенести в Verification Steps, где он по смыслу и находится."
+      "carried_from_iteration": 1,
+      "carried_status": "partially_fixed",
+      "issue": "Секция по-прежнему не содержит ни одной записи вида `tests/path::test_name` — роль теста играет `npx tsc --noEmit`. Рекомендованная в раунде 1 явная пометка о намеренном отсутствии якорей теперь есть первым абзацем («В проекте нет тестового файла для i18n, и Testing Strategy tech-spec его для этой задачи не требует»), так что ложный отказ автоматической проверки менее вероятен. Не сделана вторая половина: цикл RED/RED/GREEN так и остался в TDD Anchor вместо Verification Steps.",
+      "fix": "Перенести три пункта RED/RED/GREEN в Verification Steps, оставив в TDD Anchor только пометку об отсутствии якорей и её обоснование."
     },
     {
       "id": "struct-03-tdd-anchor-paths",
@@ -100,8 +118,10 @@
       "category": "structure",
       "task": "03",
       "section": "TDD Anchor",
-      "issue": "Блоки «Order sanitization» и «Title sanitization» — 15 записей вида `::groupOrder null → default order`, без пути к файлу. Путь назван только в преамбуле секции. Первые шесть записей блока «Version bump and migration» при этом полный путь содержат — формат внутри одной секции неоднороден.",
-      "fix": "Дописать `tests/unit/migration.test.ts::` во всех 15 записях."
+      "carried_from_iteration": 1,
+      "carried_status": "open",
+      "issue": "Не исправлено. Блоки «Order sanitization» и «Title sanitization» — 17 записей вида `::groupOrder null → default order`, без пути к файлу; путь назван только в преамбуле секции. Первые шесть записей блока «Version bump and migration» полный путь содержат — формат внутри одной секции неоднороден. Правка раунда 2 добавила в эти блоки ещё два якоря (пути ранних возвратов) в том же укороченном формате.",
+      "fix": "Дописать `tests/unit/migration.test.ts::` во всех записях блоков «Order sanitization» и «Title sanitization»."
     },
     {
       "id": "cont-links-relative",
@@ -109,17 +129,10 @@
       "category": "content",
       "task": "04",
       "section": "Context Files",
-      "issue": "Ссылки в задачах 01, 02 и 04 записаны относительно корня репозитория (`[CLAUDE.md](CLAUDE.md)`, `[package.json](package.json)`, `[src/ui/boardLayoutUtils.ts](src/ui/boardLayoutUtils.ts)`) и из самого файла задачи, лежащего в docs/features/0011-feat-group-customization/, не резолвятся. Задачи 03 и 05 используют пути относительно файла (`../../../CLAUDE.md`, `../../overview.md`) и резолвятся корректно. Внутри батча две несовместимые конвенции.",
-      "fix": "Выбрать одну конвенцию на всю фичу (проще — от корня репозитория, как работает исполняющий агент) и привести к ней все 12 задач; при выборе «от корня» явно оговорить это строкой в шаблоне Context Files."
-    },
-    {
-      "id": "cont-04-stale-link",
-      "severity": "minor",
-      "category": "content",
-      "task": "04",
-      "section": "Context Files",
-      "issue": "Ссылка `[src/ui/boardLayoutUtils.test.ts](src/ui/boardLayoutUtils.test.ts)` указывает на путь, которого к моменту исполнения Task 04 уже не существует: Task 01 (волна 0, то есть строго раньше) переносит файл в tests/unit/ через `git mv`. Скобка в описании это признаёт («сейчас лежит не в tests/unit/; переезд делает Task 1»), но сама ссылка ведёт в никуда, и исполнитель получит «файл не найден» на образце стиля тестов.",
-      "fix": "Заменить путь на `tests/unit/boardLayoutUtils.test.ts` и сохранить пояснение «перенесён сюда задачей Task 1»."
+      "carried_from_iteration": 1,
+      "carried_status": "open",
+      "issue": "Не исправлено, конвенция по-прежнему двойная. Задачи 01, 02, 04 записывают ссылки от корня репозитория (`[CLAUDE.md](CLAUDE.md)`, `[package.json](package.json)`, `[src/ui/boardLayoutUtils.ts](src/ui/boardLayoutUtils.ts)`) — из файла задачи, лежащего в `docs/features/0011-feat-group-customization/`, они не резолвятся. Задачи 03 и 05 используют пути относительно файла (`../../../CLAUDE.md`, `../../overview.md`) и резолвятся корректно.",
+      "fix": "Выбрать одну конвенцию на всю фичу (проще — от корня репозитория, как работает исполняющий агент) и привести к ней все 12 задач, оговорив выбор строкой в шапке Context Files."
     },
     {
       "id": "fm-verify-shape",
@@ -127,7 +140,9 @@
       "category": "frontmatter",
       "task": "02",
       "section": "frontmatter",
-      "issue": "Поле `verify` по батчу имеет три разных формы: голый инструмент `bash` (01, 03, 05); `bash` плюс команда в YAML-комментарии (04: `verify: bash  # npx vitest run tests/unit/groupOrderUtils.test.ts`); команда внутри значения (02: `verify: bash — \\`npx tsc --noEmit\\``). По остальным задачам фичи разброс тот же (07, 09, 10, 11 держат команду в значении). Потребитель, читающий `verify` как имя инструмента, на задачах 02/07/09/10/11 получит строку, которую нельзя сопоставить ни с одним инструментом.",
+      "carried_from_iteration": 1,
+      "carried_status": "open",
+      "issue": "Не исправлено. Поле `verify` по-прежнему имеет три формы: голое имя инструмента (`bash` — задачи 01, 05); имя плюс команда в YAML-комментарии (`bash  # npx vitest run …` — 03, 04); команда внутри значения (`bash — \\`npx tsc --noEmit\\`` — 02, а также 07, 09, 10, 11, 12). Потребитель, читающий `verify` как имя инструмента, на задачах 02/07/09/10/11/12 получит строку, не сопоставимую ни с одним инструментом.",
       "fix": "Договориться об одной форме на фичу — либо `verify: bash` везде с командой в Verification Steps, либо везде `bash — <команда>` — и привести 12 задач к ней."
     },
     {
@@ -136,8 +151,10 @@
       "category": "structure",
       "task": "01",
       "section": "frontmatter",
-      "issue": "В задачах 01 и 02 сохранены служебные комментарии шаблона: `# planned -> in_progress -> done`, `# ID задач-зависимостей (строки: [\"01\", \"02\"])`, `# МАССИВ скиллов для загрузки`, `# явно указать. Пусто = fallback на defaults`, `# имя агента-исполнителя (опционально…)`. Задачи 03, 04, 05 их вычистили. Это не плейсхолдеры в значениях (значения заполнены), но остатки строительных лесов шаблона, и по батчу они распределены случайно.",
-      "fix": "Вычистить комментарии шаблона из frontmatter во всех задачах (в фиче их сохранили также 06, 07, 08, 10, 11, 12)."
+      "carried_from_iteration": 1,
+      "carried_status": "open",
+      "issue": "Не исправлено. В задачах 01 и 02 сохранены служебные комментарии шаблона (`# planned -> in_progress -> done`, `# ID задач-зависимостей (строки: [\"01\", \"02\"])`, `# МАССИВ скиллов для загрузки`, `# явно указать. Пусто = fallback на defaults`, `# имя агента-исполнителя …`), в задачах 03, 04, 05 они вычищены. По остальной фиче комментарии сохранены в 06, 07, 08, 10, 11, 12. Значения при этом заполнены — это остатки строительных лесов, а не плейсхолдеры.",
+      "fix": "Вычистить комментарии шаблона из frontmatter во всех задачах фичи."
     },
     {
       "id": "cont-lang-mix",
@@ -145,7 +162,9 @@
       "category": "content",
       "task": "05",
       "section": "весь файл",
-      "issue": "Язык задач в батче не унифицирован: 01, 02, 05 написаны по-русски, 03 и 04 — по-английски (у 04 при этом Context Files и Details по-русски, а Description и TDD Anchor по-английски). Имена TDD-кейсов тоже разъезжаются: `::пустое название → дефолтная подпись` (05) против `::title whitespace-only → empty string` (03) и `::visible group moves up…` (04). Существующие тесты проекта (boardLayoutUtils.test.ts) названы по-русски — то есть по-английски написаны как раз новые.",
+      "carried_from_iteration": 1,
+      "carried_status": "open",
+      "issue": "Не исправлено. Язык не унифицирован: 01, 02, 05 по-русски, 03 и 06 по-английски, 04 смешанный (Description, What to do и TDD Anchor по-английски, Context Files, Verification Steps и Details по-русски). Имена TDD-кейсов разъезжаются так же: `::пустое название → дефолтная подпись` (05) против `::title whitespace-only → empty string` (03) и `::visible group moves up…` (04). Существующие тесты проекта (`boardLayoutUtils.test.ts`) названы по-русски — по-английски написаны как раз новые.",
       "fix": "Зафиксировать одну конвенцию для имён тестовых кейсов в этой фиче (по существующему коду — русский) и привести к ней TDD Anchor задач 03, 04, 07, 10. Язык самих task-файлов выровнять хотя бы внутри одного файла."
     },
     {
@@ -154,15 +173,57 @@
       "category": "atomicity",
       "task": "01",
       "section": "What to do",
-      "issue": "Задача объединяет два разных предмета: (а) закрепление минимальной версии рантайма (package.json/engines + .nvmrc) и (б) перенос boardLayoutUtils.test.ts в собираемый набор (git mv + правка импортов + проверка vitest.config.ts). Затрагивается 5 путей — за рамками ориентира «1–3 файла». Связность есть («сделать unit-набор запускаемым и полным»), удаление любого из шагов оставляет цель недостигнутой, и такое объединение прописано в tech-spec (Task 1), поэтому это замечание, а не требование разбить.",
+      "carried_from_iteration": 1,
+      "carried_status": "accepted",
+      "issue": "Замечание раунда 1 в силе и осознанно принято. Задача объединяет два предмета: закрепление минимальной версии рантайма (`package.json` / `engines` + `.nvmrc`) и перенос `boardLayoutUtils.test.ts` в собираемый набор (`git mv` + правка импортов + проверка `vitest.config.ts`) — пять путей против ориентира «1–3 файла». Связность есть: цель «сделать unit-набор запускаемым и полным», удаление любого шага оставляет её недостигнутой, и объединение прописано в tech-spec (Task 1). Требования разбить нет.",
       "fix": "Оставить как есть, но при исполнении требовать два раздельных коммита (пин Node / перенос теста), чтобы `git log --follow` по перенесённому файлу оставался читаемым, а откат одной части не тянул вторую."
+    }
+  ],
+  "resolved_from_iteration_1": [
+    {
+      "id": "fm-wave-zero",
+      "severity_was": "minor",
+      "resolution": "Нумерация всех 12 задач сдвинута на +1, `wave: 0` больше не встречается, требование шаблона wave ≥ 1 выполнено. Граф пересчитан и остался ациклическим с корректным порядком. Открытым остался только хвост в tech-spec — вынесен в новую находку cons-techspec-wave-headings."
+    },
+    {
+      "id": "cons-03-npmtest-scope",
+      "severity_was": "major",
+      "resolution": "Гейт Task 03 сужен до `npx vitest run tests/unit/migration.test.ts`; в Verification Steps добавлено объяснение, почему полный набор здесь неприменим, и прямой запрет чинить красное у соседей по волне. Tech-spec (строка 424) синхронизирован."
+    },
+    {
+      "id": "cons-04-npmtest-scope",
+      "severity_was": "major",
+      "resolution": "Шаг с полным `npm test` убран из критериев Task 04; вместо него необязательная проверка сюит, которых волна 2 не касается (`statusTransitions`, `boardLayoutUtils`). Противоречие с frontmatter-verify снято."
+    },
+    {
+      "id": "cons-03-task02-claim",
+      "severity_was": "major",
+      "resolution": "Утверждение «Nothing in this task depends on Task 2» удалено, вместо него в Details объявлена мягкая зависимость от Task 02 с объяснением, почему она не поднята в `depends_on`. Остаточная шероховатость формулировки вынесена в cons-0304-dead-hedging."
+    },
+    {
+      "id": "cons-02-gitdiff-step",
+      "severity_was": "major",
+      "resolution": "Подсчёт файлов через `git diff --stat` заменён на проверку конкретных путей через `git status --porcelain` с pathspec-исключениями в обеих задачах волны 1; AC переформулированы через область задачи."
+    },
+    {
+      "id": "cons-06-08-i18n-policy",
+      "severity_was": "minor",
+      "resolution": "Task 02 объявил раздел «Контракт имён ключей для задач 06 и 08» с явным запретом заводить синонимы; Task 08 (строки 227–232) перечисляет ровно эти имена, запрещает near-duplicate и требует grep-проверки. Расхождение fallback-политик устранено."
+    },
+    {
+      "id": "cont-04-stale-link",
+      "severity_was": "minor",
+      "resolution": "Ссылка в Context Files Task 04 переведена на `tests/unit/boardLayoutUtils.test.ts` с пояснением, что файл переносит сюда Task 01 волной раньше."
     }
   ],
   "stats": {
     "tasks_checked": 5,
-    "issues_found": 16,
+    "issues_found": 15,
     "critical": 0,
-    "major": 5,
-    "minor": 11
+    "major": 2,
+    "minor": 13,
+    "new_in_iteration_2": 6,
+    "carried_from_iteration_1": 9,
+    "resolved_from_iteration_1": 7
   }
 }

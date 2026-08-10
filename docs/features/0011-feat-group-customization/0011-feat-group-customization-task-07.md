@@ -208,7 +208,7 @@ below is the only end-to-end evidence that the wiring works; do not skip it.
   in the same style.
 
 **Dependencies:**
-- **Task 1** (wave 1) pins Node ≥ 22.12, makes `npm test` runnable at all and moves the
+- **Task 1** (wave 1) pins Node to `^22.12.0 || >=24.0.0`, makes `npm test` runnable at all and moves the
   board-layout suite into `tests/unit/`. This task extends that suite and runs it, so the
   dependency is declared explicitly in `depends_on` rather than left to arrive transitively
   through Task 3.

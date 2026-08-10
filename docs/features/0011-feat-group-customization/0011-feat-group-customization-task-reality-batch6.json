@@ -1,0 +1,157 @@
+{
+  "validator": "dev-reality-checker",
+  "feature_base": "docs/features/0011-feat-group-customization/0011-feat-group-customization",
+  "tasks_checked": ["01", "10", "11", "12"],
+  "round": 2,
+  "status": "approved",
+  "verified_claims": [
+    {
+      "task": "01",
+      "claim": "vitest@4.0.18 engines.node = ^20.0.0 || ^22.0.0 || >=24.0.0",
+      "result": "confirmed",
+      "evidence": "node_modules/vitest/package.json → version 4.0.18, engines {'node': '^20.0.0 || ^22.0.0 || >=24.0.0'}"
+    },
+    {
+      "task": "01",
+      "claim": "vite@7.3.1 (transitive) engines.node = ^20.19.0 || >=22.12.0",
+      "result": "confirmed",
+      "evidence": "node_modules/vite/package.json → version 7.3.1, engines {'node': '^20.19.0 || >=22.12.0'}"
+    },
+    {
+      "task": "01",
+      "claim": "npm@11.13.0 engines.node = ^20.17.0 || >=22.9.0",
+      "result": "confirmed",
+      "evidence": "npm -v = 11.13.0; npm itself warns: 'This version of npm supports the following node versions: ^20.17.0 || >=22.9.0'. npm is not vendored into node_modules, so the task's hint `npm view npm@$(npm -v) engines` is the right source (needs network); the warning line is an offline substitute."
+    },
+    {
+      "task": "01",
+      "claim": "^22.12.0 || >=24.0.0 satisfies all three constraints and rejects 23.x",
+      "result": "confirmed",
+      "evidence": "[22.12,23) is inside vitest ^22.0.0, vite >=22.12.0, npm >=22.9.0; [24,inf) is inside vitest >=24.0.0, vite >=22.12.0, npm >=22.9.0. ^22.12.0 expands to >=22.12.0 <23.0.0, so 23.x is excluded — a bare '>= 22.12' would admit it. The dropped 20.x branch would have been [20.19,21), also correct as stated."
+    },
+    {
+      "task": "10",
+      "claim": "resetData deletes the storage key before building data, so a snapshot must be read beforehand",
+      "result": "confirmed",
+      "evidence": "tests/harness/main.ts:87 localStorage.removeItem('tm-test-data') runs in step (b), before the data build in step (c) at lines 92-98."
+    },
+    {
+      "task": "10",
+      "claim": "resetData switches the active board to the first one",
+      "result": "confirmed",
+      "evidence": "tests/harness/main.ts:111 uiStore.set({ activeBoardId: data.boards[0]?.id ?? '', toasts: [] })"
+    },
+    {
+      "task": "10",
+      "claim": "a task cannot be created in the Completed group, so the drag pair is focus + backlog",
+      "result": "confirmed",
+      "evidence": "src/ui/BoardLayout.svelte:264 onAdd={null} for the completed CollapsibleGroup; CollapsibleGroup.svelte:52 renders the add control only {#if onAdd}."
+    },
+    {
+      "task": "10",
+      "claim": "a collapsible group's body is absent from the markup while collapsed",
+      "result": "confirmed",
+      "evidence": "src/ui/CollapsibleGroup.svelte:63-70 — the div carrying data-group-id, use:useSortable and (when empty) EmptyState lives inside {#if !collapsed}."
+    },
+    {
+      "task": "10",
+      "claim": "language switching cannot be exercised from E2E",
+      "result": "confirmed (with a wording nit, see finding)",
+      "evidence": "harness pins locale at tests/harness/main.ts:61 and :101; window.__test exposes only resetData/getDataStore/moveTask/updateSettings (lines 78-125); dataStore.updateSettings (src/stores/dataStore.ts:256-262) writes settings and persists, nothing else; setLocale is called only from src/main.ts:18 and src/settings.ts:36, neither of which the harness mounts. No component reacts to settings.language."
+    },
+    {
+      "task": "11",
+      "claim": "verify adds `npx tsc --noEmit` to the command set",
+      "result": "consistent with sources",
+      "evidence": "tech-spec Acceptance Criteria (line 382) already requires '`npx tsc --noEmit` is clean'; tsconfig.json covers src/** only, so after Task 01 moves the test out of src the check scope is src — matching the task's own note."
+    },
+    {
+      "task": "11",
+      "claim": "narrowing the repo-state check to `git status --porcelain src/ tests/` is safe",
+      "result": "confirmed",
+      "evidence": ".gitignore ignores tests/harness/harness.js and tests/harness/styles.css (the artifacts the Playwright webServer rebuilds) plus /main.js and /styles.css at the root, so a full E2E + build run leaves src/ and tests/ clean. logs/ is untracked (git status shows '?? logs/') and is correctly excluded from the check."
+    },
+    {
+      "task": "11",
+      "claim": "27 user-spec criteria + 9 tech-spec criteria = 36 records",
+      "result": "confirmed",
+      "evidence": "user-spec 'Критерии приёмки' (lines 140-168) has exactly 27 '- [ ]' items; tech-spec 'Acceptance Criteria' (lines 381-391) has exactly 9."
+    },
+    {
+      "task": "11",
+      "claim": "no Makefile/compose in the repo root; logs/ contains only reviews/; harness on 5173",
+      "result": "confirmed",
+      "evidence": "root listing has no Makefile/GNUmakefile/docker-compose*.yml/compose*.yml; logs/ contains only reviews/; esbuild.harness.mjs:41 ctx.serve({ servedir: 'tests/harness', port: 5173 }); playwright.config.ts webServer command matches and reuseExistingServer: !process.env.CI."
+    },
+    {
+      "task": "12",
+      "claim": "CHANGELOG has exactly one case of a schema version mentioned inside an Added block",
+      "result": "confirmed",
+      "evidence": "CHANGELOG.md:11 'Data schema migrated to version 7' and CHANGELOG.ru.md:11 'Версия схемы данных обновлена до 7' are the only version mentions under ### Added in each file; the other mentions are lines 24-26 under ### Changed (versions 3, 4, 5) in both files — exactly the two patterns the task describes, at exactly the quoted line numbers."
+    },
+    {
+      "task": "12",
+      "claim": "version 6 is absent from both CHANGELOG files entirely — the version and the feature itself",
+      "result": "confirmed",
+      "evidence": "grep for 'cardLayout|version 6|версии 6|multi-column|multicolumn|column|мультиколон' over both files returns only CHANGELOG.md:12 (Dynamic Layout = fullWidth = v5). src/data/migration.ts:68-73 confirms v6 is the branch that adds settings.cardLayout = 'single'."
+    },
+    {
+      "task": "12",
+      "claim": "docs/technical.md line ranges and the migrateData listing branches",
+      "result": "confirmed",
+      "evidence": "line 21 = '\"version\": 7'; Group interface = 121-126 (no fullWidth); Board interface = 129-136 (no notes/notesCollapsed; notesHidden present); 'Миграция данных' = 341-408; the doc listing has branches < 1, < 4, < 6, < 7 exactly as claimed (the real code additionally has < 2, < 3, < 5 — the doc is a simplification, and the task's instruction to add < 8 matches the doc); 'Настройки доски (BoardSettingsPopup)' = 501-537; 'Мультиколоночный лейаут карточек' = 659; 'Структура проекта' = 742-793 (no boardLayoutUtils.ts, no tests/); 'Ключевые решения' table = 799-831 with header '| Решение | Выбор | Обоснование |'. docs/overview.md sections at 155 and 178 also match."
+    }
+  ],
+  "findings": [
+    {
+      "severity": "major",
+      "category": "feasibility",
+      "task": "11",
+      "issue": "Task 11 still checks the runtime as '`node -v` ≥ 22.12' (Description step 3, Acceptance Criteria line 115, Verification Steps step 1). That is exactly the formulation Task 01 now rejects: '>= 22.12' admits the 23.x line, which vitest declares unsupported (its engines are ^20.0.0 || ^22.0.0 || >=24.0.0 — nothing covers 23.x). A Node 23.x runtime would pass Task 11's gate while violating the range Task 01 pins into package.json, and the acceptance report would certify a run on an unsupported runtime. The same weak wording sits in tech-spec line 331 ('`node -v` ≥ 22.12'), which is where Task 11 inherited it.",
+      "fix": "Restate Task 11's runtime check as membership in `^22.12.0 || >=24.0.0` (explicitly: 23.x is a critical failure, not 'close enough'), mirroring Task 01. Also fix tech-spec line 331 in the Agent Verification Plan table."
+    },
+    {
+      "severity": "major",
+      "category": "hallucination",
+      "task": "01",
+      "issue": "The Post-completion item instructs: 'Поправить формулировку Decision 8 в tech-spec: там записан «floor of 22.12 / Node ≥ 22.12»'. That text is no longer in Decision 8 — tech-spec lines 154-166 already state `^22.12.0 || >=24.0.0` twice and carry the full 23.x rationale ('A bare `>= 22.12` would not: it admits the 23.x line'). The executor will search Decision 8 for wording that does not exist. Meanwhile the one place that does still carry the weak formulation — the Agent Verification Plan table, line 331, '`node -v` ≥ 22.12' — is not mentioned.",
+      "fix": "Replace the Post-completion item: Decision 8 is already correct, nothing to fix there; instead point at tech-spec line 331 (Agent Verification Plan, row 1) and align it with `^22.12.0 || >=24.0.0`."
+    },
+    {
+      "severity": "minor",
+      "category": "feasibility",
+      "task": "01",
+      "issue": "Verification step 2 and the acceptance criterion 'Диапазон в `engines` отвергает 23.x: проверено, а не заявлено' both rely on `npx semver -r ...`. The `semver` package is not present anywhere in node_modules (no node_modules/semver, nothing under depth 3, and node_modules/.bin has only acorn, esbuild, nanoid, playwright, playwright-core, rollup, tsc, tsserver, vite, vitest, why-is-node-running). `npx semver` will attempt a registry fetch; without network the criterion cannot be met. The same applies to the hint `npm view npm@$(npm -v) engines`.",
+      "fix": "Offer an offline fallback for the 23.x check that uses only what is installed, e.g. a one-liner over vite's bundled range check or a plain assertion that `^22.12.0` expands to `>=22.12.0 <23.0.0`; keep `npx semver` as the preferred path but do not make the criterion depend on network availability. For the npm range, note that `npm -v` under an out-of-range Node prints the supported range in its own warning."
+    },
+    {
+      "severity": "minor",
+      "category": "hints",
+      "task": "10",
+      "issue": "The rationale in Сц.14 and in Details says 'стор `locale` меняет функция `setLocale`, которую харнесс не вызывает'. Strictly the harness does change the locale store — directly, via the exported writable: `locale.set('en')` at tests/harness/main.ts:61 and :101. `setLocale` is merely one caller of it (src/i18n/index.ts:34-36), used only by src/main.ts and src/settings.ts. The operative conclusion is unaffected (neither `locale` nor `setLocale` is reachable from the page, `window.__test` exposes only four methods), but as written the sentence is falsifiable by reading the harness, which weakens a rationale the task leans on.",
+      "fix": "Reword to: the harness pins the locale store directly (`locale.set('en')` on startup and inside resetData), the store is not exposed on `window.__test`, and `updateSettings({language})` only writes `dataStore.settings` — no component or store reacts to it, so a language switch from the test is a no-op."
+    },
+    {
+      "severity": "minor",
+      "category": "hints",
+      "task": "10",
+      "issue": "Сц.5 orders the steps as 'создать задачи → сменить порядок → перетащить' and only later requires backlog to be expanded via expandGroup 'до первого перетаскивания'. But backlog is collapsed by default (src/data/defaults.ts createDefaultBoard sets groups.backlog.collapsed = true), and helpers' groupAddButton locates the add control through `:has([data-group-id=...])` — a selector that matches nothing while the body is absent. A straightforward `createTask(page, 'backlog', ...)` therefore fails before the drag ever happens. helpers.createTask already solves this with its `options.expand` flag (tests/e2e/helpers.ts:37-45), which the task never mentions.",
+      "fix": "State explicitly that backlog must be expanded before the task is created there — either `createTask(page, 'backlog', data, { expand: true })` or an `expandGroup` call ahead of creation — and keep the existing requirement that it stays expanded through the drag."
+    },
+    {
+      "severity": "minor",
+      "category": "hallucination",
+      "task": "12",
+      "issue": "The Edge cases block attributes the missing Board fields to the wrong feature: 'в интерфейсе `Board` отсутствуют поля заметок (`notes`, `notesCollapsed`, фича 0008)'. Feature 0008 is card columns (docs/specs/0008-feat-card-columns.md — `settings.cardLayout`, schema v6); notes/notesCollapsed come from docs/specs/0005-feat-quick-notes.md (schema v3). The neighbouring attribution `fullWidth` → 0007 is correct (docs/specs/0007-feat-dynamic-layout.md). The drift itself is real — both fields are genuinely absent from the Board interface at technical.md:129-136.",
+      "fix": "Change the attribution to feature 0005 (quick notes). Optionally add that `src/ui/NotesSection.svelte` is also missing from 'Структура проекта', alongside the already-noted boardLayoutUtils.ts and tests/."
+    }
+  ],
+  "stats": {
+    "tasks_checked": 4,
+    "claims_verified": 51,
+    "issues_found": 6,
+    "critical": 0,
+    "major": 2,
+    "minor": 4
+  }
+}

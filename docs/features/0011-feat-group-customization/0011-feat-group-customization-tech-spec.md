@@ -49,7 +49,8 @@ testing library, so logic embedded directly in components is untestable.
   scrollable body; stable per-row test attribute. Owns the whole save chain change together
   with `BoardHeader` and `dataStore`.
 - **Display sites** — `GroupHeader`, `CollapsibleGroup`, `GroupSettingsPopup` show the
-  resolved title; `EmptyState` additionally switches to a neutral hint once renamed; group
+  resolved title; `EmptyState` renders no name at all — it only switches its hint to the neutral
+  one once the group carries a stored title; group
   header styles gain truncation so a long name cannot break the header row.
 - **Test infrastructure** — Node version pinned in the repo, vitest picks up the board-layout
   test, existing E2E locators moved off group names.
@@ -104,7 +105,9 @@ than either of the other two, because the popup and the board are in the DOM sim
 **Rationale:** Testing Strategy requires unit coverage of the fallback rules, but
 `vitest.config.ts` sets `environment: 'node'` and the project has no DOM testing library, so
 logic inside `.svelte` files cannot be unit-tested at all. A pure helper is testable and keeps
-the four display sites identical. All display sites already receive `group` or `board`, so no
+the three name-display sites identical — the group header, the collapsed header and the group's
+own settings popup. `EmptyState` is not one of them: it renders a hint, not a name, and decides
+between the original and the neutral hint from the stored title alone. All display sites already receive `group` or `board`, so no
 new props are needed except in `EmptyState`. The helper takes plain strings, not the group
 object, so it does not depend on the model change happening in the same wave.
 
@@ -328,7 +331,7 @@ user.
 
 | Task | verify: | What to check |
 |------|---------|--------------|
-| 1 | bash | `node -v` ≥ 22.12, then `npm test` runs at all and collects the board-layout suite |
+| 1 | bash | `node -v` satisfies `^22.12.0 \|\| >=24.0.0`, then `npm test` runs at all and collects the board-layout suite |
 | 2 | bash | `npx tsc --noEmit` — clean, no missing translation keys |
 | 3 | bash | `npx vitest run tests/unit/migration.test.ts` — migration and sanitization pass |
 | 4 | bash | `npx vitest run tests/unit/groupOrderUtils.test.ts` |
@@ -391,7 +394,7 @@ as the other display sites.
 
 ## Implementation Tasks
 
-### Wave 0 (предусловия — блокируют всё остальное)
+### Wave 1 (предусловия — блокируют всё остальное)
 
 #### Task 1: Test infrastructure and Node pin
 - **Description:** Make the unit suite runnable and complete: pin the required Node version in
@@ -413,7 +416,7 @@ as the other display sites.
 - **Files to modify:** `src/i18n/types.ts`, `src/i18n/en.ts`, `src/i18n/ru.ts`
 - **Files to read:** `src/ui/BoardSettingsPopup.svelte`, `src/ui/EmptyState.svelte`
 
-### Wave 1 (чистая логика, зависит от Wave 0)
+### Wave 2 (чистая логика, зависит от Wave 0)
 
 #### Task 3: Data model, migration and sanitization
 - **Description:** Add the per-group name and per-board order to the data model with defaults
@@ -444,7 +447,7 @@ as the other display sites.
 - **Files to modify:** `src/ui/groupTitle.ts`, `tests/unit/groupTitle.test.ts`
 - **Files to read:** `src/i18n/index.ts`
 
-### Wave 2 (отображение, зависит от Wave 1)
+### Wave 3 (отображение, зависит от Wave 1)
 
 #### Task 6: Group name display
 - **Description:** Show the resolved name everywhere a group name appears on the board — header,
@@ -456,7 +459,7 @@ as the other display sites.
 - **Files to modify:** `src/ui/GroupHeader.svelte`, `src/ui/CollapsibleGroup.svelte`, `src/ui/GroupSettingsPopup.svelte`, `src/ui/EmptyState.svelte`, `src/ui/TaskGroup.svelte`, `src/styles.css`
 - **Files to read:** `src/ui/groupTitle.ts`, `src/i18n/index.ts`
 
-### Wave 3 (доска, зависит от Wave 2)
+### Wave 4 (доска, зависит от Wave 2)
 
 #### Task 7: Board renders in configured order
 - **Description:** Render groups in the board's configured order without moving any DOM node,
@@ -473,7 +476,7 @@ as the other display sites.
 > the function is order-agnostic. Remove the stale comment; leaving it would mislead the next
 > reader and gives a reviewer documented grounds to block this task.
 
-### Wave 4 (настройки, зависит от Wave 3)
+### Wave 5 (настройки, зависит от Wave 3)
 
 #### Task 8: Settings popup and save chain
 - **Description:** Add a name field and move arrows to each group row, dim rows of hidden
@@ -486,7 +489,7 @@ as the other display sites.
 - **Files to modify:** `src/ui/BoardSettingsPopup.svelte`, `src/ui/BoardHeader.svelte`, `src/stores/dataStore.ts`, `src/styles.css`
 - **Files to read:** `src/ui/groupOrderUtils.ts`, `src/data/types.ts`
 
-### Wave 5 (тесты, зависит от Wave 4)
+### Wave 6 (тесты, зависит от Wave 4)
 
 #### Task 9: Migrate existing E2E locators
 - **Description:** Move existing scenarios off locating groups and popup rows by displayed
@@ -497,7 +500,7 @@ as the other display sites.
 - **Files to modify:** `tests/e2e/helpers.ts`, `tests/e2e/0006-group-visibility.spec.ts`, `tests/e2e/0007-dynamic-layout.spec.ts`, `tests/e2e/0008-card-columns.spec.ts`, `tests/e2e/core.spec.ts`
 - **Files to read:** `src/ui/BoardLayout.svelte`, `src/ui/BoardSettingsPopup.svelte`
 
-### Wave 6 (приёмка фичи, зависит от Wave 5)
+### Wave 7 (приёмка фичи, зависит от Wave 5)
 
 #### Task 10: Feature E2E scenarios
 - **Description:** Cover the feature end to end with the scenarios listed under Testing
@@ -509,7 +512,7 @@ as the other display sites.
 - **Files to modify:** `tests/e2e/0011-group-customization.spec.ts`
 - **Files to read:** `tests/e2e/helpers.ts`, `tests/e2e/0007-dynamic-layout.spec.ts`, `docs/features/0011-feat-group-customization/0011-feat-group-customization.md`
 
-### Final Wave
+### Final Waves (8 and 9)
 
 #### Task 11: Pre-deploy QA
 - **Description:** Acceptance testing: run all tests, verify acceptance criteria from user-spec and tech-spec.

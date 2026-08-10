@@ -1,0 +1,121 @@
+{
+  "validator": "dev-reality-checker",
+  "feature_base": "docs/features/0011-feat-group-customization/0011-feat-group-customization",
+  "tasks_checked": ["03", "05", "06", "08"],
+  "round": 2,
+  "status": "changes_required",
+  "findings": [
+    {
+      "severity": "major",
+      "category": "hallucination",
+      "task": "05",
+      "issue": "Task 05 (Description, lines 33-35, and Details line 144) claims the resolver has FOUR call sites, listing EmptyState among them. This contradicts Task 06, which states the opposite in three places: EmptyState receives the raw stored title as a new prop and decides the hint key itself with a single .trim() check, groupTitle.ts must stay unchanged with exactly one export, and 'Do not look for (or add) a renamed-predicate in src/ui/groupTitle.ts'. It is also technically impossible with the agreed signature: resolveGroupTitle(stored, default) returns a NAME, while EmptyState needs a TranslationKey ('emptyState.renamed' vs 'emptyState.{groupId}') — the helper cannot produce it. Verified in code: $groupLabels is read at exactly four places (GroupHeader.svelte:17, CollapsibleGroup.svelte:39, GroupSettingsPopup.svelte:27, BoardSettingsPopup.svelte:61); the first three are the display sites, and the fourth is the popup row label that Task 08 explicitly forbids routing through the helper. EmptyState.svelte reads no group name at all. The same error is inherited from tech-spec Decision 4 ('keeps the four display sites identical').",
+      "fix": "In Task 05 change 'Мест вызова четыре' to three (GroupHeader, CollapsibleGroup, GroupSettingsPopup) and describe EmptyState as a fourth consumer of the same emptiness RULE, not of the function. Same correction in Details line 144 and in tech-spec Decision 4."
+    },
+    {
+      "severity": "major",
+      "category": "tdd",
+      "task": "06",
+      "issue": "TDD Anchor claims tests/e2e/core.spec.ts 'exercises both display sites this task rewrites: .tm-group-header__counter alongside the title in the normal header' and concludes 'if this suite goes red, the fallback path is wrong'. Verified against the suite: core.spec.ts never asserts the normal header's title text — grep for 'Focus|In Progress|Delegated|Org Intentions|Completed' in core.spec.ts returns zero hits, and every normal-header locator is '.tm-task-group:has([data-group-id=\"inProgress\"]) .tm-group-header__counter' (lines 53, 267, 279, 292) plus '.tm-group-header__counter--over' (279). Only the collapsible header is located by visible text ('.tm-collapsible-group__header' filter hasText 'Backlog', line 251). A broken fallback in GroupHeader.svelte (blank or wrong title) would leave the whole suite green, so this task's declared regression anchor covers one of the three rewritten sites, not two.",
+      "fix": "Restate the anchor honestly: core.spec.ts guards only the CollapsibleGroup title (via the 'Backlog' text locator) and the counter markup; GroupHeader and GroupSettingsPopup titles are covered by manual read-through / build only until Task 10's E2E lands. Either say so, or add an explicit manual verification step asserting the normal header still shows the localized default."
+    },
+    {
+      "severity": "major",
+      "category": "missing_file",
+      "task": "03",
+      "issue": "Verification Steps (last bullet) say: 'Optional closing check: npm test. tests/unit/cleanup.test.ts, statusTransitions.test.ts and boardLayoutUtils.test.ts must be green'. There is no tests/unit/boardLayoutUtils.test.ts — the file lives at src/ui/boardLayoutUtils.test.ts, and vitest.config.ts sets include: ['tests/unit/**/*.test.ts'], so 'npm test' (vitest run) never collects it. tests/unit/ contains exactly three files: cleanup.test.ts, migration.test.ts, statusTransitions.test.ts.",
+      "fix": "Drop boardLayoutUtils.test.ts from the list (or reference it as src/ui/boardLayoutUtils.test.ts and note it is outside the vitest include pattern and therefore never runs)."
+    },
+    {
+      "severity": "major",
+      "category": "feasibility",
+      "task": "08",
+      "issue": "depends_on is [\"04\", \"05\", \"07\"] but the task hard-requires i18n keys produced by Task 02: boardSettings.groupName, boardSettings.moveUp, boardSettings.moveDown (Dependencies section instructs to grep for them and 'stop and report the blocker' if missing). Verified absent from src/i18n/types.ts, en.ts and ru.ts today. Ordering is in fact safe — the chain 08 -> 07 -> 06 -> 02 makes Task 02 transitively required, and 02 is wave 1 while 08 is wave 5 — so this cannot break at runtime, but the dependency is real and undeclared.",
+      "fix": "Add \"02\" to depends_on in the Task 08 frontmatter, matching Task 06 which already declares it."
+    },
+    {
+      "severity": "minor",
+      "category": "feasibility",
+      "task": "06",
+      "issue": "The 'eight selectors' list is complete for everything it names, but misses one flex item in the same row: .tm-collapsible-group__arrow (src/styles.css:211) declares only font-size, transition and color — no flex-shrink. It sits in .tm-collapsible-group__header (line 194, display:flex) next to the pinned title/count/settings/add, so by the task's own reasoning ('the flex algorithm may shrink them rather than the title') it is squeezable too. The normal header has no equivalent element. Impact is small (a 0.65rem glyph), but the arrow is the group's only collapse affordance.",
+      "fix": "Either add .tm-collapsible-group__arrow to the list (making it nine selectors, five in the collapsible header) or state explicitly why the arrow is deliberately left unpinned."
+    },
+    {
+      "severity": "minor",
+      "category": "tdd",
+      "task": "03",
+      "issue": "Test-isolation hazard created by the new unconditional sanitization block, not covered by the Edge cases. migrateData(null) returns { ...DEFAULT_DATA, boards: [{ ...DEFAULT_DATA.boards[0] }] } — a shallow spread, so the returned board's `groups` object IS DEFAULT_DATA.boards[0].groups (the task acknowledges this sharing but scopes it out). The new sanitization block writes group.title for every group of every board, so any test that feeds a default-derived object back through migrateData (the retargeted idempotency test does exactly that) writes into the module-level DEFAULT_DATA. With valid data the write is value-identical and harmless, but a TDD-Anchor case that seeds a damaged title onto a board obtained from migrateData(null) would corrupt DEFAULT_DATA for every later test in the file, in test-declaration order.",
+      "fix": "Add a one-line note to the TDD Anchor: build damaged-title / damaged-order fixtures with the existing makeBoard() helper, never by mutating the result of migrateData(null); reserve migrateData(null) for the idempotency and fresh-array assertions."
+    },
+    {
+      "severity": "minor",
+      "category": "feasibility",
+      "task": "08",
+      "issue": "Step 4 says the name input's 'value is the raw stored title — board.groups[groupId].title as it sits in data.json'. Read literally that is a bind to the `board` prop, which is the same object instance held by dataStore — binding to it would mutate the store on every keystroke and silently break the AC 'Cancel and an overlay click discard both'. Step 1 and the Implementation hints do say the value lives in local `groupTitles` seeded verbatim from board.groups[id].title (?? ''), so the intent is right; only step 4's wording is ambiguous, and it is the step an implementer reads while writing the markup.",
+      "fix": "Reword step 4 to 'bind the input to groupTitles[groupId] (seeded verbatim from board.groups[groupId].title, ?? \"\") — never bind to the board prop'."
+    },
+    {
+      "severity": "minor",
+      "category": "hints",
+      "task": "03",
+      "issue": "Description (lines 48-51) and the Post-completion checklist instruct the executor to record that 'the tech-spec's phrase \"hardcoded in three source locations\" is imprecise' and to update Decision 10. Tech-spec Decision 10 (line 179) already carries the qualification: 'The version literal appears in three source locations, but only one of them is the current-version marker that this feature raises — the other two belong to an earlier migration step and must stay where they are.' The correction has already landed upstream, so the instruction is stale busywork.",
+      "fix": "Drop the 'record the wording discrepancy' instruction and the corresponding Post-completion bullet, or reduce it to a pointer at the already-corrected Decision 10."
+    },
+    {
+      "severity": "minor",
+      "category": "feasibility",
+      "task": "03",
+      "issue": "Details says tests/unit/migration.test.ts has 'test names carrying the number at lines 20, 27, 124'. There are nine such names, not three: lines 20, 27, 33 ('v1 → v7'), 54 ('v2 → v7'), 64 ('v3 → v7'), 83 ('v4 → v7'), 99 ('v5 → v7'), 112 ('v6 → v7'), 124 ('v7 → v7'). The TDD Anchor separately covers lines 33 and 54-112, so combined coverage is complete and no name is actually left behind — the count in Details is simply wrong and could mislead a skim-reader.",
+      "fix": "Say 'nine test names carry the version number (lines 20, 27, 33, 54, 64, 83, 99, 112, 124)'; the nine toBe(7) line numbers quoted right before it (22, 29, 37, 57, 72, 91, 107, 120, 129) are all correct as written."
+    },
+    {
+      "severity": "minor",
+      "category": "feasibility",
+      "task": "06",
+      "issue": "Two component line counts are off by one: CollapsibleGroup.svelte is 86 lines (task says 87) and GroupSettingsPopup.svelte is 46 (task says 47). Every line reference used for actual navigation is correct — GroupHeader.svelte:17, CollapsibleGroup.svelte:39 and :72, GroupSettingsPopup.svelte:27, TaskGroup.svelte:36 and its `group` at line 10 and GroupHeader call at line 27, EmptyState.svelte 13 lines.",
+      "fix": "Cosmetic; correct the two counts or drop them, since the task already instructs locating blocks by selector/symbol rather than by line."
+    }
+  ],
+  "verified_ok": [
+    "Task 03 — one version literal: src/data/defaults.ts:52 is `version: 7` inside DEFAULT_DATA and is the only current-schema-version marker.",
+    "Task 03 — migration.ts:75 is `if (version < 7)` and :81 is `result.version = 7`, both inside the historical notesHidden block (L75-82); they are genuinely not current-version markers and correctly stay at 7.",
+    "Task 03 — both early returns (line 7 for non-object, line 14 for version < 1) build `{ ...DEFAULT_DATA, boards: [{ ...DEFAULT_DATA.boards[0] }] }` — a shallow spread that would share one groupOrder array with the module constant and with every other call. Confirmed.",
+    "Task 03 — both early returns are at lines 7 and 14, ahead of every `if (version < N)` block (19-82) and of the future sanitization block before `return result` (84). They bypass both, exactly as claimed.",
+    "Task 03 — migrateData({}) does fall into the `version < 1` branch: raw.version is undefined so version resolves to 0.",
+    "Task 03 — nine `expect(result.version).toBe(7)` at lines 22, 29, 37, 57, 72, 91, 107, 120, 129 — exact match.",
+    "Task 03 — makeBoard (line 7) and fullWidthGroups (line 135) helpers exist and build boards without the new fields.",
+    "Task 03 — cleanupOrphanedTasks (src/data/cleanup.ts:20) derives live ids via `Object.values(board.groups)`, not groupOrder.",
+    "Task 03 — migrateData is called at src/main.ts:52 inside loadPluginData (L50-60), before any view exists, and the result is written straight back with saveData at L59.",
+    "Task 03 — types.ts line references: GroupId L5, GROUP_IDS L9, Group L23-29, Board L31-40, and the listed field sets are exact.",
+    "Task 03 — defaults.ts line references: createDefaultGroup L13-21, createDefaultBoard L23-42, DEFAULT_DATA.version at L52.",
+    "Task 03 — docs/technical.md carries the version at lines 21, 358 and 403, correctly deferred to Task 12.",
+    "Task 05 — the claim that the popup's name input does NOT use the resolver is consistent with Task 08 step 4 and with tech-spec Decision 4 ('The editing field is not a display site and must not use the helper'), quoted accurately.",
+    "Task 05 — referenced context files exist: src/ui/boardLayoutUtils.ts (26 lines, pure util precedent), tests/unit/statusTransitions.test.ts, src/i18n/index.ts with the groupLabels derived store returning Record<GroupId, string>. src/ui/groupTitle.ts and tests/unit/groupTitle.test.ts correctly do not exist yet.",
+    "Task 06 — all eight named selectors exist at the stated line ranges: .tm-group-header__title 135-139, .tm-group-header__counter 140-143, .tm-group-header__settings 151-163, .tm-group-header__add 168-180, .tm-collapsible-group__title 219-221, .tm-collapsible-group__count 222-225, .tm-collapsible-group__settings 233-238, .tm-collapsible-group__add 243-248.",
+    "Task 06 — none of the six sibling blocks declares flex-shrink today, and both title blocks set only font properties (no overflow / text-overflow / min-width). Confirmed by reading, not by grep.",
+    "Task 06 — the file really does contain exactly seven unrelated `flex-shrink: 0` declarations further down (lines 298, 306, 412, 417, 437, 445, 465), so the warning against `grep -c` is accurate.",
+    "Task 06 — flex parents .tm-group-header (125) and .tm-collapsible-group__header (194) are display:flex; grandparents .tm-task-group (97) and .tm-collapsible-group (187) already carry min-width: 0. The two normal-header buttons do have fixed 1.5rem width and the collapsible controls are padding-only spans, as described.",
+    "Task 06 — EmptyState is rendered from exactly two places: TaskGroup.svelte:36 and CollapsibleGroup.svelte:72, both `<EmptyState {groupId} />`, and both parents already hold `group`.",
+    "Task 06 — 'emptyState.renamed' is the right key name to require and is currently absent from src/i18n/types.ts, en.ts and ru.ts (Task 02 pending), so the precondition grep expecting three hits is correctly specified. The warning that emptyState.completed shares the 'Nothing here yet — …' prefix checks out (en.ts:94).",
+    "Task 06 — zero `trim()` hits today in EmptyState.svelte, TaskGroup.svelte and CollapsibleGroup.svelte, so the 'exactly one hit' verification will be meaningful; and trim() is indeed used legitimately elsewhere in src/ui (TaskFormContent, BoardSettingsPopup, GroupSettingsPopup), justifying the scoped grep.",
+    "Task 08 — every named selector exists: .tm-popup (638) declares neither max-height nor overflow; .tm-popup__group-header (694) and .tm-popup__group-row (713) both declare `grid-template-columns: 1fr 4rem 4rem`.",
+    "Task 08 — BoardSettingsPopup.svelte is 115 lines; local state L12-19, visibleCount L22, handleSave L24-27 sending { title, subtitle, hiddenGroups, fullWidths, notesHidden }, onSave prop type L8, column header L47-51, `{#each GROUP_IDS as groupId}` L52-87, isLastVisible L55, notes row L89-98 reusing .tm-popup__group-row. All exact.",
+    "Task 08 — BoardHeader.saveSettings is at lines 23-29 and forwards via spread, so only the parameter type changes, as stated.",
+    "Task 08 — dataStore.updateBoard is at line 199, assigns title/subtitle/hiddenGroups/notesHidden, loops GROUP_IDS for fullWidth, and ends with persist().",
+    "Task 08 — the store is importable under environment:'node': pluginStore.ts's only obsidian import is `import type { Plugin }` (erased), and persist() no-ops while pluginStore holds null.",
+    "Task 08 — existing E2E locator claims hold: 0006/0007/0008 all use `.tm-popup__group-row` + filter({ hasText: ... }) and `.tm-popup__group-toggle` .first()/.nth(1), so they will indeed break once the name becomes an input value.",
+    "Task 08 — data-settings-group and data-group-container appear nowhere in src/ or tests/ today, so the collision-avoidance greps are valid.",
+    "Cross-task — src/ui/groupOrderUtils.ts (Task 04) and src/ui/groupTitle.ts (Task 05) correctly do not exist yet; both are consumed only by later waves."
+  ],
+  "notes": [
+    "Environment: `node -v` is v18.19.1 and `npx vitest list` fails with ERR_REQUIRE_ESM. Every vitest gate in Tasks 03, 05 and 08 is therefore blocked until Task 01 lands the Node pin — this is the declared precondition, not a defect of these tasks."
+  ],
+  "stats": {
+    "tasks_checked": 4,
+    "claims_verified": 78,
+    "issues_found": 10,
+    "critical": 0,
+    "major": 4,
+    "minor": 6
+  }
+}
