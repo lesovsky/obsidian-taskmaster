@@ -1,148 +1,152 @@
 {
   "validator": "dev-task-validator",
   "feature_base": "docs/features/0011-feat-group-customization/0011-feat-group-customization",
-  "iteration": 2,
   "tasks_checked": ["06", "07", "08", "09", "10"],
+  "iteration": 2,
   "status": "approved",
-  "previous_iteration": {
-    "report": "docs/features/0011-feat-group-customization/0011-feat-group-customization-task-validation-batch2.json (iteration 1, overwritten by this file)",
-    "critical_resolved": true,
-    "critical_resolution_verified": "Контракт поля ввода названия исправлен согласованно на всех четырёх уровнях, проверено по текстам: (1) tech-spec Decision 4 содержит абзац «The editing field is not a display site and must not use the helper» с явным описанием обоих последствий; (2) Task 08 — шаг 4 и Details/Dependencies требуют биндить value на сырой board.groups[groupId].title и placeholder на $groupLabels[groupId], прямо запрещая как вызов groupTitle.ts, так и инлайн group.title || label; (3) Task 05 явно выводит поле ввода из числа потребителей резолвера; (4) Task 10 переписал Сц.2 в три состояния (пустое → название → снова пустое) с проверкой дефолта только через placeholder и добавил Сц.14 «сохранение без правок оставляет title всех шести групп пустым» с обязательным негативным контролем. Противоречие Task 08 ↔ Task 10 ↔ Task 06 снято.",
-    "major_resolved": [
-      "06 / ключ нейтральной подсказки — назван явно emptyState.renamed в What to do, Acceptance Criteria и Details/Dependencies; grep по английскому тексту низведён до sanity-check, с прямым предупреждением про emptyState.completed и em dash",
-      "10 / непокрытый критерий про подсказку в пустой группе — добавлен Сц.13 (переименованная → нейтральная, дефолтная → прежняя, очистка → возврат), с негативным контролем и указанием брать только несворачиваемые группы",
-      "10 / Сц.5 без негативного контроля — добавлены два возмущения с ожидаемым красным (убрать вызов перетаскивания; нацелить сброс на третью группу), два зелёных переклассифицированы как контроль ложно-зелёного варианта; требование продублировано в Acceptance Criteria и Verification Steps"
-    ],
-    "minor_resolved": [
-      "06 / объём правки styles.css приведён к восьми селекторам (2 title + counter и 2 контрола в каждом заголовке), номера строк помечены как дрейфующие",
-      "06 / недостижимый критерий про whitespace-only переформулирован в свойство кода со ссылкой на unit-покрытие Task 05",
-      "07 / ложное обоснование TDD-якоря исправлено: явно сказано, что unit-тесты зовут чистую функцию и проводку внутри компонента не видят",
-      "07 / добавлена явная зависимость от Task 01",
-      "07 / критерий уникальности data-group-container сужен до src/ с объяснением почему",
-      "07 / число bare-локаторов уточнено до тринадцати с разбором двенадцать громких / один тихий",
-      "08 / привязки к номерам строк styles.css заменены на имена селекторов с объяснением причины (файл правят Tasks 06 и 07 в более ранних волнах)",
-      "08 / порядок верификации переставлен: npm run build первым как основной гейт, npx tsc --noEmit после него и с оговоркой про Decision 11",
-      "08 / политика по ключам локализации согласована с Task 02: имена boardSettings.groupName / moveUp / moveDown зафиксированы, при отсутствии — стоп и доклад",
-      "09 / привязка комментария в helpers.ts уточнена (L95-98, вторая строка JSDoc), число локаторов доведено до тринадцати, тринадцатый описан как опаснее прочих из-за .catch(() => false)",
-      "10 / добавлены Сц.13 и Сц.14, учтены две особенности resetData (снимок читать до вызова; активная доска сбрасывается на первую)"
-    ]
-  },
+  "verdict_summary": "Критическое замечание первого раунда закрыто полностью и согласованно на всех пяти уровнях: tech-spec Decision 4 (абзац «The editing field is not a display site and must not use the helper»), Task 05 (три потребителя резолвера, EmptyState и поле ввода исключены явно), Task 06 (правило «переименована ли группа» определено ровно в одном месте — внутри EmptyState), Task 08 (value = сырое `board.groups[id].title`, дефолт в `placeholder`, резолвер не вызывается), Task 10 (Сц.2 проверяет все три состояния поля, Сц.14 ловит регресс контракта, отдельный запрет `toHaveValue(дефолт)`). Расхождение Task 05 ↔ Task 06 по числу потребителей резолвера, бывшее major, устранено — обе задачи теперь говорят «три». Граф зависимостей всей фичи пересчитан после сдвига волн +1: 01,02→1; 03,04,05→2; 06→3; 07→4; 08→5; 09→6; 10→7; 11→8; 12→9. Волна каждой задачи строго больше волн всех её зависимостей, циклов нет, пропусков в нумерации нет. Критических находок нет. Одна major-находка — побочный эффект перенумерации в самом tech-spec. Остальное — minor: часть новая (следствия правок этого раунда), часть не исправлена с прошлых раундов.",
   "findings": [
     {
       "severity": "major",
-      "category": "consistency",
+      "category": "decomposition",
       "task": "06",
-      "section": "Description / What to do / Acceptance Criteria (в связке с Task 05)",
-      "issue": "Число потребителей резолвера названия разошлось между Task 05 и Task 06 — это побочный эффект правок второго раунда, в первом раунде расхождения не было видно, потому что спор шёл про попап. Task 05 (Description): «Мест вызова четыре, и все они на доске (задача 06): заголовок обычной группы (GroupHeader), заголовок свёрнутой группы (CollapsibleGroup), заголовок попапа настроек группы (GroupSettingsPopup) и пустое состояние (EmptyState). Четыре копии одного условия — четыре места для расхождения». Task 06 говорит ровно обратное про четвёртый пункт: резолвер вызывают ТРИ компонента, а EmptyState получает сырой `group.title` и сам решает нейтральная/семантическая подсказка одним `trim()`-ом; более того, Acceptance Criteria Task 06 требуют, чтобы `src/ui/groupTitle.ts` остался неизменным и «всё ещё ровно один экспорт», а Verification Steps требуют `git diff src/ui/groupTitle.ts` пустым. То есть по Task 05 EmptyState — четвёртый вызывающий, по Task 06 EmptyState резолвер не зовёт вовсе. Tech-spec Decision 4 формулировкой «keeps the four display sites identical. All display sites already receive group or board, so no new props are needed except in EmptyState» скорее подпирает версию Task 05. Практический риск не теоретический: исполнитель Task 05 может спроектировать сигнатуру под нужды EmptyState (например, вернуть пару «имя + признак переименованности»), а ревьюер Task 06 — заблокировать задачу за то, что четвёртое место вызова не подключено к общему хелперу, как обещали и tech-spec, и Task 05.",
-      "fix": "Согласовать счёт в одну сторону — правильная версия у Task 06 (EmptyState потребляет сырое название, а не резолвер; иначе для подсказки нужен второй экспорт, который Task 05 сам себе запрещает). В Task 05 заменить «мест вызова четыре» на «мест вызова три (GroupHeader, CollapsibleGroup, GroupSettingsPopup); EmptyState потребляет сырое сохранённое название и применяет то же правило пустоты (trim) самостоятельно — см. Task 06». В tech-spec Decision 4 поправить «four display sites» на три вызова хелпера плюс EmptyState как отдельный случай (новый проп, своё решение о подсказке). После правки перечитать AC Task 06 — они уже корректны и правки не требуют."
+      "also_affects": ["07", "08", "09", "10"],
+      "section": "tech-spec → Implementation Tasks, заголовки волн",
+      "status": "new_this_iteration",
+      "issue": "Перенумерация волн +1 применена к самим номерам волн, но не к скобочным пометкам «зависит от Wave N» — они остались в старой нумерации и теперь на единицу меньше правды по всей цепочке. Фактически в tech-spec стоит: «### Wave 2 (чистая логика, зависит от Wave 0)» — волны 0 не существует вовсе; «### Wave 3 (отображение, зависит от Wave 1)» — Task 6 зависит от 02 (волна 1), 03 и 05 (волна 2), то есть от Wave 2; «### Wave 4 (доска, зависит от Wave 2)» — Task 7 зависит от Task 6, волна 3; «### Wave 5 (настройки, зависит от Wave 3)» — Task 8 зависит от Task 7, волна 4; «### Wave 6 (тесты, зависит от Wave 4)» — Task 9 зависит от Task 8, волна 5; «### Wave 7 (приёмка фичи, зависит от Wave 5)» — Task 10 зависит от Task 9, волна 6. Сами frontmatter задач и их `depends_on` корректны и друг другу не противоречат — расходится только tech-spec. Практический вред: документ утверждает, что приёмочные E2E (Task 10) готовы к запуску после волны 5, тогда как они опираются на локаторы, переведённые Task 9 в волне 6; читатель, планирующий работу по tech-spec, а не по frontmatter, получит неверную картину готовности. Это ровно тот класс расхождения, который перенумерация должна была устранить, а не создать.",
+      "fix": "Сдвинуть скобочные пометки на ту же единицу: Wave 2 → «зависит от Wave 1», Wave 3 → «от Wave 2», Wave 4 → «от Wave 3», Wave 5 → «от Wave 4», Wave 6 → «от Wave 5», Wave 7 → «от Wave 6». Заодно свериться по `depends_on` всех двенадцати задач, чтобы пометки описывали реальный граф, а не только соседство номеров."
     },
     {
       "severity": "minor",
       "category": "consistency",
       "task": "07",
       "section": "Details / Edge cases",
-      "issue": "Примечание, которое во втором раунде стало ложным. Task 07 заканчивает разбор коллизии атрибутов фразой: «Note: tech-spec Decision 3 and Task 9 both quote the older figure of \"twelve\" for this set. Twelve is the count of loud expect() assertions; thirteen is the count of bare locator sites». Но Task 09 во втором раунде как раз и уточнили до тринадцати — сейчас его Description говорит «Thirteen of those locators are bare … twelve are expect() assertions (nine in 0006-group-visibility.spec.ts, three in core.spec.ts), and the thirteenth is the isVisible() guard inside expandGroup». Про Decision 3 примечание всё ещё верно (там «Twelve inline assertions»), про Task 09 — уже нет. Мелочь, но именно такие устаревшие сноски заставляют исполнителя лезть сверять то, что уже сведено, и сомневаться в актуальности соседнего файла.",
-      "fix": "В Task 07 сократить примечание до одного адресата: «tech-spec Decision 3 quotes twelve — это число громких expect(); тринадцать — число bare-локаторов, как и в Task 09». Проверено по коду: 0006 — строки 95, 108, 112, 120, 199, 200, 240, 284, 285 (девять), core.spec.ts — 245, 248, 252 (три), helpers.ts:100 (тихий) — итого тринадцать, обе задачи считают одинаково."
+      "status": "carried_over_unfixed",
+      "issue": "Примечание в Task 07 стало ложным после правки Task 09 в этом раунде. Task 07 заканчивает разбор коллизии атрибутов фразой: «Note: tech-spec Decision 3 and Task 9 both quote the older figure of \"twelve\" for this set. Twelve is the count of loud expect() assertions; thirteen is the count of bare locator sites». Но Task 09 как раз и уточнили: его Description теперь говорит «Thirteen of those locators are bare [data-group-id=\"…\"] … twelve are expect() assertions (nine in 0006-group-visibility.spec.ts, three in core.spec.ts), and the thirteenth is the isVisible() guard inside expandGroup». Про Decision 3 замечание по-прежнему верно, про Task 9 — уже нет. Читатель Task 07 пойдёт сверять цифру в Task 09, найдёт там тринадцать и решит, что одна из двух задач устарела, не понимая какая.",
+      "fix": "Переписать примечание: расхождение осталось только с tech-spec Decision 3 («Twelve inline assertions would fail loudly»), Task 09 уже приведён к тринадцати. Либо, что чище, поправить Decision 3 в tech-spec и убрать примечание из Task 07 целиком — тогда все три документа называют одно число и оговорка становится не нужна."
+    },
+    {
+      "severity": "minor",
+      "category": "consistency",
+      "task": "09",
+      "section": "What to do (п. 4) / Details (0006-group-visibility.spec.ts)",
+      "status": "new_this_iteration",
+      "issue": "Одинаковый дефект адресации обёртки получил в одной задаче противоположную трактовку. Для 0007 задача предписывает: «L294 (Сц.21) reaches the wrapper via .tm-task-group:has(...) + .locator('..') for a boundingBox(). This is the same wrapper-addressing defect the task removes and it sits in the same file — migrate it to the wrapper attribute for consistency». Для 0006 та же конструкция объявлена вне области: «L52, 101, 121, 177, 185 use .tm-task-group:has([data-group-id=\"X\"]) — not name-based, out of scope». Проверено по коду: 0006-group-visibility.spec.ts:177 — `page.locator('.tm-task-group:has([data-group-id=\"inProgress\"])').locator('..')`, 0006:185 — `page.locator('.tm-task-group:has([data-group-id=\"focus\"])').locator('..')`. Это байт-в-байт тот же паттерн, что и 0007:294, включая хоп `.locator('..')`, а не просто `:has(...)`-локатор, как утверждает описание. Обоснование «same defect, same file» к 0006 применимо ровно так же. Функционально ничего не сломается — после Task 07 хоп по-прежнему приводит к обёртке, — но исполнитель получит противоречивую инструкцию, а ревьюер — повод спорить об объёме.",
+      "fix": "Разделить в описании 0006 два подмножества: чистые `:has([data-group-id])`-локаторы без хопа (L52, 101, 121 — действительно вне области) и локаторы с `.locator('..')` (L177, L185 — тот же дефект, что 0007:294). Далее либо мигрировать и их, распространив уже сформулированное обоснование, либо явно написать, почему в 0006 хоп остаётся, — но не оставлять две противоположные трактовки одного паттерна в одной задаче."
     },
     {
       "severity": "minor",
       "category": "consistency",
       "task": "08",
       "section": "Acceptance Criteria",
-      "issue": "Асимметрия, возникшая после правки Task 07. Во втором раунде критерий уникальности атрибута в Task 07 сузили до `src/` с явным объяснением: «The criterion is deliberately scoped to src/: Task 9 will start using this attribute in tests/e2e/, so a codebase-wide \"used nowhere else\" check would be unsatisfiable later». Зеркальный критерий Task 08 остался в старой, широкой редакции: «Each group row carries data-settings-group=\"{groupId}\", and that attribute name is used nowhere else in the codebase». Ровно тот же дефект: Task 09 (волна 6) переводит локаторы строк попапа на `data-settings-group`, Task 10 (волна 7) адресует им строки в новых сценариях — после волны 6 критерий Task 08 становится неверным по формулировке. Верификация в самом Task 08 при этом уже правильная (`grep -rn \"data-settings-group\" src/`), расходится именно текст критерия.",
-      "fix": "Привести критерий Task 08 к редакции Task 07: «В пределах `src/` `data-settings-group` встречается только на строке группы в BoardSettingsPopup.svelte — `grep -rn \"data-settings-group\" src/` не даёт других совпадений. Критерий намеренно ограничен `src/`: Task 09 и Task 10 начнут использовать атрибут в `tests/e2e/`»."
+      "status": "carried_over_unfixed",
+      "issue": "Асимметрия с Task 07 сохранилась. В этом раунде критерий уникальности атрибута в Task 07 сузили до `src/` с явным объяснением: «The criterion is deliberately scoped to src/: Task 9 will start using this attribute in tests/e2e/, so a codebase-wide \"used nowhere else\" check would be unsatisfiable later». Зеркальный критерий Task 08 остался в широкой редакции: «Each group row carries data-settings-group=\"{groupId}\", and that attribute name is used nowhere else in the codebase». Дефект тот же: Task 09 (волна 6) переводит локаторы строк попапа именно на `data-settings-group`, после чего критерий в прежней формулировке становится невыполнимым задним числом. Внутри самой задачи уже есть правильный вариант — Verification Steps проверяют `grep -rn \"data-settings-group\" src/`, то есть критерий и его проверка расходятся между собой.",
+      "fix": "Привести критерий к формулировке Task 07: «в пределах src/ атрибут data-settings-group появляется только на строке группы в BoardSettingsPopup.svelte» с той же оговоркой про Task 09 и tests/e2e/."
+    },
+    {
+      "severity": "minor",
+      "category": "consistency",
+      "task": "08",
+      "section": "frontmatter → depends_on / Details → Dependencies",
+      "status": "new_this_iteration",
+      "issue": "Асимметрия, возникшая после правки Task 07 в этом раунде. Task 07 получил явную зависимость от Task 01 с обоснованием: «This task extends that suite and runs it, so the dependency is declared explicitly in depends_on rather than left to arrive transitively through Task 3». Task 08 находится ровно в том же положении и остался с `depends_on: [\"04\", \"05\", \"07\"]`: он создаёт новый файл `tests/unit/dataStore.test.ts` под `tests/unit/**`, гоняет `npm test` — то есть опирается на инфраструктуру Task 01 — и, кроме того, в Details объявляет жёсткие блокеры на Task 02 («Verify they are present … if any is missing, stop and report the blocker») и Task 03 («Group.title и Board.groupOrder must already exist»), ни один из которых в `depends_on` не заявлен. Порядок выполнения при этом безопасен: 08 → 07 → 01/03 и 08 → 07 → 06 → 02, волна 5 строго позже волн 1–4, дедлока и цикла нет. Проблема декларативная: два соседних файла с одинаковой ситуацией оформлены по-разному, и оркестратор, читающий `depends_on` как перечень предусловий, увидит у Task 08 неполный список.",
+      "fix": "Либо привести Task 08 к виду Task 07 — `depends_on: [\"01\", \"02\", \"03\", \"04\", \"05\", \"07\"]` с той же одной строкой обоснования, — либо, наоборот, откатить Task 07 к транзитивной записи и договориться о едином правиле для всей фичи. Сейчас в одной пачке действуют два разных соглашения."
+    },
+    {
+      "severity": "minor",
+      "category": "content",
+      "task": "08",
+      "section": "Context Files → Code files",
+      "status": "new_this_iteration",
+      "issue": "Файл, который задача создаёт, не перечислен среди её файлов. TDD Anchor и шаг 11 раздела What to do заводят новый `tests/unit/dataStore.test.ts`, а в Context Files из тестов указан только `tests/unit/migration.test.ts` — и тот пометкой «read: existing unit-test style». Для сравнения, Task 05 перечисляет создаваемые файлы явно, с пометкой «создать (нового файла ещё нет)». Тот же файл отсутствует и в «Files to modify» задачи 8 в tech-spec, хотя её `verify` уже включает `npm test`, то есть предполагает новые unit-тесты.",
+      "fix": "Добавить `tests/unit/dataStore.test.ts` в Context Files с пометкой «создать» и в раздел Files блока Details; заодно дописать его в «Files to modify» задачи 8 в tech-spec, чтобы трассируемость файлов сходилась."
+    },
+    {
+      "severity": "minor",
+      "category": "content",
+      "task": "08",
+      "section": "Details → Edge cases / Acceptance Criteria",
+      "status": "carried_over_unfixed",
+      "issue": "У граничного случая со строкой Notes по-прежнему нет ни критерия приёмки, ни автоматической проверки. Формулировка не изменилась: «The notes row shares .tm-popup__group-row (lines 89–98). If the row grid gains columns, the notes row's checkbox lands in the wrong column unless it is handled — either give it its own modifier class or add the matching empty cells. Verify visually after the change». Задача при этом меняет `grid-template-columns` у `.tm-popup__group-row` — то есть ломает разметку строки Notes по умолчанию, если её не тронуть. Task 10 этот случай не покрывает: Сц.12 смотрит только на габариты попапа и прокрутку. Итог — единственная гарантия здесь «посмотреть глазами», и её некому исполнить: Agent Verification Plan оставляет визуальные проверки пользователю, а формального гейта у задачи нет. Кроме того, ссылка «(lines 89–98)» осталась привязкой к номерам строк в разделе, где вся остальная адресация в этом раунде специально переведена на имена селекторов.",
+      "fix": "Добавить критерий приёмки вида «строка Notes сохраняет прежнюю раскладку после изменения сетки .tm-popup__group-row — её переключатель стоит в той же колонке, что и раньше», и указать конкретный способ проверки (собственный модификатор или добивка пустыми ячейками). Если проверять этот случай автоматически, добавить сценарий в Task 10. Ссылку на строки 89–98 заменить именем селектора."
     },
     {
       "severity": "minor",
       "category": "content",
       "task": "10",
       "section": "What to do (Сц.13) / Implementation hints",
-      "issue": "Task 10 остался единственной задачей пачки, которая не называет ключ локализации, а отправляет искать его. Сц.13: «Тексты не выдумывай и не хардкодь по памяти: возьми точные строки из src/i18n/en.ts (ключи emptyState.* и нейтральный ключ, добавленный Task 2 — его имя посмотри в файле)», то же в Implementation hints. Task 02 фиксирует имя как контракт (`emptyState.renamed`), Task 06 во втором раунде специально перевели на явное имя — с отдельным предупреждением, что искать по тексту опасно, потому что `emptyState.completed` начинается ровно с той же подстроки «Nothing here yet — » (проверено: в en.ts это 'Nothing here yet — completed tasks will appear here', а нейтральный ключ по Task 02 — 'Nothing here yet — drag tasks in'). Task 10 отправляет исполнителя ровно в ту ловушку, о которой предупреждает Task 06, и сценарий здесь чувствительнее: если утверждение о нейтральной подсказке напишут через `toContainText('Nothing here yet')`, оно пройдёт и на семантической подсказке `completed`. Прямой поломки в Сц.13 не будет (сценарий работает на несворачиваемых группах, где `completed` не участвует), но негативный контроль Сц.13 такую ошибку не поймает.",
-      "fix": "В Сц.13 и в Implementation hints назвать ключ явно: «нейтральный ключ — `emptyState.renamed` (введён Task 02); текст брать из `src/i18n/en.ts` по имени ключа, а не по подстроке — `emptyState.completed` начинается с той же фразы». Заодно потребовать сравнение полным текстом (`toHaveText`), а не подстрокой."
+      "status": "carried_over_unfixed",
+      "issue": "Task 10 остался единственной задачей пачки, которая не называет ключ локализации, а отправляет искать его: «возьми точные строки из src/i18n/en.ts (ключи emptyState.* и нейтральный ключ, добавленный Task 2 — его имя посмотри в файле)», то же во втором упоминании в Implementation hints. Между тем имя зафиксировано как контракт: Task 02 в Acceptance Criteria перечисляет «в union добавлены ровно эти имена … 'emptyState.renamed'», Task 06 в этом раунде специально перевели на явное имя. Поиск «по файлу» здесь ещё и опаснее обычного: Task 06 отдельно предупреждает, что английский текст `emptyState.renamed` — «Nothing here yet — drag tasks in» — начинается ровно с той же подстроки, что и `emptyState.completed`, поэтому опознание ключа по тексту даёт ложное совпадение.",
+      "fix": "Назвать ключ явно (`emptyState.renamed`) в Сц.13 и в Implementation hints, сохранив указание брать сам текст из `src/i18n/en.ts`, и повторить предупреждение Task 06 о совпадении префикса с `emptyState.completed`."
     },
     {
       "severity": "minor",
       "category": "content",
       "task": "10",
-      "section": "TDD Anchor",
-      "issue": "Сц.2 — единственный сценарий, проверяющий тот самый контракт поля ввода, из-за которого первый раунд дал critical, — не попал в обязательный минимум негативного контроля. Раздел объявляет правило без исключений: «у каждого сценария должно быть хотя бы одно возмущение, дающее красный», но перечисленный «обязательный минимум» покрывает только Сц.3, Сц.4, Сц.5, Сц.10, Сц.13 и Сц.14 — шесть из четырнадцати. Для соседа по контракту (Сц.14) обязательное возмущение прописано, для Сц.2 — нет, хотя именно Сц.2 проверяет исходное состояние поля (пустой `value` + дефолт в `placeholder`), то есть наблюдаемое следствие исправленного критического замечания. Формально Сц.2 падаем по построению (при сломанном контракте `value` перестанет быть пустым), но раз для остальных ключевых сценариев доказательство падаемости требуется явно, отсутствие требования именно здесь читается как недосмотр.",
-      "fix": "Добавить в обязательный минимум строку: «`Сц.2` — временно провести значение поля через хелпер разрешения названия (или подставить `$groupLabels[groupId]` в `value`) → шаг 1 (поле пустое, дефолт только в placeholder) обязан покраснеть. Это доказывает, что сценарий отличает исправленный контракт Decision 4 от прежнего»."
+      "section": "TDD Anchor / Acceptance Criteria / Verification Steps",
+      "status": "carried_over_unfixed",
+      "issue": "Обязательный минимум негативного контроля по-прежнему не включает Сц.2 — единственный сценарий, целиком посвящённый тому контракту поля ввода, из-за которого первый раунд дал critical. Раздел объявляет правило «у каждого сценария должно быть хотя бы одно возмущение, дающее красный», но перечисленный минимум покрывает Сц.3, Сц.4, Сц.5, Сц.10, Сц.13 и Сц.14 — шесть из четырнадцати. При этом Verification Steps (шаг 3) и критерий приёмки сужают требование обратно до списка: «негативный контроль по списку из TDD Anchor», «Проведён негативный контроль из TDD Anchor». То есть проверяемым остаётся только минимум, а Сц.2 в него не попал, хотя его сосед по тому же контракту (Сц.14) обязательное возмущение получил. Именно Сц.2 проверяет исходное состояние поля (пустой value + дефолт в placeholder) — наблюдаемое свойство, отличающее правильную реализацию от той, что подставляет разрешённое название.",
+      "fix": "Добавить Сц.2 в обязательный минимум с конкретным возмущением: временно засеять группе непустой `title` до открытия попапа → проверка `toHaveValue('')` на исходном состоянии обязана упасть. Либо согласовать формулировки: если правило действительно «без исключений», то шаг 3 верификации и критерий приёмки должны требовать негативный контроль для всех четырнадцати, а не «по списку»."
     },
     {
       "severity": "minor",
       "category": "carry-forward",
       "task": "10",
       "section": "TDD Anchor / трассируемость с tech-spec",
-      "issue": "Рекомендация первого раунда «пункт добавить и в Testing Strategy tech-spec, чтобы список E2E и набор сценариев Task 10 снова совпадали один-в-один» не выполнена: в задаче сценариев стало четырнадцать, а Testing Strategy / E2E tests tech-spec по-прежнему перечисляет двенадцать пунктов, среди которых нет ни подсказки пустой группы (Сц.13), ни сохранения без правки названий (Сц.14). Потери требований нет — направление правильное (задача расширяет список, ничего не выбрасывая), поэтому это не carry-forward-нарушение, а расхождение документов. Практический эффект: Task 11 (pre-deploy QA) сверяет критерии по tech-spec и не увидит два сценария, которые фича считает обязательными; при следующей валидации расхождение всплывёт снова. Там же остаётся незакрытым второй пункт того же замечания: `tests/unit/dataStore.test.ts` (создаёт Task 08) и `tests/unit/boardLayoutUtils.test.ts` (расширяет Task 07) так и не попали в «Files to modify» соответствующих задач tech-spec, а нормализация названий на границе стора — в Testing Strategy / Unit tests.",
-      "fix": "Дописать в Testing Strategy / E2E tests два пункта: «пустая переименованная группа показывает нейтральную подсказку, пустая группа с дефолтным названием — прежнюю» и «сохранение настроек без правки названий оставляет title всех групп пустым». В Unit tests добавить строку про нормализацию названий в updateBoard. В Files to modify Task 7 добавить `tests/unit/boardLayoutUtils.test.ts`, в Task 8 — `tests/unit/dataStore.test.ts`."
-    },
-    {
-      "severity": "minor",
-      "category": "decomposition",
-      "task": "06",
-      "section": "нумерация волн (все двенадцать задач + tech-spec)",
-      "issue": "Сдвиг волн +1 выполнен корректно и целиком — проверен граф всей фичи, а не только пачки: 01 и 02 — волна 1 (без зависимостей); 03, 04, 05 — волна 2 (зависят от 01); 06 — 3 (02, 03, 05); 07 — 4 (01, 03, 06); 08 — 5 (04, 05, 07); 09 — 6 (07, 08); 10 — 7 (09); 11 — 8 (10); 12 — 9 (10, 11). Волна каждой задачи строго больше волн всех её зависимостей, циклов нет, дырок в нумерации нет. Побочный эффект: заголовки разделов в tech-spec (Wave 0 … Wave 6 + Final Wave) теперь смещены на единицу относительно frontmatter задач — «Wave 0» в tech-spec соответствует `wave: 1` в файлах. Смещение системное и в правильную сторону (шаблон требует wave ≥ 1, поэтому Wave 0 и была источником проблемы), но пока оно не отражено в tech-spec, следующий читатель может «выровнять» нумерацию в обратную сторону и вернуть нулевую волну.",
-      "fix": "Перенумеровать заголовки Implementation Tasks в tech-spec: Wave 0 → Wave 1, Wave 1 → Wave 2, …, Wave 6 → Wave 7, Final Wave → Waves 8-9 (Task 11 — волна 8, Task 12 — волна 9). Больше ничего в tech-spec по этому поводу менять не нужно."
-    },
-    {
-      "severity": "minor",
-      "category": "structure",
-      "task": "07",
-      "section": "TDD Anchor / Verification Steps / Details (также Task 06 Details, Task 08 TDD Anchor)",
-      "issue": "Замечание первого раунда про неотредактированный текст шаблона не исправлено ни в одном из трёх мест. В Task 07 по-прежнему стоят: служебный комментарий шаблона «<!-- Fill if task includes writing code. For non-code tasks (user instructions, deploy, config) — delete this section. -->» (стр. 76), шаблонная фраза «Тесты, которые нужно написать ДО реализации. Пишем → запускаем → убеждаемся что падают → пишем код → убеждаемся что проходят.» (стр. 78), комментарии шаблона в Verification Steps (стр. 162) и Details (стр. 186). В Task 08 осталась та же шаблонная фраза в TDD Anchor (стр. 98), в Task 06 — комментарий шаблона в Details (стр. 201). Task 09 и Task 10 от шаблонного текста очищены (комментарий в TDD Anchor Task 09 — авторский, а не шаблонный), так что внутри пачки формат по-прежнему непоследователен. Отдельно в Task 07 сочетание особенно неудачно: сразу под шаблонной фразой «пишем тесты ДО реализации» идёт абзац, честно объясняющий, что эти тесты как раз главного и не проверяют.",
-      "fix": "Удалить перечисленные шаблонные комментарии и вводную фразу из Task 07 (три места), Task 08 (одно) и Task 06 (одно), приведя оформление к виду Task 09/10. Авторские вводные абзацы оставить."
-    },
-    {
-      "severity": "minor",
-      "category": "content",
-      "task": "07",
-      "section": "Context Files / Post-completion (также Task 08, 09, 10)",
-      "issue": "Замечание первого раунда про соглашение о путях не исправлено. В Task 07, 08, 09 и 10 ссылки заданы от корня репозитория (`[CLAUDE.md](CLAUDE.md)`, `[…](docs/features/0011-feat-group-customization/0011-feat-group-customization-tech-spec.md)`, `[…](src/ui/BoardLayout.svelte)`), включая ссылки на decisions log в Post-completion; при открытии из каталога задачи они не резолвятся. Task 06 использует пути от каталога задачи (`../../../CLAUDE.md`, `../../technical.md`, `0011-feat-group-customization-tech-spec.md`) и открывается корректно. Внутри одной пачки два разных соглашения.",
-      "fix": "Привести все пять задач к варианту Task 06 (пути от каталога задачи) — либо, если решено считать пути корневыми, поправить Task 06 и записать соглашение в tech-spec одной строкой, чтобы следующая пачка не разъехалась снова."
+      "status": "carried_over_unfixed",
+      "issue": "Список сценариев Task 10 и Testing Strategy / E2E tests в tech-spec по-прежнему не совпадают. В задаче четырнадцать сценариев, в tech-spec — двенадцать пунктов, причём последний («Existing suites for group visibility, dynamic layout and card columns still pass») принадлежит Task 09, а пункт про Cancel и клик по оверлею в задаче раскрыт в два сценария (Сц.7 и Сц.8). Отсутствуют в tech-spec: подсказка пустой группы (Сц.13, при этом соответствующий критерий есть в user-spec) и сохранение без правки названий (Сц.14, прямое следствие Decision 4 и главный ловец регресса контракта). Потери требований нет — задача расширяет список, ничего не выбрасывая, поэтому это не нарушение carry-forward, а расхождение документов. Практический эффект: Task 11 (pre-deploy QA) сверяет критерии по tech-spec и user-spec, и эти два сценария в его сверке не окажутся.",
+      "fix": "Дописать в Testing Strategy / E2E tests tech-spec два пункта: «Пустая переименованная группа показывает нейтральную подсказку, группа с дефолтным названием — прежнюю» и «Сохранение настроек без правки названий оставляет title всех шести групп пустым». После этого список tech-spec и набор Task 10 сходятся один-в-один."
     },
     {
       "severity": "minor",
       "category": "frontmatter",
       "task": "07",
-      "section": "frontmatter (также Task 09, 10)",
-      "issue": "Замечание первого раунда про поле `verify` не исправлено. Шаблон описывает поле как инструмент верификации (`curl`, `bash`, `user`), но в Task 07 стоит ``verify: bash — `npm run build` и `npx playwright test tests/e2e/0007-dynamic-layout.spec.ts` ``, в Task 09 — `verify: bash — npx playwright test`, в Task 10 — ``verify: bash — `npx playwright test tests/e2e/0011-group-customization.spec.ts` ``. Канонический вид уже применён в Task 06 и Task 08 (`verify: bash`, команда в YAML-комментарии) — то есть внутри пачки поле заполняется двумя способами. Формально YAML валиден (значение — строка), поэтому severity minor, но потребитель, читающий `verify` как имя инструмента, получит строку с командой.",
-      "fix": "Привести Task 07, 09, 10 к виду `verify: bash` с командой в комментарии, как в Task 06 и Task 08. (Те же правки уместны в Task 02, 11, 12 — вне этой пачки, но расхождение общефичевое.)"
+      "also_affects": ["09", "10"],
+      "section": "frontmatter → verify",
+      "status": "carried_over_unfixed",
+      "issue": "Замечание про поле `verify` не исправлено. Шаблон описывает поле как инструмент верификации (`curl`, `bash`, `user`), но в Task 07 стоит ``verify: bash — `npm run build` и `npx playwright test tests/e2e/0007-dynamic-layout.spec.ts` ``, в Task 09 — `verify: bash — npx playwright test`, в Task 10 — ``verify: bash — `npx playwright test tests/e2e/0011-group-customization.spec.ts` ``. Канонический вид применён в Task 06 и Task 08 (`verify: bash`, команда — в YAML-комментарии), то есть внутри одной пачки поле заполняется двумя способами. YAML формально валиден (значение — строка), поэтому находка не блокирующая; вред в том, что потребитель, читающий `verify` как имя инструмента, получит строку с командой.",
+      "fix": "Привести 07, 09 и 10 к виду Task 06/08: `verify: bash`, полную команду вынести в комментарий той же строки. Те же правки нужны в Task 02, 11 и 12 — за пределами этой пачки поле заполнено так же."
     },
     {
       "severity": "minor",
       "category": "content",
-      "task": "08",
-      "section": "Acceptance Criteria / Edge cases",
-      "issue": "Замечание первого раунда про строку Notes не исправлено. Граничный случай остался в прежней редакции: «The notes row shares `.tm-popup__group-row` (lines 89–98). If the row grid gains columns, the notes row's checkbox lands in the wrong column unless it is handled — either give it its own modifier class or add the matching empty cells. Verify visually after the change». Ни критерия приёмки, ни автоматической проверки у этого случая по-прежнему нет: Task 10 сетку строки Notes не проверяет (Сц.12 смотрит только на габариты попапа и прокрутку), а визуальные проверки по Agent Verification Plan остаются за пользователем. Изменение `grid-template-columns` в этой задаче обязательное (добавляются стрелки и поле ввода), так что съехавший чекбокс строки Notes — не гипотетический сценарий, и он произойдёт молча. Побочно: ссылка на «lines 89–98» осталась единственной привязкой к номерам строк в разделе, который во втором раунде специально перевели на имена селекторов.",
-      "fix": "Добавить в Acceptance Criteria Task 08 пункт: «строка Notes сохраняет свою разметку после изменения сетки строки группы — у неё либо собственный модификатор, либо согласованные пустые ячейки». Ссылку «lines 89–98» заменить на «строка Notes, использующая `.tm-popup__group-row`». Если хочется автоматической проверки — вынести её в Task 10 отдельным утверждением, но тогда и в Testing Strategy tech-spec добавить строку."
+      "task": "07",
+      "also_affects": ["08", "09", "10"],
+      "section": "Context Files / Post-completion",
+      "status": "carried_over_unfixed",
+      "issue": "Соглашение о путях в ссылках так и не унифицировано. В Task 07, 08, 09 и 10 ссылки заданы от корня репозитория (`[CLAUDE.md](CLAUDE.md)`, `[…](docs/features/0011-feat-group-customization/0011-feat-group-customization-tech-spec.md)`, `[…](src/ui/BoardLayout.svelte)`), включая ссылки на decisions log в Post-completion; при открытии из каталога задачи они не резолвятся. Task 06 (как и Task 03, Task 05) использует пути от каталога задачи (`../../../CLAUDE.md`, `../../technical.md`, `0011-feat-group-customization-tech-spec.md`) и открывается корректно. Уточнение к прошлому раунду: по всей фиче преобладает как раз запись от корня (01, 02, 04, 07–12), так что вопрос не в том, кто отклонился, а в том, что соглашения два и они не выбраны.",
+      "fix": "Выбрать одно соглашение на всю фичу и применить его ко всем двенадцати задачам. Если ориентироваться на большинство — от корня репозитория; тогда правки нужны в 03, 05, 06. Если на открываемость из каталога задачи — от каталога; тогда правки в 01, 02, 04, 07–12."
+    },
+    {
+      "severity": "minor",
+      "category": "structure",
+      "task": "07",
+      "also_affects": ["06", "08"],
+      "section": "TDD Anchor / Verification Steps / Details",
+      "status": "carried_over_unfixed",
+      "issue": "Неотредактированный текст шаблона остался на прежних местах. В Task 07: служебный комментарий «<!-- Fill if task includes writing code. For non-code tasks (user instructions, deploy, config) — delete this section. -->» (строка 76), шаблонная фраза «Тесты, которые нужно написать ДО реализации. Пишем → запускаем → убеждаемся что падают → пишем код → убеждаемся что проходят.» (строка 78), комментарии шаблона в Verification Steps (строка 162) и Details (строка 186). В Task 08 — та же шаблонная фраза в TDD Anchor (строка 98). В Task 06 — комментарий шаблона в Details (строка 201). Содержательного вреда нет, но в Task 07 шаблонная фраза стоит вплотную к абзацу, который прямо предупреждает, что классический красно-зелёный цикл здесь доказывает не то, что кажется, — соседство читается как противоречие.",
+      "fix": "Удалить служебные HTML-комментарии шаблона и шаблонную фразу про TDD-цикл там, где задача уже описывает свой порядок работы своими словами (Task 07 и Task 08), и комментарий шаблона в Details Task 06."
     }
   ],
-  "checks_passed": [
-    "Структура: во всех пяти задачах одиннадцать разделов в порядке шаблона (Title → Required Skills → Description → What to do → TDD Anchor → Acceptance Criteria → Context Files → Verification Steps → Details → Reviewers → Post-completion), пропусков и перестановок нет",
-    "Плейсхолдеров шаблона ([Task Name], {PK path}, {reviewer-name}, {round}) и маркеров TODO/FIXME/PLACEHOLDER/TBD ни в одной из пяти задач нет",
-    "Frontmatter: status=planned во всех пяти; depends_on — массивы строк; wave — числа ≥ 1; skills и reviewers — массивы; полей сверх шаблона нет",
-    "Граф зависимостей всей фичи (01–12) ацикличен, волна каждой задачи строго больше волн всех её зависимостей после сдвига +1 — проверено поимённо для всех двенадцати задач",
-    "skills ↔ раздел Required Skills и reviewers ↔ раздел Reviewers совпадают во всех пяти задачах; пути отчётов ревью соответствуют формату {feature_base}-task-{ID}-{reviewer}-review.json",
-    "Соответствие скилла содержанию: все пять задач — code-writing, совпадает с tech-spec; связка code-writing → dev-code-reviewer + dev-security-auditor + dev-test-reviewer соблюдена (в Task 09/10 порядок иной, но набор тот же и совпадает с tech-spec)",
-    "Обязательные артефакты фичи (user-spec, tech-spec, decisions log) присутствуют в Context Files всех пяти задач; отсутствие project.md/architecture.md компенсировано явной заменой на CLAUDE.md, docs/technical.md, docs/overview.md с оговоркой, что каталога project-knowledge в проекте нет",
-    "Критический контракт поля ввода названия согласован по цепочке tech-spec Decision 4 → Task 05 → Task 08 → Task 10 и не конфликтует с правилом переименованности в Task 06; в Task 10 добавлены оба следствия — исходное пустое состояние в Сц.2 и сохранение без правок в Сц.14",
-    "Правило «переименована ли группа» определено ровно в одном месте (EmptyState.svelte, trim-проверка), продублировано в Acceptance Criteria и подкреплено grep-проверкой в Verification Steps; мёртвая ветка с предикатом в чужом модуле убрана",
-    "Имена тестовых атрибутов согласованы дословно между задачами: data-group-container вводится Task 07 и потребляется Task 09/10 в том же написании; data-settings-group вводится Task 08 и потребляется Task 09/10; data-group-id остаётся на теле группы и защищён от изменения в Task 07, 08, 09",
-    "Фактические привязки к коду проверены по репозиторию: восемь селекторов заголовков в src/styles.css существуют по указанным строкам (135, 140, 151, 168, 219, 222, 233, 243) и ни один не объявляет flex-shrink; .tm-popup (638), .tm-popup__group-header (694), .tm-popup__group-row (713) существуют; шесть обёрток в BoardLayout.svelte на строках 182, 198, 213, 228, 243, 258, блок заметок на 273; EmptyState.svelte — 13 строк с одним пропом groupId",
-    "Инвентарь тестов сходится: 0006 — 17 сценариев, 0007 — 16, 0008 — 16, core — 35, итого 84, как заявлено в Task 09; тринадцать bare-локаторов [data-group-id] подтверждены пересчётом (девять в 0006, три в core, один в helpers.ts)",
-    "Decision 11 соблюдён во всей пачке: npx tsc --noEmit нигде не используется как TDD-якорь; в Task 06 и 07 прямо запрещён как гейт компонентов, в Task 08 переставлен после npm run build и ограничен .ts-частью",
-    "Decision 12 соблюдён: Task 10 нигде не проверяет порядок групп на доске по DOM-индексу, оговорка про попап (там DOM-порядок настоящий) сделана явно и корректна",
-    "Task 10 покрывает все двенадцать пунктов tech-spec Testing Strategy / E2E tests и добавляет два сверх списка (Сц.13, Сц.14) — потерь требований нет, есть расхождение документов (см. minor-находку)",
-    "Команды верификации из таблицы Agent Verification Plan tech-spec присутствуют в Verification Steps всех пяти задач",
-    "Атомарность: каждая задача — один логический результат; объединение трёх звеньев цепочки сохранения в Task 08 обосновано разделом Backward Compatibility / Consumer impact tech-spec; кандидатов на слияние или разделение в пачке нет"
-  ],
+  "cross_task_checks": {
+    "dependency_graph": "01:[] w1; 02:[] w1; 03:[01] w2; 04:[01] w2; 05:[01] w2; 06:[02,03,05] w3; 07:[01,03,06] w4; 08:[04,05,07] w5; 09:[07,08] w6; 10:[09] w7; 11:[10] w8; 12:[10,11] w9. Волна каждой задачи строго больше волн всех её зависимостей. Циклов нет, висячих ссылок на несуществующие ID нет, пропусков в нумерации волн нет.",
+    "wave_renumbering": "Сдвиг +1 применён ко всем двенадцати задачам корректно. В tech-spec номера волн обновлены, скобочные пометки «зависит от Wave N» — нет (см. major-находку).",
+    "field_contract": "Контракт поля ввода названия согласован в пяти точках: tech-spec Decision 4, Task 05 (Description и Implementation hints), Task 06 (запрет добавлять поле в GroupSettingsPopup), Task 08 (шаг 4, критерии приёмки, Implementation hints), Task 10 (Сц.2, Сц.14, критерий про placeholder). Противоречий не осталось.",
+    "resolver_consumers": "Task 05 и Task 06 теперь согласны: три потребителя резолвера (GroupHeader, CollapsibleGroup, GroupSettingsPopup); EmptyState потребителем не является; второй экспорт запрещён в обеих задачах. Major-находка прошлого раунда закрыта.",
+    "localization_keys": "Имена ключей совпадают между Task 02 (источник), Task 06 (`emptyState.renamed`) и Task 08 (`boardSettings.groupName`, `boardSettings.moveUp`, `boardSettings.moveDown`). Политика едина: ключ отсутствует → остановиться и доложить, не добавлять самому. Task 10 ключ не называет (minor-находка).",
+    "test_attributes": "Три различных атрибута без пересечений: `data-group-id` (тело группы, не трогается), `data-group-container` (обёртка, Task 07), `data-settings-group` (строка попапа, Task 08). Task 09 переводит локаторы на два новых. Расходится только область действия критерия уникальности в Task 08 (minor-находка).",
+    "node_range": "Запись `^22.12.0 || >=24.0.0` единообразна везде, где встречается: Task 01 (источник, с выводом из трёх ограничений), 03, 04, 05, 07, 11. В задачах 06, 08, 09, 10 диапазон не упоминается — и не должен.",
+    "files_traceability": "Списки файлов задач 06, 09, 10 совпадают с «Files to modify» соответствующих задач в tech-spec. Task 07 дополнительно правит `tests/unit/boardLayoutUtils.test.ts` (файл заведён Task 01, расширение оправдано). Task 08 дополнительно создаёт `tests/unit/dataStore.test.ts` — в tech-spec не указан (minor-находка).",
+    "factual_anchors_spot_checked": "Проверены по коду и подтверждены: восемь селекторов и их диапазоны строк в `src/styles.css` (135-139, 140-143, 151-163, 168-180, 219-221, 222-225, 233-238, 243-248) и утверждение «ни один из шести не объявляет flex-shrink сегодня, а в файле есть семь несвязанных объявлений»; шесть обёрток в `BoardLayout.svelte` на строках 182, 198, 213, 228, 243, 258 и блок заметок на 273; поведение харнесса в `tests/harness/main.ts` — `locale.set('en')`, `localStorage.removeItem('tm-test-data')` в начале `resetData`, ветка `'version' in partial → migrateData(partial)`, сброс активной доски на `data.boards[0].id`; паттерн `.tm-task-group:has([data-group-id]).locator('..')` в `0006-group-visibility.spec.ts:177,185` и `0007-dynamic-layout.spec.ts:294`."
+  },
   "stats": {
     "tasks_checked": 5,
-    "issues_found": 11,
+    "issues_found": 13,
     "critical": 0,
     "major": 1,
-    "minor": 10,
+    "minor": 12,
     "new_this_iteration": 5,
-    "carried_over_unfixed": 6
+    "carried_over_unfixed": 8,
+    "resolved_since_previous_iteration": ["critical: контракт поля ввода названия (tech-spec Decision 4, задачи 05, 08, 10)", "major: расхождение Task 05 ↔ Task 06 по числу потребителей резолвера", "major: мёртвая ветка с предикатом из чужого модуля в Task 06", "major: недостижимый критерий уникальности атрибута в Task 07", "minor: число локаторов в Task 09 приведено к тринадцати", "minor: привязка комментария к JSDoc expandGroup в Task 09", "minor: привязки к номерам строк стилей в Task 08 заменены на имена селекторов", "minor: порядок шагов верификации в Task 08", "minor: явная зависимость Task 07 от Task 01", "minor: объём правки стилей в Task 06 приведён к фактическим восьми селекторам", "minor: особенности resetData учтены в Task 10", "minor: обязательный негативный контроль для Сц.5 в Task 10"]
   }
 }

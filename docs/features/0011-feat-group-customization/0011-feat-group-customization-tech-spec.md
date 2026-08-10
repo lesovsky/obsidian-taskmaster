@@ -416,7 +416,7 @@ as the other display sites.
 - **Files to modify:** `src/i18n/types.ts`, `src/i18n/en.ts`, `src/i18n/ru.ts`
 - **Files to read:** `src/ui/BoardSettingsPopup.svelte`, `src/ui/EmptyState.svelte`
 
-### Wave 2 (чистая логика, зависит от Wave 0)
+### Wave 2 (чистая логика, зависит от Wave 1)
 
 #### Task 3: Data model, migration and sanitization
 - **Description:** Add the per-group name and per-board order to the data model with defaults
@@ -447,7 +447,7 @@ as the other display sites.
 - **Files to modify:** `src/ui/groupTitle.ts`, `tests/unit/groupTitle.test.ts`
 - **Files to read:** `src/i18n/index.ts`
 
-### Wave 3 (отображение, зависит от Wave 1)
+### Wave 3 (отображение, зависит от Wave 2)
 
 #### Task 6: Group name display
 - **Description:** Show the resolved name everywhere a group name appears on the board — header,
@@ -459,7 +459,7 @@ as the other display sites.
 - **Files to modify:** `src/ui/GroupHeader.svelte`, `src/ui/CollapsibleGroup.svelte`, `src/ui/GroupSettingsPopup.svelte`, `src/ui/EmptyState.svelte`, `src/ui/TaskGroup.svelte`, `src/styles.css`
 - **Files to read:** `src/ui/groupTitle.ts`, `src/i18n/index.ts`
 
-### Wave 4 (доска, зависит от Wave 2)
+### Wave 4 (доска, зависит от Wave 3)
 
 #### Task 7: Board renders in configured order
 - **Description:** Render groups in the board's configured order without moving any DOM node,
@@ -476,7 +476,7 @@ as the other display sites.
 > the function is order-agnostic. Remove the stale comment; leaving it would mislead the next
 > reader and gives a reviewer documented grounds to block this task.
 
-### Wave 5 (настройки, зависит от Wave 3)
+### Wave 5 (настройки, зависит от Wave 4)
 
 #### Task 8: Settings popup and save chain
 - **Description:** Add a name field and move arrows to each group row, dim rows of hidden
@@ -489,7 +489,7 @@ as the other display sites.
 - **Files to modify:** `src/ui/BoardSettingsPopup.svelte`, `src/ui/BoardHeader.svelte`, `src/stores/dataStore.ts`, `src/styles.css`
 - **Files to read:** `src/ui/groupOrderUtils.ts`, `src/data/types.ts`
 
-### Wave 6 (тесты, зависит от Wave 4)
+### Wave 6 (тесты, зависит от Wave 5)
 
 #### Task 9: Migrate existing E2E locators
 - **Description:** Move existing scenarios off locating groups and popup rows by displayed
@@ -500,7 +500,7 @@ as the other display sites.
 - **Files to modify:** `tests/e2e/helpers.ts`, `tests/e2e/0006-group-visibility.spec.ts`, `tests/e2e/0007-dynamic-layout.spec.ts`, `tests/e2e/0008-card-columns.spec.ts`, `tests/e2e/core.spec.ts`
 - **Files to read:** `src/ui/BoardLayout.svelte`, `src/ui/BoardSettingsPopup.svelte`
 
-### Wave 7 (приёмка фичи, зависит от Wave 5)
+### Wave 7 (приёмка фичи, зависит от Wave 6)
 
 #### Task 10: Feature E2E scenarios
 - **Description:** Cover the feature end to end with the scenarios listed under Testing

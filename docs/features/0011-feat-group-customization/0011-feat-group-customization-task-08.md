@@ -1,6 +1,6 @@
 ---
 status: planned                    # planned -> in_progress -> done
-depends_on: ["04", "05", "07"]     # ID задач-зависимостей (строки: ["01", "02"])
+depends_on: ["02", "03", "04", "05", "07"]     # ID задач-зависимостей (строки: ["01", "02"])
 wave: 5                            # волна параллельного выполнения
 skills: [code-writing]             # МАССИВ скиллов для загрузки
 verify: bash                       # npm run build && npm test && npx playwright test tests/e2e/core.spec.ts
