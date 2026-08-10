@@ -1,93 +1,65 @@
 {
   "status": "approved",
-  "summary": "Checked 47 claims against the codebase, found 7 issues (0 critical, 3 major, 4 minor). All headline claims the caller asked about verified true: computeGroupClasses is order-agnostic, data-group-id sits on the group body and data-group-container is free, all four group-name display sites already receive group/board while EmptyState is the only one needing a new prop, BoardHeader is the sole consumer of both dataStore.updateBoard and BoardSettingsPopup.onSave, tsc currently fails with exactly two 'boardSettings.notes' errors, version 7 is hardcoded in exactly three source locations plus nine test expectations, and the project has no CI and no pre-commit hooks. The real problems are gaps rather than mirages: a required acceptance criterion (ellipsis truncation of long group titles) has no file assigned, the three-link onSave chain is split across two waves, and npx tsc --noEmit does not type-check .svelte files at all, making several per-task verification gates vacuous.",
+  "summary": "Round 2. Checked 58 claims against the codebase, found 4 mirages (0 critical, 1 major, 3 minor). All three major findings from round 1 are resolved and re-verified: styles.css truncation now belongs to Task 6 (wave 2, sole owner of the file in that wave), the onSave -> saveSettings -> updateBoard chain changes entirely inside Task 8, and the tsc/.svelte gap is recorded as Decision 11 with component verify switched to build+scenarios. Every new empirical claim in Decisions 3, 4, 8, 10, 11 was reproduced exactly — including the counts 'twelve inline assertions', 'four document.querySelector calls', 'three source locations', 'nine test expectations'. The stale comment in boardLayoutUtils.ts is still unowned and is now actively contradicted by the shipped behavior — raised to major.",
   "findings": [
     {
       "severity": "major",
-      "type": "missing_file",
-      "claim": "Task 5 'Group title display' modifies GroupHeader.svelte, CollapsibleGroup.svelte, GroupSettingsPopup.svelte, EmptyState.svelte, TaskGroup.svelte — src/styles.css is not listed in any task for group-title overflow handling.",
-      "reality": "User-spec AC (0011-feat-group-customization.md:165) requires: 'в заголовке группы на доске усекается многоточием'. src/styles.css:135-139 (.tm-group-header__title) and :219-221 (.tm-collapsible-group__title) have no overflow, text-overflow or min-width:0 — grep 'text-overflow' in src/styles.css hits only lines 423, 432, 591, 877, none of them a group title. The parent flex containers (.tm-group-header :125-131, .tm-collapsible-group__header :195-206) also lack min-width:0. The only tasks that list src/styles.css are Task 7 (grid order) and Task 8 (popup layout), neither of which describes title truncation.",
-      "source": "0011-feat-group-customization-tech-spec.md, Implementation Tasks, Task 5 (Files to modify)",
-      "fix": "Add src/styles.css to Task 5's 'Files to modify' and name the truncation work in its description — or move the truncation explicitly into Task 7, which already owns src/styles.css in the same wave. Note that Task 5 and Task 7 are both in Wave 2, so adding styles.css to Task 5 creates a same-wave write conflict on that file; assigning it to Task 7 is the safer option."
-    },
-    {
-      "severity": "major",
       "type": "missing_pattern",
-      "claim": "Backward Compatibility: 'BoardSettingsPopup's onSave signature grows; its only consumer is BoardHeader.svelte' — Task 6 (Wave 2) modifies src/stores/dataStore.ts and src/ui/BoardHeader.svelte, with src/ui/BoardSettingsPopup.svelte listed only as 'Files to read'; the popup itself is changed in Task 8 (Wave 3).",
-      "reality": "The save chain has three links that must change together: BoardSettingsPopup.svelte:8 declares the onSave prop type and :26 builds the fields object; BoardHeader.svelte:23-29 re-shapes it (fullWidths -> groupFullWidths) and calls updateBoard; dataStore.ts:199-214 writes the fields. The code-research this spec is built on states the same ('Цепочка onSave — три сигнатуры ... Все три придётся расширить одинаково'). Splitting them across waves means that after Wave 2 the popup still emits the old five-field object, so updateBoard writes undefined into board.groupOrder / group titles — while Task 7 (also Wave 2) has already made BoardLayout depend on board.groupOrder. Task 6's verify (npm test, npx tsc --noEmit) cannot catch this because no unit test covers the Svelte save path and tsc does not read .svelte files (see the separate finding).",
-      "source": "0011-feat-group-customization-tech-spec.md, Backward Compatibility (Consumer impact) and Implementation Tasks, Task 6 vs Task 8",
-      "fix": "Either move the onSave signature extension in BoardSettingsPopup.svelte into Task 6 (declaration and pass-through only, leaving the UI controls to Task 8), or make Task 6 defensive: updateBoard should ignore/skip absent groupOrder and title fields rather than assign undefined."
-    },
-    {
-      "severity": "major",
-      "type": "missing_pattern",
-      "claim": "Per-task verification table: Task 5 'verify: bash — npx tsc --noEmit and npm run build'; Decision 8: 'no task could pass a type-check gate'; Acceptance Criteria: 'npx tsc --noEmit is clean'.",
-      "reality": "npx tsc --noEmit does not type-check .svelte files in this project. tsconfig.json:17 lists 'src/**/*.svelte' in include, but tsc only compiles .ts/.tsx/.d.ts and silently ignores the rest — proof: src/ui/BoardSettingsPopup.svelte:90 calls $t('boardSettings.notes') with a key absent from the TranslationKey union, yet the current run reports only two errors, both in src/i18n/en.ts:60 and src/i18n/ru.ts:60. npm run build (esbuild + esbuild-svelte) does not type-check either. Task 5 modifies five .svelte files and nothing else, so its stated gate verifies nothing about the code it changes; the same applies to Task 7 (BoardLayout.svelte + styles.css) and Task 8.",
-      "source": "0011-feat-group-customization-tech-spec.md, Agent Verification Plan (Per-task verification, rows 3/5/6) and Decision 8",
-      "fix": "Either add svelte-check (npx svelte-check --tsconfig ./tsconfig.json) as the real gate for .svelte-only tasks, or restate the verification honestly: for Task 5 the meaningful gate is npm run build (compiles Svelte, catches syntax/prop errors) plus the E2E scenarios in Task 10, not tsc."
+      "claim": "tech-spec Dependencies says: 'src/ui/boardLayoutUtils.ts — computeGroupClasses, reused unchanged', and Solution says '`computeGroupClasses` is already order-agnostic and needs no change'. No task lists this file under 'Files to modify' (Task 4 and Task 7 list it only under 'Files to read').",
+      "reality": "The function body is genuinely order-agnostic — it walks whatever array it is handed and pairs adjacent halves, confirmed by reading src/ui/boardLayoutUtils.ts lines 5-25. But lines 3-4 of that same file carry a comment that asserts the opposite and issues an instruction: '// ВАЖНО: зависит от фиксированного порядка групп.\\n// При появлении настраиваемого порядка — переработать.' Configurable order is exactly what this feature introduces, so on the day the feature ships the file will contain a standing instruction to rework it, referencing a condition that has already come true. Round 1 flagged this as minor on the assumption it was merely stale; it is worse than stale — a dev-code-reviewer reading the file during Task 7 (which must read it) has a documented reason to block, and the next feature's code research will read the comment as a live constraint on the ordering mechanism.",
+      "source": "0011-feat-group-customization-tech-spec.md, sections Solution and Dependencies; Task 4 and Task 7 file lists",
+      "fix": "Add `src/ui/boardLayoutUtils.ts` to Task 7's 'Files to modify' and instruct it to delete those two comment lines (no logic change). Task 7 is the only task in Wave 3 and already owns the ordering mechanism, so there is no wave conflict and no other task touches the file. Alternatively state explicitly in Dependencies that the comment is knowingly left in place and why — but leaving it silent, as now, is the one option that will cost review time."
     },
     {
       "severity": "minor",
       "type": "name_mismatch",
-      "claim": "Solution: 'computeGroupClasses is already order-agnostic and needs no change'; Dependencies: 'src/ui/boardLayoutUtils.ts — computeGroupClasses, reused unchanged'.",
-      "reality": "Functionally correct — src/ui/boardLayoutUtils.ts:5-26 iterates the array it is given and pairs adjacent non-fullWidth entries, so any order works. But lines 3-4 of the same file carry a contract comment saying the opposite: 'ВАЖНО: зависит от фиксированного порядка групп. При появлении настраиваемого порядка — переработать.' No task lists src/ui/boardLayoutUtils.ts for modification, so the file ships with a comment that directly contradicts the shipped behavior and will mislead the next reader.",
-      "source": "0011-feat-group-customization-tech-spec.md, Solution (line 24) and Dependencies > Using existing",
-      "fix": "Add src/ui/boardLayoutUtils.ts to Task 7's 'Files to modify' with a one-line instruction to update or delete the stale comment (the function body stays untouched)."
+      "claim": "Decision 4 says the pure title helper 'keeps the four call sites identical'; the Architecture 'Display sites' bullet enumerates GroupHeader, CollapsibleGroup, GroupSettingsPopup, EmptyState.",
+      "reality": "`$groupLabels[groupId]` is rendered at five places, not four: src/ui/GroupHeader.svelte:20, src/ui/CollapsibleGroup.svelte:53, src/ui/GroupSettingsPopup.svelte:26, and src/ui/BoardSettingsPopup.svelte:60 (the group row name in the board settings popup) — plus EmptyState, which resolves its own key rather than a label. The fifth site sits in Task 8, not Task 6, and the spec never says what happens to it. The E2E line 'the input shows it as a placeholder' implies the row's name becomes an input with the default label as placeholder, which would be consistent — but that is inference, and Task 8's 'Files to read' includes `groupTitle.ts`, which suggests the helper is used there too, making the count five.",
+      "source": "0011-feat-group-customization-tech-spec.md, Decision 4 and Architecture 'Display sites'",
+      "fix": "State in Task 8's description whether the popup row uses the resolved title as the input placeholder via `groupTitle`, or keeps raw `$groupLabels`. Then either correct 'four call sites' to five in Decision 4, or say explicitly that the popup row is a placeholder, not a display site."
     },
     {
       "severity": "minor",
       "type": "missing_dependency",
-      "claim": "Decision 7: 'Add engines to package.json and an .nvmrc requiring Node >= 22.12 ... The requirement is the intersection of what the build tooling and package manager need.'",
-      "reality": "The floor is safe but is not the intersection. Actual declared engines: vite 7.3.1 -> '^20.19.0 || >=22.12.0'; vitest 4.0.18 -> '^20.0.0 || ^22.0.0 || >=24.0.0'; npm 11.13 warns it supports '^20.17.0 || >=22.9.0'. The intersection is '^20.19.0 || >=22.12.0' — Node 20.19+ satisfies every constraint. Current environment is Node v18.19.1, and npm test indeed fails there with ERR_REQUIRE_ESM inside vite's config loader, which matches the require(ESM) availability boundary (20.19 / 22.12).",
-      "source": "0011-feat-group-customization-tech-spec.md, Decision 7",
-      "fix": "State it as a deliberate choice ('we pin >=22.12 rather than the full ^20.19.0 || >=22.12.0 range'), or write the real range into engines.node so a developer on Node 20.19+ is not blocked by Task 2's runtime precondition check."
-    },
-    {
-      "severity": "minor",
-      "type": "missing_file",
-      "claim": "Task 5 description: 'Show the user-defined name everywhere a group name appears — board header, collapsed header, the group's own settings popup and the board settings list'.",
-      "reality": "The board settings list is src/ui/BoardSettingsPopup.svelte:61 ({$groupLabels[groupId]}), which is not in Task 5's 'Files to modify' — it appears only in Task 8 (Wave 3), where the label is replaced by a text input. The description and the file list disagree about what Task 5 delivers.",
-      "source": "0011-feat-group-customization-tech-spec.md, Implementation Tasks, Task 5",
-      "fix": "Drop 'and the board settings list' from Task 5's description and note there that the popup row is covered by Task 8."
+      "claim": "Decision 8: 'The tooling requirement is `^20.19.0 || >=22.12.0` (build tooling) intersected with `^20.17.0 || >=22.9.0` (package manager); 22.12 is the simplest floor that satisfies both.'",
+      "reality": "Both quoted ranges are exact — `node_modules/vite/package.json` engines is `^20.19.0 || >=22.12.0`, and npm 11.13.0 prints `^20.17.0 || >=22.9.0` on the current Node v18.19.1. The floor 22.12 is correct. Two imprecisions remain. (a) The `^20.19.0 || >=22.12.0` range belongs to **vite**, which enters the project only as a transitive dependency of vitest — the project's actual build tool is esbuild (`npm run build` -> `node esbuild.config.mjs`). Calling it 'build tooling' points a future reader at the wrong package. (b) A third constraint is not mentioned: `node_modules/vitest/package.json` engines is `^20.0.0 || ^22.0.0 || >=24.0.0`, which excludes the 23.x line. An `engines` value of `>=22.12` therefore admits Node 23, where vitest itself declares incompatibility.",
+      "source": "0011-feat-group-customization-tech-spec.md, Decision 8",
+      "fix": "Reword to 'the test toolchain (vite, a vitest dependency) requires ^20.19.0 || >=22.12.0; npm requires ^20.17.0 || >=22.9.0; vitest itself requires ^20.0.0 || ^22.0.0 || >=24.0.0'. If the pin is written as a range rather than a floor, `>=22.12 <23 || >=24` matches all three; if a bare floor is preferred, note that 23.x is knowingly out of vitest's declared range."
     },
     {
       "severity": "minor",
       "type": "missing_pattern",
-      "claim": "Backward Compatibility: 'Sanitization runs on every load, not only during migration, so data damaged later is repaired too.'",
-      "reality": "migrateData is indeed invoked on every load (src/main.ts:52, this.data = migrateData(raw)), so the entry point supports the claim. But every existing step in src/data/migration.ts:19-82 is wrapped in an 'if (version < N)' guard; delivering unconditional sanitization requires a block outside those guards, and neither Decision 6 nor Task 1's description says so explicitly. Decision 6 attributes the sanitization to migrateData without stating it must be unguarded.",
-      "source": "0011-feat-group-customization-tech-spec.md, Backward Compatibility (Migration strategy) and Decision 6",
-      "fix": "Add one sentence to Task 1: the groupOrder sanitization must sit outside every 'if (version < N)' guard so it runs on every load, and cover it with a unit test that feeds already-v8 data with a damaged groupOrder."
+      "claim": "Wave 1 runs Tasks 3, 4 and 5 in parallel; Tasks 4 and 5 verify with `npm test`, and both list `src/data/types.ts` under 'Files to read' while Task 3 modifies it in the same wave.",
+      "reality": "`Group` in src/data/types.ts has no `title` field today (lines 22-28) and `Board` has no `groupOrder` (lines 30-39) — Task 3 adds both. `npm test` runs the whole unit suite (`vitest run`, include `tests/unit/**/*.test.ts`), which includes `tests/unit/migration.test.ts` — the file Task 3 is rewriting in the same wave, and which currently carries nine `expect(result.version).toBe(7)` assertions that must all become 8. So Task 4 and Task 5, verifying concurrently, can see a red suite for reasons entirely outside their own change, and Task 5 cannot type-check at all if its helper signature takes a `Group` rather than a plain string.",
+      "source": "0011-feat-group-customization-tech-spec.md, Wave 1 (Tasks 3, 4, 5) and Agent Verification Plan rows 3-5",
+      "fix": "Either state the helper signatures explicitly as primitives (`resolveGroupTitle(storedTitle: string, defaultLabel: string)`, `moveGroup(order: GroupId[], ...)`) so Tasks 4 and 5 carry no dependency on Task 3's type change, or narrow their verify to their own suites (`npx vitest run tests/unit/groupOrderUtils.test.ts`) instead of a bare `npm test`."
     }
   ],
   "stats": {
-    "total_claims_checked": 47,
-    "confirmed": 40,
-    "mirages_found": 7,
+    "total_claims_checked": 58,
+    "confirmed": 54,
+    "mirages_found": 4,
     "verified_claims": [
-      "computeGroupClasses (src/ui/boardLayoutUtils.ts:5-26) is order-agnostic — pairs adjacent entries of whatever array it receives",
-      "data-group-id sits on the group BODY: src/ui/TaskGroup.svelte:31 and src/ui/CollapsibleGroup.svelte:67 — never on the wrapper",
-      "data-group-container is unused — 0 occurrences across src/ and tests/",
-      "exactly 12 bare [data-group-id=\"X\"] strict locators exist (0006-group-visibility.spec.ts:95,108,112,120,199,200,240,284,285; core.spec.ts:245,248,252)",
-      "4 document.querySelector('[data-group-id=...]') calls in tests/e2e/0008-card-columns.spec.ts:25,35,43,183",
-      "exactly four groupLabels display sites: GroupHeader.svelte:17, CollapsibleGroup.svelte:39, GroupSettingsPopup.svelte:27, BoardSettingsPopup.svelte:61 — all receive group or board as a prop",
-      "EmptyState.svelte declares only 'export let groupId' and is rendered from exactly 2 sites (TaskGroup.svelte:36, CollapsibleGroup.svelte:72), both parents holding group: Group",
-      "dataStore.updateBoard (dataStore.ts:199) has exactly one caller in src/: BoardHeader.svelte:27",
-      "BoardSettingsPopup is instantiated only at BoardHeader.svelte:53; its onSave is BoardHeader.saveSettings (:23)",
-      "npx tsc --noEmit currently fails with exactly 2 errors, both TS2353 'boardSettings.notes' (src/i18n/en.ts:60, src/i18n/ru.ts:60)",
-      "'boardSettings.notes' exists in en.ts:60 and ru.ts:60, is used at BoardSettingsPopup.svelte:90, and is absent from the TranslationKey union (src/i18n/types.ts:21-26)",
-      "data version 7 hardcoded in exactly 3 source locations: defaults.ts:52, migration.ts:75, migration.ts:81",
-      "exactly 9 expect(result.version).toBe(7) assertions in tests/unit/migration.test.ts (lines 22,29,37,57,72,91,107,120,129)",
-      "no CI and no pre-commit hooks: .github, .husky, .gitlab-ci.yml, .pre-commit-config.yaml all absent; .git/hooks holds only .sample files",
-      "vitest.config.ts:6 includes only 'tests/unit/**/*.test.ts' — src/ui/boardLayoutUtils.test.ts is not collected",
-      "Group and Board interfaces in src/data/types.ts:23-40 match the tech-spec's 'existing fields' listing exactly",
-      "GROUP_IDS exported from src/data/types.ts:9 with the six literals in the order the spec assumes",
-      "BoardLayout.svelte contains exactly six literal {#if !hidden.has(...)} blocks (lines 181,197,212,227,242,257) plus the notes block at :273",
-      ".tm-board-layout__notes (styles.css:86-88) sets only grid-column: 1 / -1 — no order value, so it defaults to 0",
-      "useSortable is bound to the group BODY (TaskGroup.svelte:32, CollapsibleGroup.svelte:68), not the wrapper — CSS order on the wrapper cannot destroy Sortable instances",
-      "every file named in Tasks 1-10 exists (or is explicitly new); tests/e2e contains exactly the five files Task 9 lists",
-      "playwright.config.ts:11-15 starts the harness via 'node esbuild.harness.mjs --serve' (esbuild.harness.mjs:10,41) — the harness rebuilds itself, so E2E does not depend on npm run build",
-      "tests/harness/main.ts:79-98 resetData routes seeds through migrateData with array-replacing deepMerge — new groupOrder/title fields need no harness change",
-      ".tm-popup (styles.css:638-648) has no max-height and no overflow, matching the spec's scrollable-body requirement"
+      "vitest.config.ts sets environment: 'node' and include: ['tests/unit/**/*.test.ts'] — Decision 4 basis holds",
+      "no DOM testing library installed: jsdom/happy-dom/@testing-library absent from node_modules and from package.json (lockfile hits are vitest optional peers only)",
+      "svelte-check absent from package.json, package-lock.json and node_modules — Decision 11 basis holds",
+      "npx tsc --noEmit fails with exactly two errors, both in .ts files (src/i18n/en.ts:60, src/i18n/ru.ts:60, ''boardSettings.notes'' not in Translations); BoardSettingsPopup.svelte uses the same key and produces no error despite tsconfig include listing src/**/*.svelte",
+      "data-group-container and data-settings-group are unused anywhere in src/ and tests/ — both free",
+      "data-group-id exists only on group bodies: src/ui/TaskGroup.svelte:31 and src/ui/CollapsibleGroup.svelte:67",
+      "exactly twelve bare [data-group-id=...] assertions (0006: 9, core.spec: 3) and exactly four document.querySelector calls in 0008-card-columns.spec.ts (lines 25, 35, 43, 183) — Decision 3 counts are precise",
+      "popup and board are in the DOM simultaneously: App.svelte renders BoardHeader and BoardLayout as siblings; BoardHeader renders BoardSettingsPopup as an overlay without unmounting the board",
+      "group header titles have no truncation: .tm-group-header__title (styles.css:135-139) and .tm-collapsible-group__title (219-221) carry no white-space/overflow/text-overflow; the four ellipsis blocks in the file belong to task cards and toasts",
+      "BoardLayout.svelte contains six literal {#if} blocks, a hardcoded GROUP_ORDER array, and a .tm-board-layout__notes wrapper with no order value — Decisions 1 and 2 hold",
+      ".tm-board-layout is display:grid with --full/--half-alone at grid-column: 1 / -1 and --half at span 1, matching the Solution's description of the probed layout",
+      "computeGroupClasses signature and body confirmed order-agnostic in src/ui/boardLayoutUtils.ts",
+      "data version 7 hardcoded in exactly three source locations (migration.ts:75, migration.ts:81, defaults.ts:52) and asserted in exactly nine test expectations (tests/unit/migration.test.ts) — Decision 10 counts are precise",
+      "migrateData is invoked on every load from src/main.ts loadPluginData(), so a sanitizer placed outside the version branch does run each time — Decision 6 basis holds",
+      "save chain confirmed three links: BoardSettingsPopup.onSave prop -> BoardHeader.saveSettings (line 24) -> dataStore.updateBoard (line 199), none of which carry title/order today",
+      "BoardSettingsPopup already declares a local `title` for the board title — Decision 13 basis holds",
+      "groupLabels derived store exists in src/i18n/index.ts; EmptyState receives only groupId and needs a new prop, its two render sites are TaskGroup.svelte and CollapsibleGroup.svelte — both in Task 6",
+      "src/ui/boardLayoutUtils.test.ts exists and is not collected by vitest (include covers tests/unit only); .nvmrc absent, package.json has no engines field",
+      "all files listed across Tasks 1-12 exist, except the four intended new ones (src/ui/groupTitle.ts, src/ui/groupOrderUtils.ts, tests/e2e/0011-group-customization.spec.ts, .nvmrc); Task 12's docs/technical.md, CHANGELOG.md, CHANGELOG.ru.md all present",
+      "name-based popup row locators confirmed at 0006 (lines 22,33,66,69,77,88,157,165,192,194,225), 0007 (57,99,196,206), 0008 (204) and collapsible-header text locators at helpers.ts:104, core.spec:251 — all covered by Task 9's file list"
     ]
   }
 }

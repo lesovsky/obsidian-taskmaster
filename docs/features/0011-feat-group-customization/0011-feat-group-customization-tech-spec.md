@@ -43,9 +43,11 @@ testing library, so logic embedded directly in components is untestable.
 - **`groupTitle`** (new) — pure title resolution, shared by every display site.
 - **`BoardLayout.svelte`** — assigns CSS `order` to group wrappers, tags each wrapper with a
   stable test attribute, feeds `computeGroupClasses` a pre-sorted array.
-- **`BoardSettingsPopup.svelte`** — title input and move arrows per group row; dimmed rows
-  for hidden groups; scrollable body; stable per-row test attribute. Owns the whole save
-  chain change together with `BoardHeader` and `dataStore`.
+- **`BoardSettingsPopup.svelte`** — title input and move arrows per group row; rows rendered in
+  the board's configured order instead of the fixed constant used today, with hidden groups
+  keeping their own positions rather than sinking to the end; dimmed rows for hidden groups;
+  scrollable body; stable per-row test attribute. Owns the whole save chain change together
+  with `BoardHeader` and `dataStore`.
 - **Display sites** — `GroupHeader`, `CollapsibleGroup`, `GroupSettingsPopup` show the
   resolved title; `EmptyState` additionally switches to a neutral hint once renamed; group
   header styles gain truncation so a long name cannot break the header row.
@@ -100,8 +102,11 @@ than either of the other two, because the popup and the board are in the DOM sim
 **Rationale:** Testing Strategy requires unit coverage of the fallback rules, but
 `vitest.config.ts` sets `environment: 'node'` and the project has no DOM testing library, so
 logic inside `.svelte` files cannot be unit-tested at all. A pure helper is testable and keeps
-the four call sites identical. All display sites already receive `group` or `board`, so no new
-props are needed except in `EmptyState`.
+all five call sites identical — four on the board side (Task 6) plus the settings popup row
+(Task 8), where the resolved name becomes the input's current value and the localized default
+becomes its placeholder. All display sites already receive `group` or `board`, so no new props
+are needed except in `EmptyState`. The helper takes plain strings, not the group object, so it
+does not depend on the model change happening in the same wave.
 **Alternatives considered:** Inline `group.title || $groupLabels[id]` in each component —
 rejected: four copies of a rule that the test plan requires to be covered.
 
@@ -127,18 +132,25 @@ inside the v8 branch — rejected: would not repair damage introduced after migr
 
 ### Decision 7: Title normalization happens on save and on load
 **Decision:** The input caps length while typing; `updateBoard` trims and applies the length
-cap when storing; the loader normalizes stored titles the same way.
+cap when storing; the loader normalizes stored titles the same way and, like the order
+sanitizer, accepts `unknown` — anything that is not a string becomes an empty title.
 **Rationale:** The input cap alone protects only fresh input, leaving hand-edited data
 unchecked — an asymmetry with `groupOrder`, which is re-validated on every load. Trimming at
 the store boundary is what makes "whitespace-only equals empty" true regardless of entry point.
-**Alternatives considered:** Relying on the input attribute alone — rejected as above.
+Accepting `unknown` matters because migration runs before the first render: calling a string
+method on a hand-edited `null` would abort loading and produce exactly the blank board that
+Decision 6 exists to prevent.
+**Alternatives considered:** Relying on the input attribute alone — rejected as above. Handling
+only the string case — rejected: same failure mode as an unguarded order field.
 
 ### Decision 8: Node is pinned in the repo, upgrade is a precondition
 **Decision:** Add `engines` to `package.json` and an `.nvmrc` requiring Node ≥ 22.12. The
 actual upgrade happens on the developer machine and is a precondition to execution.
-**Rationale:** The tooling requirement is `^20.19.0 || >=22.12.0` (build tooling) intersected
-with `^20.17.0 || >=22.9.0` (package manager); 22.12 is the simplest floor that satisfies both
-without straddling two branches. Pinning it in the repo keeps the drift from recurring.
+**Rationale:** Three constraints apply: the test runner's own (`^20 || ^22 || >=24`), the one it
+pulls in transitively through vite (`^20.19.0 || >=22.12.0`), and the package manager's
+(`^20.17.0 || >=22.9.0`). A floor of 22.12 satisfies all three; note it deliberately excludes
+the 23.x line, which the test runner itself declares unsupported. Pinning the floor in the repo
+keeps the drift from recurring. The bundler (esbuild) imposes no relevant constraint.
 **Alternatives considered:** Rolling the test runner back to a version compatible with Node 18
 — rejected by the user deliberately: it would anchor the project to an unsupported runtime.
 Allowing `>=20.19` as well — rejected: two supported branches double the verification surface
@@ -258,7 +270,8 @@ None.
 - Migration from older versions still lands on 8 with the new fields present.
 - Sanitization of order: missing field, `null`, non-array value, unknown id, duplicate id,
   missing id, already-valid order.
-- Sanitization of titles: whitespace-only becomes empty, over-long is capped, valid untouched.
+- Sanitization of titles: whitespace-only becomes empty, over-long is capped, valid untouched,
+  and a non-string value (missing, `null`, number) becomes an empty title instead of throwing.
 - Reorder: visible group swaps with nearest visible neighbour across hidden ones; hidden group
   swaps with its immediate list neighbour; arrow disabled when there is no target in that
   direction for each row type; single visible group has both arrows disabled.
@@ -284,6 +297,9 @@ None — the project has no layer between unit and E2E that these would cover.
 - Cancel and overlay click discard unsaved titles and order.
 - Two boards keep independent titles and order.
 - A 40-character title does not break the group header row.
+- Toggling a group's visibility and pressing an arrow before saving behaves according to the
+  new, unsaved state.
+- With every row present the popup stays within the viewport and its body scrolls.
 - Existing suites for group visibility, dynamic layout and card columns still pass.
 
 ## Agent Verification Plan
@@ -304,15 +320,15 @@ user.
 | 1 | bash | `node -v` ≥ 22.12, then `npm test` runs at all and collects the board-layout suite |
 | 2 | bash | `npx tsc --noEmit` — clean, no missing translation keys |
 | 3 | bash | `npm test` — migration and sanitization suites pass |
-| 4 | bash | `npm test` — reorder suite passes |
-| 5 | bash | `npm test` — title resolution suite passes |
+| 4 | bash | `npx vitest run tests/unit/groupOrderUtils.test.ts` |
+| 5 | bash | `npx vitest run tests/unit/groupTitle.test.ts` |
 | 6 | bash | `npm run build`; `npx playwright test tests/e2e/core.spec.ts` |
 | 7 | bash | `npm run build`; `npx playwright test tests/e2e/0007-dynamic-layout.spec.ts` |
-| 8 | bash | `npm run build`; `npm test` |
+| 8 | bash | `npm run build`; `npm test`; `npx playwright test tests/e2e/core.spec.ts` |
 | 9 | bash | `npx playwright test` — all pre-existing suites green |
 | 10 | bash | `npx playwright test tests/e2e/0011-group-customization.spec.ts` |
 | 11 | bash | `npm test && npx playwright test && npm run build` |
-| 12 | bash | documentation matches the shipped schema |
+| 12 | bash | `grep` over the technical doc shows both new fields documented |
 
 ### Tools required
 
@@ -379,7 +395,7 @@ as the other display sites.
 #### Task 2: Localization keys
 - **Description:** Add the interface strings this feature needs in both languages — group name
   column, arrow labels, and the neutral empty-group hint. Also add the translation key left
-  missing by feature 0009, which currently makes type checking fail for everyone.
+  missing by feature 0009 (Decision 9).
 - **Skill:** code-writing
 - **Reviewers:** dev-code-reviewer, dev-security-auditor, dev-test-reviewer
 - **Verify:** bash — `npx tsc --noEmit`
@@ -403,18 +419,19 @@ as the other display sites.
   is pressed, and whether an arrow has anywhere to go, for both visible and hidden rows.
 - **Skill:** code-writing
 - **Reviewers:** dev-code-reviewer, dev-security-auditor, dev-test-reviewer
-- **Verify:** bash — `npm test`
+- **Verify:** bash — `npx vitest run tests/unit/groupOrderUtils.test.ts`
 - **Files to modify:** `src/ui/groupOrderUtils.ts`, `tests/unit/groupOrderUtils.test.ts`
 - **Files to read:** `src/ui/boardLayoutUtils.ts`, `src/data/types.ts`
 
 #### Task 5: Title resolution
 - **Description:** Implement resolution of a group's displayed name from its stored name and the
-  localized default, as a pure function shared by every display site.
+  localized default, as a pure function over plain strings shared by every display site. It must
+  not depend on the group type, so that it neither waits for nor conflicts with Task 3.
 - **Skill:** code-writing
 - **Reviewers:** dev-code-reviewer, dev-security-auditor, dev-test-reviewer
-- **Verify:** bash — `npm test`
+- **Verify:** bash — `npx vitest run tests/unit/groupTitle.test.ts`
 - **Files to modify:** `src/ui/groupTitle.ts`, `tests/unit/groupTitle.test.ts`
-- **Files to read:** `src/i18n/index.ts`, `src/data/types.ts`
+- **Files to read:** `src/i18n/index.ts`
 
 ### Wave 2 (отображение, зависит от Wave 1)
 
@@ -437,18 +454,24 @@ as the other display sites.
 - **Skill:** code-writing
 - **Reviewers:** dev-code-reviewer, dev-security-auditor, dev-test-reviewer
 - **Verify:** bash — `npm run build` and `npx playwright test tests/e2e/0007-dynamic-layout.spec.ts`
-- **Files to modify:** `src/ui/BoardLayout.svelte`, `src/styles.css`
-- **Files to read:** `src/ui/boardLayoutUtils.ts`, `src/ui/useSortable.ts`, `docs/features/0011-feat-group-customization/0011-feat-group-customization-code-research.md`
+- **Files to modify:** `src/ui/BoardLayout.svelte`, `src/ui/boardLayoutUtils.ts`, `src/styles.css`
+- **Files to read:** `src/ui/useSortable.ts`, `docs/features/0011-feat-group-customization/0011-feat-group-customization-code-research.md`
+
+> The header comment in `boardLayoutUtils.ts` claims the function must be reworked once group
+> order becomes configurable. That condition arrives with this feature and the claim is false —
+> the function is order-agnostic. Remove the stale comment; leaving it would mislead the next
+> reader and gives a reviewer documented grounds to block this task.
 
 ### Wave 4 (настройки, зависит от Wave 3)
 
 #### Task 8: Settings popup and save chain
 - **Description:** Add a name field and move arrows to each group row, dim rows of hidden
-  groups, give each row a stable identifier, and keep the popup within the screen. Extend the
-  whole save path in one step so names and order reach storage together, normalized on the way.
+  groups, give each row a stable identifier, and keep the popup within the screen. Rows follow
+  the board's configured order rather than the fixed constant they use today. Extend the whole
+  save path in one step so names and order reach storage together, normalized on the way.
 - **Skill:** code-writing
 - **Reviewers:** dev-code-reviewer, dev-security-auditor, dev-test-reviewer
-- **Verify:** bash — `npm run build` and `npm test`
+- **Verify:** bash — `npm run build`, `npm test` and `npx playwright test tests/e2e/core.spec.ts`
 - **Files to modify:** `src/ui/BoardSettingsPopup.svelte`, `src/ui/BoardHeader.svelte`, `src/stores/dataStore.ts`, `src/styles.css`
 - **Files to read:** `src/ui/groupOrderUtils.ts`, `src/ui/groupTitle.ts`, `src/data/types.ts`
 
@@ -456,8 +479,7 @@ as the other display sites.
 
 #### Task 9: Migrate existing E2E locators
 - **Description:** Move existing scenarios off locating groups and popup rows by displayed
-  names, which stop being stable once names are editable, onto the identifiers introduced in the
-  previous waves.
+  names onto the identifiers introduced in the previous waves.
 - **Skill:** code-writing
 - **Reviewers:** dev-test-reviewer, dev-code-reviewer, dev-security-auditor
 - **Verify:** bash — `npx playwright test`
@@ -467,11 +489,9 @@ as the other display sites.
 ### Wave 6 (приёмка фичи, зависит от Wave 5)
 
 #### Task 10: Feature E2E scenarios
-- **Description:** Cover the feature end to end: renaming with persistence across reload,
-  resetting to the default name, reordering, moving a visible group past a hidden one, row order
-  on reopening the popup, discarding changes, independence between boards, a maximum-length name
-  in the header, and dragging a task both ways between reordered groups in the same session
-  without reloading, including a collapsible group.
+- **Description:** Cover the feature end to end with the scenarios listed under Testing
+  Strategy / E2E tests. The drag scenario carries the most weight: it is the only check that the
+  reordering approach preserved drag & drop.
 - **Skill:** code-writing
 - **Reviewers:** dev-test-reviewer, dev-code-reviewer, dev-security-auditor
 - **Verify:** bash — `npx playwright test tests/e2e/0011-group-customization.spec.ts`
@@ -484,12 +504,13 @@ as the other display sites.
 - **Description:** Acceptance testing: run all tests, verify acceptance criteria from user-spec and tech-spec.
 - **Skill:** pre-deploy-qa
 - **Reviewers:** none
+- **Verify:** bash — `npm test && npx playwright test && npm run build`
 
 #### Task 12: Documentation update
 - **Description:** Bring the technical documentation in line with the shipped data schema and
   the new board settings, so the next feature starts from an accurate picture.
 - **Skill:** documentation-writing
 - **Reviewers:** dev-code-reviewer
-- **Verify:** bash — documentation matches the shipped schema
+- **Verify:** bash — `grep -n "groupOrder\|title" docs/technical.md` shows both new fields documented
 - **Files to modify:** `docs/technical.md`, `CHANGELOG.md`, `CHANGELOG.ru.md`
 - **Files to read:** `docs/features/0011-feat-group-customization/0011-feat-group-customization-tech-spec.md`, `src/data/types.ts`

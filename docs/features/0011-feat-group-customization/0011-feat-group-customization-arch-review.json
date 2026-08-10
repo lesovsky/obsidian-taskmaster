@@ -1,41 +1,20 @@
 {
-  "status": "needs_revision",
+  "status": "approved",
   "checks": {
     "architectural_fit": "pass",
     "scalability": "pass",
     "database": "pass",
-    "coupling": "fail",
+    "coupling": "pass",
     "api_contracts": "n/a",
     "backward_compat": "pass"
   },
   "findings": [
     {
-      "check": "coupling",
-      "severity": "major",
-      "issue": "Decision 3 introduces `data-group-container` specifically to avoid a `data-group-id` collision between the board wrapper and the group body, and Task 9 is explicitly tasked with re-pointing E2E locators that currently find popup group rows via `filter({ hasText: groupLabel })` — text that disappears once the title becomes an input value (code-research U2, category А1, ~30 call sites across 0006/0007/0008 specs). But no task or decision defines what stable identifier Task 9 should use for a *popup row* instead. Task 8 (same wave) owns the popup markup change and does not list adding a row-level identifying attribute among its deliverables. If an implementer reaches for `data-group-id` on the popup row (the obvious name), it collides with the existing `data-group-id` on the board's group body while the popup is open (board stays mounted under the modal overlay) — reproducing, inside the popup, exactly the strict-mode-violation / silent-wrong-element failure mode Decision 3 was written to prevent for the board wrapper. This is a real gap in wave-3 task decomposition: Task 8 and Task 9 share an implicit contract that is never written down.",
-      "location": "Decision 3; Implementation Tasks — Task 8, Task 9 (Wave 3)",
-      "fix": "Extend Decision 3 (or add a Decision) to specify a distinct attribute for popup group rows, e.g. `data-group-row=\"<id>\"`, and add it explicitly to Task 8's file list/description so Task 9 has a defined target to migrate onto before it starts."
-    },
-    {
       "check": "architectural_fit",
       "severity": "minor",
-      "issue": "CSS `order` (Decision 1) deliberately leaves DOM order, tab order and screen-reader reading order unchanged while visual order becomes user-configurable — confirmed explicitly in the code-research's own empirical probe (U1, point 1). The tech-spec never mentions this trade-off anywhere (Solution, Decisions, Risks). The project already applies `role=\"button\"`/`tabindex=\"0\"` on interactive elements (TaskCard, CollapsibleGroup header), showing some existing keyboard-accessibility awareness, so a keyboard user who reorders 'In Progress' to the top will still Tab through groups in the original backlog→...→completed sequence with no acknowledgment of the mismatch.",
-      "location": "Decision 1; Solution section",
-      "fix": "Not necessarily a blocker for an Obsidian desktop plugin, but should be named as an accepted limitation next to the other documented risks, rather than left unaddressed."
-    },
-    {
-      "check": "architectural_fit",
-      "severity": "minor",
-      "issue": "`Group.title` and `Board.title` are distinct interface fields, but inside `BoardSettingsPopup.svelte` the existing local variable for the board's title is already named `title` (L12). The code-research flagged this ambiguity (Problem #10) but the tech-spec's Data Models / task descriptions never resolve it with a concrete naming convention for the per-group title state (e.g. `groupTitles`, `titleDrafts`).",
-      "location": "Data Models section; Task 8",
-      "fix": "State the local variable name for per-group title editing state in the tech-spec (or leave it to task execution, but flag it so the reviewer checks for the collision) to avoid an implementer accidentally shadowing or misnaming board vs. group title state."
-    },
-    {
-      "check": "architectural_fit",
-      "severity": "minor",
-      "issue": "Keeping the six literal `{#if}` blocks (Decision 1) and applying order purely via CSS locks `BoardLayout.svelte` further into a fixed-six-groups shape. This is consistent with the user-spec's explicit non-goal (\"the set of groups stays fixed\") and is a reasonable, well-justified trade-off for this feature — but it is worth naming explicitly as accepted technical debt: any future feature that needs a variable number of groups (add/remove) will have to redo this exact markup as a keyed `{#each}` and re-verify the SortableJS survival property that Decision 1 relies on today.",
-      "location": "Decision 1",
-      "fix": "No action needed now; optionally note in the Risks table as a forward-looking constraint for anyone scoping a future 'custom groups' feature."
+      "issue": "Decision 11 states the production build is part of the verification gate for `.svelte` changes, alongside scenario coverage. Verified against `esbuild.config.mjs`/`esbuild.harness.mjs`: `esbuild-svelte` with `sveltePreprocess()` transpiles `<script lang=\"ts\">` blocks without performing TypeScript type-checking (that is exactly what `svelte-check` would add and what Decision 11 declines to add). So `npm run build` catches syntax errors and Svelte compiler errors, but not type errors inside components — e.g. a prop renamed in `groupTitle.ts`/`groupOrderUtils.ts` and not updated at a call site, or a callback signature drift between `BoardSettingsPopup.onSave` and `BoardHeader.saveSettings`, would not fail the build; Svelte silently ignores unknown/mistyped props at runtime. This isn't a defect in the spec — Decision 11 already names the gap and pins the burden on scenario coverage instead — but the coverage that actually catches it is narrower than 'build + tests' reads: Task 8 explicitly changes three call-signature links in the save chain and its own verify step is `npm run build && npm test` (unit only, no E2E), so a signature mismatch there would only surface in Wave 5/6 E2E, several tasks later.",
+      "location": "Decision 11; Task 8 Verify step",
+      "fix": "No spec change required. Optional tightening: make Task 8's verify step also run the closest relevant E2E smoke (e.g. `core.spec.ts`) rather than deferring all save-chain verification to Wave 5/6, shortening the feedback loop for exactly the multi-signature change Decision 11 already flags as ungated by types."
     }
   ],
   "risk_assessment": {
@@ -43,5 +22,5 @@
     "complexity": "medium",
     "tech_debt": "low"
   },
-  "summary": "The central decision (CSS `order` on stable wrappers instead of a keyed `{#each}`) is sound, well-verified against the actual grid CSS and against feature 0007's half/half-alone packing rule, and correctly removes the SortableJS-recreation risk; data model, migration, and internal contract changes (`updateBoard`, `onSave`) follow existing per-board-setting conventions closely with no backward-compatibility issues. One real gap needs fixing before implementation: Task 8 (popup UI) and Task 9 (E2E locator migration) share an unwritten dependency on a stable popup-row identifier, and without one the fix risks reintroducing the exact `data-group-id` collision Decision 3 already solved for the board wrapper."
+  "summary": "The major finding from round 1 is resolved correctly: Decision 3 now gives the popup row its own `data-settings-group` attribute, its rationale (popup and board coexist in the DOM — confirmed in App.svelte/BoardHeader.svelte, the overlay does not unmount BoardLayout) is accurate, and the wave split enforces the dependency structurally — Task 8 (Wave 4) introduces the attribute, Task 9 (Wave 5) migrates locators onto it, so the implicit same-wave contract from round 1 no longer exists. Tracing the wave graph confirms no unworkable intermediate state: `groupOrder` enters the data model in Wave 1 (Task 3) with a default equal to today's fixed order, so Wave 3 (Task 7, board reads `groupOrder`) renders identically to the pre-feature board even though the popup can't yet change it until Wave 4 — a safe, inert intermediate state, not a broken one. All three prior minor findings are now addressed as explicit, reasoned decisions (13: `groupTitles` vs. popup's local `title`; 14: accessibility/tab-order trade-off named as accepted; six-literal-block debt moved into the Risks table). Decision 4 (pure `groupTitle` helper over inline resolution) follows the codebase's existing precedent of `boardLayoutUtils.ts` and is the only way to unit-test the fallback rule given the Node-environment vitest config — a good fit, not a new pattern. Decision 11 (no `svelte-check`) is honestly reasoned and appropriately scoped out rather than smuggled in, though its practical gate is narrower than it reads (build catches syntax, not types) — flagged as a minor, non-blocking observation. No new critical or major issues found from the wave repartition; ready for task decomposition."
 }
