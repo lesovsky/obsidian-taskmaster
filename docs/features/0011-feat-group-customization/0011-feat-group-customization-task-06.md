@@ -169,7 +169,11 @@ The regression anchor for this task is the pre-existing suite, used in the TDD s
 - [src/i18n/index.ts](../../../src/i18n/index.ts) — `t` and `groupLabels` derived stores
 - [src/i18n/en.ts](../../../src/i18n/en.ts), [src/i18n/ru.ts](../../../src/i18n/ru.ts) — confirm `'emptyState.renamed'` (the key Task 02 adds) is present in both dictionaries
 - [src/data/types.ts](../../../src/data/types.ts) — `Group.title` added by Task 03
-- [tests/e2e/core.spec.ts](../../../tests/e2e/core.spec.ts) — the regression suite this task must keep green
+- [tests/e2e/core.spec.ts](../../../tests/e2e/core.spec.ts) — the regression suite this task must keep green.
+  Be honest about its reach: it locates ordinary groups by their identifiers and counters, not by
+  their names, and the only name it matches is the collapsed backlog header. A broken fallback in
+  the ordinary group header or in the group settings popup would leave this suite green. Real
+  coverage of the names arrives with Task 10; here the suite only proves nothing else regressed.
 
 ## Verification Steps
 

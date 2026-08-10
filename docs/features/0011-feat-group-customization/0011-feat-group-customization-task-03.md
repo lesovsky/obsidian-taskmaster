@@ -63,7 +63,7 @@ literal is bumped in place:
 
 So the version literal `8` appears in two new places only: `DEFAULT_DATA` and the new
 `if (version < 8) { … result.version = 8; }` block. Plus the test expectations that assert it.
-Record the tech-spec wording discrepancy in the decisions log.
+The tech-spec already states this correctly (Decision 10) — no discrepancy to record.
 
 The third documented location of the version — `docs/technical.md` (lines 21, 358, 403) — is
 **Task 12's** scope, not this task's. Do not update documentation here.
@@ -346,6 +346,5 @@ repository documentation:
 - [ ] Записать краткий отчёт в [0011-feat-group-customization-decisions.md](0011-feat-group-customization-decisions.md) (Summary: 1-3 предложения, ревью со ссылками на JSON, без таблиц файндингов и дампов)
 - [ ] Если отклонились от спека — описать отклонение и причину
 - [ ] Обновить user-spec/tech-spec если что-то изменилось. Два места известны заранее:
-      Decision 10 говорит про «three source locations» с версией — фактически меняется только
-      `defaults.ts:52`; и Verify для Task 3 указан как `npm test` — сужен до
-      `npx vitest run tests/unit/migration.test.ts`, чтобы гейт не краснел из-за соседей по волне
+      Tech-spec уже приведён в соответствие: Decision 10 прямо пишет, что из трёх мест
+      меняется одно, а план верификации указывает суженный прогон. Записывать нечего.
