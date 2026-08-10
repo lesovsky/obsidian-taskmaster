@@ -1,6 +1,6 @@
 ---
 status: planned                    # planned -> in_progress -> done
-depends_on: ["03", "06"]           # ID задач-зависимостей (строки: ["01", "02"])
+depends_on: ["01", "03", "06"]     # ID задач-зависимостей (строки: ["01", "02"])
 wave: 4                            # волна параллельного выполнения
 skills: [code-writing]             # МАССИВ скиллов для загрузки
 verify: bash — `npm run build` и `npx playwright test tests/e2e/0007-dynamic-layout.spec.ts`
@@ -77,6 +77,16 @@ Everything inside the six wrappers is out of scope: callbacks, the `CollapsibleG
 
 Тесты, которые нужно написать ДО реализации. Пишем → запускаем → убеждаемся что падают → пишем код → убеждаемся что проходят.
 
+**Be honest about what these tests can and cannot prove.** They call the pure
+`computeGroupClasses` directly with a hand-built array; they never render the component and
+therefore never observe the wiring inside `BoardLayout.svelte`. They pin down the *function's*
+contract — that its output follows array position rather than group identity — and nothing more.
+The central claim of this task, that the array fed to it actually comes from `board.groupOrder`,
+is **not** covered by any unit test here. That claim is checked by `npm run build`, by the
+manual harness run in Verification Steps (computed `order` values and geometry on a seeded
+reversed `groupOrder`), and by the E2E scenarios of Task 10. Do not treat a green unit suite as
+evidence that the ordering works.
+
 The unit-testable surface here is the class computation over a reordered array (the component
 itself is untestable in this project — `vitest.config.ts` sets `environment: 'node'` and there
 is no DOM testing library). The file lands in `tests/unit/` via Task 1.
@@ -88,13 +98,15 @@ is no DOM testing library). The file lands in `tests/unit/` via Task 1.
 - `tests/unit/boardLayoutUtils.test.ts::перестановка разрывает пару — оба half становятся alone` —
   input `[focus(half), backlog(full), inProgress(half)]`: `focus` and `inProgress` both get
   `--half-alone`. Same three groups as the default layout, different order, different result —
-  this is the case that would fail if the ordered array were not actually reaching the function.
+  so a regression that made the function key off group identity instead of array position would
+  fail here. It says nothing about whether the component passes an ordered array in.
 - `tests/unit/boardLayoutUtils.test.ts::произвольный порядок — одинокий half в конце` —
   input `[completed(full), delegated(half)]`: `delegated` gets `--half-alone`.
 
 Behavioural coverage of the rendered order (computed `order` values, on-screen geometry,
 drag & drop across reordered groups) belongs to Task 10 — do not create
-`tests/e2e/0011-group-customization.spec.ts` here.
+`tests/e2e/0011-group-customization.spec.ts` here. Until Task 10 lands, the manual harness check
+below is the only end-to-end evidence that the wiring works; do not skip it.
 
 ## Acceptance Criteria
 
@@ -105,6 +117,10 @@ drag & drop across reordered groups) belongs to Task 10 — do not create
 - [ ] Every rendered wrapper carries an inline `order` value matching its position in the
       configured visible sequence; no wrapper ever renders with an empty or `undefined` order
 - [ ] Every rendered wrapper carries `data-group-container` with its group id
+- [ ] Within `src/`, `data-group-container` appears **only** on the six wrappers in
+      `BoardLayout.svelte` — `grep -rn "data-group-container" src/` returns nothing else.
+      (The criterion is deliberately scoped to `src/`: Task 9 will start using this attribute in
+      `tests/e2e/`, so a codebase-wide "used nowhere else" check would be unsatisfiable later.)
 - [ ] `data-group-id` still exists on exactly one element per group (the group body):
       `page.locator('[data-group-id="X"]')` resolves to a single element
 - [ ] `.tm-board-layout__notes` has an explicit `order` greater than any group's; the notes
@@ -152,6 +168,8 @@ drag & drop across reordered groups) belongs to Task 10 — do not create
   component would pass it; do not report a clean `tsc` as evidence the component compiles.
 - `npx playwright test tests/e2e/0007-dynamic-layout.spec.ts` — all scenarios pass with the
   spec file unmodified. This is the regression gate for the layout classes.
+- `grep -rn "data-group-container" src/` — hits only `src/ui/BoardLayout.svelte`, six times.
+  Scoped to `src/` on purpose: Task 9 adds uses of this attribute under `tests/e2e/`.
 - `npx playwright test tests/e2e/0006-group-visibility.spec.ts tests/e2e/0008-card-columns.spec.ts tests/e2e/core.spec.ts` —
   cheap confirmation that the new wrapper attribute did not collide with `data-group-id`.
   A strict-mode violation in 0006/core, or a card-columns assertion reading an empty
@@ -190,11 +208,16 @@ drag & drop across reordered groups) belongs to Task 10 — do not create
   in the same style.
 
 **Dependencies:**
-- **Task 3** supplies `Board.groupOrder` and the sanitizer that guarantees it is a permutation of
-  the six known ids on **every** load, not only during migration. Do not re-implement
-  sanitization in the component.
-- **Task 6** also edits `src/styles.css` (group header truncation). Different section — touch only
-  the notes rule, do not reformat or reorder the file.
+- **Task 1** (wave 1) pins Node ≥ 22.12, makes `npm test` runnable at all and moves the
+  board-layout suite into `tests/unit/`. This task extends that suite and runs it, so the
+  dependency is declared explicitly in `depends_on` rather than left to arrive transitively
+  through Task 3.
+- **Task 3** (wave 2) supplies `Board.groupOrder` and the sanitizer that guarantees it is a
+  permutation of the six known ids on **every** load, not only during migration. Do not
+  re-implement sanitization in the component.
+- **Task 6** (wave 3) also edits `src/styles.css` (group header truncation). It completes before
+  this task starts, so its changes are already in the file — different section: touch only the
+  notes rule, do not reformat or reorder the file, and do not revert anything Task 6 added.
 - **Task 8** makes the order user-editable and owns the popup and save chain. Not in scope here.
 - **Task 9** migrates existing E2E locators onto `data-group-container`. Do not edit anything
   under `tests/e2e/` in this task.
@@ -202,13 +225,27 @@ drag & drop across reordered groups) belongs to Task 10 — do not create
 
 **Edge cases:**
 - **Attribute name collision.** `data-group-container` must differ from `data-group-id`. If the
-  same name were used, each group would match two elements: twelve strict-mode Playwright
-  locators (`helpers.ts:100`, `0006-group-visibility.spec.ts:95, 108, 112, 120, 199, 200, 240,
-  284, 285`, `core.spec.ts:245, 248, 252`) would fail loudly, and four `document.querySelector`
-  calls in `0008-card-columns.spec.ts` (lines 25, 35, 43, 183) would silently return the wrapper
-  instead of the body and read an empty `--tm-card-columns` — a real check turning into a false
-  pass. Production logic would survive (`useSortable.ts:26–27` reads `evt.from/to.dataset.groupId`
-  and Sortable is bound to the body), which is exactly what makes the failure quiet.
+  same name were used, each group would match two elements. Thirteen bare `[data-group-id="X"]`
+  locators exist in the suite (verified by grep) and every one of them would then resolve to two
+  elements:
+  - **Twelve loud failures** — `expect()` assertions, which trip Playwright strict mode:
+    `0006-group-visibility.spec.ts:95, 108, 112, 120, 199, 200, 240, 284, 285` and
+    `core.spec.ts:245, 248, 252`.
+  - **One silent failure** — `helpers.ts:100`, where the strict-mode violation is swallowed by
+    `.isVisible().catch(() => false)`. `expandGroup` would conclude the group is collapsed and
+    click the header, *collapsing* an already-expanded group; the damage would surface later as
+    unrelated assertion failures.
+
+  On top of that, four `document.querySelector` calls in `0008-card-columns.spec.ts` (lines 25,
+  35, 43, 183) would silently return the wrapper instead of the body and read an empty
+  `--tm-card-columns` — a real check turning into a false pass. Descendant locators
+  (`[data-group-id="X"] .tm-task-card` and the `:has(...)` forms) are unaffected: CSS matching
+  yields each descendant once. Production logic would survive (`useSortable.ts:26–27` reads
+  `evt.from/to.dataset.groupId` and Sortable is bound to the body), which is exactly what makes
+  the quiet failures quiet.
+
+  Note: tech-spec Decision 3 and Task 9 both quote the older figure of "twelve" for this set.
+  Twelve is the count of loud `expect()` assertions; thirteen is the count of bare locator sites.
 - **Notes floating to the top.** An element without `order` computes to `0`. With groups at 1…6
   the notes block becomes the *first* grid item; with groups at 0…5 it ties with the first group
   and lands second. Either way it needs an explicit value above every group's, whichever

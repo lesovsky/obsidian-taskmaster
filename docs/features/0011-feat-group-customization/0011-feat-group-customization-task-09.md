@@ -19,8 +19,9 @@ Before starting, load:
 
 The four existing Playwright suites (84 scenarios) locate groups and board-settings rows by
 their displayed **English names** — `filter({ hasText: 'Focus' })`, `filter({ hasText: 'Backlog' })`
-and the two label constants `COLLAPSIBLE_GROUP_LABELS` / `COLLAPSIBLE_HEADER_TEXT`. Waves 2–4 made
-group names user-editable, so those names are no longer a stable addressing key. This task moves the
+and the two label constants `COLLAPSIBLE_GROUP_LABELS` / `COLLAPSIBLE_HEADER_TEXT`. Waves 2–5
+(Tasks 03–08) made group names user-editable, so those names are no longer a stable addressing key.
+This task moves the
 affected locators onto the two stable identifiers introduced earlier in the feature:
 
 - `data-group-container="<groupId>"` on the board group **wrapper** (Task 07) — present regardless of
@@ -44,17 +45,23 @@ coupled to DOM nesting depth as well as to the name. The wrapper attribute repla
 
 **Equally important is what must NOT change.** Every `[data-group-id="X"]` locator that addresses the
 group **body** stays exactly as it is — the body keeps its own attribute (Decision 3 of the tech-spec).
-Swapping those for the wrapper attribute would break twelve strict-mode assertions loudly and, worse,
-would make the four `document.querySelector` helpers in
-[tests/e2e/0008-card-columns.spec.ts](tests/e2e/0008-card-columns.spec.ts) return the wrapper instead of
-the body and silently read an empty `--tm-card-columns` — a real check turning into a false pass.
+Thirteen of those locators are bare `[data-group-id="…"]` with no descendant part, and each resolves to
+exactly one element today: twelve are `expect()` assertions (nine in `0006-group-visibility.spec.ts`,
+three in `core.spec.ts`), and the thirteenth is the `isVisible()` guard inside `expandGroup`
+([tests/e2e/helpers.ts](tests/e2e/helpers.ts) L100–101). Reusing this attribute on the wrapper would give
+two matches per group: the twelve assertions fail loudly on Playwright strict mode, while the guard is
+worse than loud — its `.catch(() => false)` swallows the strict-mode error, so `expandGroup` concludes the
+group is collapsed and dies on a click timeout instead. Worse still, the four `document.querySelector`
+helpers in [tests/e2e/0008-card-columns.spec.ts](tests/e2e/0008-card-columns.spec.ts) would return the
+wrapper instead of the body and silently read an empty `--tm-card-columns` — a real check turning into a
+false pass.
 
 This task writes **no new scenarios**. It is done when the whole pre-existing suite is green again.
 
 ## What to do
 
 1. Establish a baseline: run the full E2E suite and record which scenarios fail before any edit. After
-   Waves 2–4 the popup-row scenarios are expected to be red; anything else that is red is a defect in an
+   Waves 2–5 the popup-row scenarios are expected to be red; anything else that is red is a defect in an
    earlier task, not something to paper over here — report it instead of adapting the test to it.
 2. Confirm on the built markup that `data-group-container` sits on the board group wrapper and
    `data-settings-group` on the popup group row, and that each resolves to exactly one element per
@@ -159,11 +166,15 @@ Guard assertions that must hold at the end (check by inspection, not by adding t
 **Files:**
 
 - `tests/e2e/helpers.ts`
-  - L90–93 `COLLAPSIBLE_GROUP_LABELS` — delete. Its own comment ("Uses title text to find the header
-    since `[data-group-id]` is only in the body") states the reason it existed; that reason is gone.
-  - L99–107 `expandGroup` — keep the `isVisible()` guard on the body, replace the header lookup with one
-    scoped to the group's wrapper. The post-click `waitForSelector` on the body stays: it is the signal
-    that the expand actually happened.
+  - L89–93 `COLLAPSIBLE_GROUP_LABELS` — delete, together with its own one-line comment on L89
+    (`// EN labels for collapsible groups (backlog and completed)`).
+  - L95–98 — the JSDoc block of `expandGroup`. Its second line is where the rationale for the name-based
+    lookup actually lives: "Uses title text to find the header since `[data-group-id]` is only in the body
+    (when expanded)". The wrapper attribute removes that reason, so rewrite the line — leaving it would
+    document a lookup the helper no longer performs.
+  - L99–107 `expandGroup` — keep the `isVisible()` guard on the body (L100–101), replace the header lookup
+    on L103–104 with one scoped to the group's wrapper. The post-click `waitForSelector` on L105 stays:
+    it is the signal that the expand actually happened.
   - L110–117 `groupAddButton` and L148–155 `openGroupSettings` use `:has([data-group-id="X"])`. They are
     **not** name-based and are **out of scope** — leave them alone (research group Б4).
 
@@ -229,8 +240,8 @@ Guard assertions that must hold at the end (check by inspection, not by adding t
 - **`expandGroup` on a non-collapsible group.** A `TaskGroup` body is always in the DOM, so the
   `isVisible()` guard returns early and the header lookup is never reached. Preserve that ordering, or
   the helper starts timing out on `focus`.
-- **`0011-group-customization.spec.ts` does not exist yet** — it arrives in Wave 6 (Task 10). A full-suite
-  run at this point covers four files.
+- **`0011-group-customization.spec.ts` does not exist yet** — it arrives in Wave 7 (Task 10), the wave
+  after this one. A full-suite run at this point covers four files.
 
 **Implementation hints:**
 - The line-by-line inventory in the code-research doc (section "Инвентаризация тестов", groups Б1, Б2, Б3

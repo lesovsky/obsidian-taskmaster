@@ -3,7 +3,7 @@ status: planned
 depends_on: ["01"]
 wave: 2
 skills: [code-writing]
-verify: bash
+verify: bash                       # npx vitest run tests/unit/migration.test.ts
 reviewers: [dev-code-reviewer, dev-security-auditor, dev-test-reviewer]
 teammate_name:
 ---
@@ -45,9 +45,28 @@ what makes the Backward Compatibility promise in the tech-spec true. Sanitizing 
 `version < 8` branch would silently break that promise, and the tests below are written to catch
 exactly that mistake.
 
-Per Decision 10, this task does **not** introduce a `CURRENT_VERSION` constant. The hardcoded
-`7` is bumped to `8` in place, in the three source locations and in the test expectations that
-assert it.
+Per Decision 10, this task does **not** introduce a `CURRENT_VERSION` constant. But note that the
+tech-spec's phrase "hardcoded in three source locations" is imprecise, and following it literally
+would corrupt the migration ladder. Verified against the current code, exactly **one** existing
+literal is bumped in place:
+
+- `src/data/defaults.ts:52` — `DEFAULT_DATA.version: 7` → `8`. This is the "current schema version"
+  and the only in-place bump.
+- `src/data/migration.ts:75` — `if (version < 7)` is the **historical guard** of the `notesHidden`
+  block, not a current-version marker. It must stay `< 7`. Raising it to `< 8` would give it the
+  same guard as the new `version < 8` block added right after it: a v7 file would re-enter a step
+  it has already been through, and the one-block-per-version-step invariant that makes this file
+  readable (and makes a single call migrate v1 all the way up) would be gone.
+- `src/data/migration.ts:81` — `result.version = 7` lives **inside** that historical block and is
+  the version that block migrates *to*. It must stay `7`; the new `version < 8` block that follows
+  raises the result to `8` for the same input.
+
+So the version literal `8` appears in two new places only: `DEFAULT_DATA` and the new
+`if (version < 8) { … result.version = 8; }` block. Plus the test expectations that assert it.
+Record the tech-spec wording discrepancy in the decisions log.
+
+The third documented location of the version — `docs/technical.md` (lines 21, 358, 403) — is
+**Task 12's** scope, not this task's. Do not update documentation here.
 
 ## What to do
 
@@ -58,23 +77,33 @@ assert it.
    today: `createDefaultGroup` returns `title: ''`, `createDefaultBoard` returns
    `groupOrder` equal to the current fixed order (`GROUP_IDS`) — as a **fresh array per board**,
    not a shared reference to the exported constant.
-3. Bump `DEFAULT_DATA.version` from `7` to `8` in `src/data/defaults.ts`.
+3. Bump `DEFAULT_DATA.version` from `7` to `8` in `src/data/defaults.ts` (L52). This is the **only**
+   existing version literal that changes — see Description for why `migration.ts` L75 and L81 stay
+   at `7`.
 4. Add two exported pure sanitizers to `src/data/migration.ts`:
    - one that takes `unknown` and always returns a valid `GroupId[]` permutation;
    - one that takes `unknown` and always returns a normalized title string.
    Export both — the settings popup save path (Task 8) reuses the title one, and the unit tests
    import both directly.
-5. Add the `version < 8` migration block: every group of every board gets `title: ''` if it has
-   no title yet, every board gets the default order if it has no order yet, and
-   `result.version = 8`. Follow the existing block style in this file (`(board as any).field ===
-   undefined` check plus assignment).
+5. Add a **new** `version < 8` migration block after the existing `version < 7` block: every group
+   of every board gets `title: ''` if it has no title yet, every board gets the default order if it
+   has no order yet, and `result.version = 8`. Follow the existing block style in this file
+   (`(board as any).field === undefined` check plus assignment). Leave the `version < 7` block
+   exactly as it is — both its guard and its `result.version = 7`.
 6. Add a sanitization block **after** all version branches and before `return result`: for every
    board, replace `groupOrder` with the sanitized value and every group's `title` with the
    normalized value — unconditionally, regardless of the incoming version.
-7. Update `tests/unit/migration.test.ts`: retarget the nine existing `toBe(7)` expectations and
+7. Cover the two early-return paths in `migrateData` (L7 for a non-object input, L14 for
+   `version < 1`). They `return` before both the migration and the sanitization blocks, so they
+   never see either. They build the board as `{ ...DEFAULT_DATA.boards[0] }` — a shallow spread,
+   which means the returned board would share one `groupOrder` array instance with the module-level
+   `DEFAULT_DATA` and with every other call. Give each of these returns a fresh copy of the array.
+   Scope note: `groups` and `hiddenGroups` are shared by the same spread today; that is
+   pre-existing and stays out of scope — mention it in the decisions log if a reviewer raises it.
+8. Update `tests/unit/migration.test.ts`: retarget the nine existing `toBe(7)` expectations and
    the three test names to 8, and add the new suites listed under TDD Anchor. Existing coverage
    of v1…v6 must keep passing — those inputs now land on 8 with both new fields present.
-8. Confirm — by reading, not by assumption — that `cleanupOrphanedTasks` in
+9. Confirm — by reading, not by assumption — that `cleanupOrphanedTasks` in
    `src/data/cleanup.ts` still collects live task ids through `Object.values(board.groups)` and
    not through `groupOrder`. It must stay that way: if it ever iterated `groupOrder`, a sanitized
    order would decide which tasks survive, and a group missing from the order would have all its
@@ -119,8 +148,16 @@ them rather than writing new stubs.
 - `::groupOrder is sanitized on already-migrated v8 data` — input with `version: 8` and a damaged
   order comes back repaired. This is the test that fails if sanitization is placed inside the
   version branch.
-- `::two boards get independent groupOrder arrays` — mutating one board's array does not affect
-  the other (guards against sharing the `GROUP_IDS` reference).
+- `::two boards get independent groupOrder arrays` — a two-board input; mutating one board's array
+  does not affect the other (guards against sharing the `GROUP_IDS` reference).
+- `::default data gets its own groupOrder array` — the early-return path. Call `migrateData(null)`
+  twice, mutate the first result's `boards[0].groupOrder`, assert the second result is untouched;
+  additionally assert it is not the same instance as `DEFAULT_DATA.boards[0].groupOrder` (import
+  `DEFAULT_DATA` from `../../src/data/defaults`). This path returns before both the migration and
+  the sanitization block, so nothing else in this task protects it — a shallow spread of the module
+  default would make one board's reorder silently reorder the module constant.
+- `::{} → default data also gets its own groupOrder array` — same assertion for the second early
+  return (`migrateData({})`, which falls into the `version < 1` branch).
 
 **Title sanitization**
 
@@ -148,7 +185,14 @@ them rather than writing new stubs.
 - [ ] `migrateData` remains idempotent: valid v8 data passes through byte-identical
 - [ ] `cleanupOrphanedTasks` still derives live task ids from `Object.values(board.groups)`, not
       from `groupOrder`
-- [ ] `npm test` passes; `npx tsc --noEmit` is clean
+- [ ] `migrateData(null)` and `migrateData({})` return a board whose `groupOrder` is a fresh array,
+      not the module-level `DEFAULT_DATA` instance
+- [ ] `npx vitest run tests/unit/migration.test.ts` — green (this is the gate for this task)
+- [ ] `npx tsc --noEmit` reports no error in `src/data/*.ts` or `tests/unit/migration.test.ts`. The
+      two pre-existing `TS2353` errors about `'boardSettings.notes'` in `src/i18n/en.ts` and
+      `src/i18n/ru.ts` are **not** this task's defect — Task 2 fixes them (Decision 9). If Task 2
+      has already landed, the run is fully clean; if not, those two lines are the only allowed
+      output.
 
 ## Context Files
 
@@ -178,13 +222,22 @@ repository documentation:
 ## Verification Steps
 
 - Precondition: `node -v` reports ≥ 22.12 (Task 1 pins this; the unit runner does not work below it)
-- Run `npm test` — the whole unit suite passes, including all new migration and sanitization cases
-- Run `npx tsc --noEmit` — clean; in particular no `strict` violations from the new `unknown`
-  parameters
+- **Main gate:** `npx vitest run tests/unit/migration.test.ts` — all migration and sanitization
+  cases pass. This task is gated on its own suite, not on the whole set: Tasks 4 and 5 run in the
+  same wave and create brand-new test files in `tests/unit/`, passing through a red phase while
+  they do. A full-suite gate here would turn their red into this task's failure.
+- `npx tsc --noEmit` — no error in this task's files. Two pre-existing `TS2353` errors about
+  `'boardSettings.notes'` in `src/i18n/en.ts` / `src/i18n/ru.ts` belong to Task 2 (Decision 9);
+  ignore them if Task 2 has not landed yet. Watch in particular for `strict` violations from the
+  new `unknown` parameters — those would be ours.
 - Confirm the new tests actually failed before the implementation existed (TDD order), not only
   that they pass now
 - Re-read the final `migrateData`: the sanitization block sits after every `if (version < N)`
-  branch and before `return result`
+  branch and before `return result`; the `version < 7` block is byte-identical to what it was
+- Optional closing check: `npm test`. `tests/unit/cleanup.test.ts`, `statusTransitions.test.ts` and
+  `boardLayoutUtils.test.ts` must be green — those are the suites this task could plausibly break.
+  Red results in `groupOrderUtils.test.ts` or `groupTitle.test.ts` are the same-wave neighbours
+  mid-TDD and are not a defect of this task; do not "fix" them.
 
 ## Details
 
@@ -200,11 +253,15 @@ repository documentation:
 - `src/data/defaults.ts` — `createDefaultGroup` (L13–21) returns the group literal; add
   `title: ''`. `createDefaultBoard` (L23–42) returns the board literal; add `groupOrder`. L52 has
   `version: 7` → `8`.
-- `src/data/migration.ts` — structure: early returns for non-object and `version < 1` (L6–15),
-  then independent `if (version < N)` blocks that all compare the **original** `version`, which is
-  why a v1 file passes through every step in one call. The last block is `version < 7` (L75–82),
-  containing the second hardcoded `7` (L75) and the third (L81). Insert the v8 block after L82,
-  then the unconditional sanitization block, then `return result`.
+- `src/data/migration.ts` — structure: early returns for non-object (L6–8) and `version < 1`
+  (L13–15), both producing `{ ...DEFAULT_DATA, boards: [{ ...DEFAULT_DATA.boards[0] }] }`; then
+  independent `if (version < N)` blocks that all compare the **original** `version`, which is why a
+  v1 file passes through every step in one call. The last block is `version < 7` (L75–82) — a
+  historical step that adds `notesHidden` and closes with `result.version = 7` (L81). **Neither of
+  those two numbers is the current schema version and neither changes.** Insert the new
+  `if (version < 8)` block after L82, then the unconditional sanitization block, then
+  `return result`. Give the two early returns a fresh `groupOrder` array, since they bypass both
+  new blocks.
 - `tests/unit/migration.test.ts` — nine `expect(result.version).toBe(7)` at lines 22, 29, 37, 57,
   72, 91, 107, 120, 129, plus test names carrying the number at lines 20, 27, 124 (and the comment
   at 125). The input versions in the snapshots (1, 2, 3, 4, 5, 6) stay as they are — they define
@@ -213,11 +270,18 @@ repository documentation:
 
 **Dependencies:**
 
-- Depends on Task 1 (Node pin and a runnable unit suite) — `npm test` cannot be executed
-  otherwise.
-- Nothing in this task depends on Task 2. Tasks 4 and 5 run in the same wave and touch different
-  files; Task 5 deliberately takes plain strings rather than the `Group` type so it does not wait
-  on this task.
+- Depends on Task 1 (`depends_on: ["01"]`, wave 1): Node pin and a runnable unit suite — the
+  vitest gate cannot be executed otherwise.
+- **Soft dependency on Task 2, not declared in `depends_on`.** `npx tsc --noEmit` cannot be fully
+  clean until Task 2 adds the missing `'boardSettings.notes'` key to the `TranslationKey` union
+  (Decision 9) — two `TS2353` errors exist in `src/i18n/{en,ru}.ts` before this feature starts.
+  The tsc check here is therefore scoped to "no new errors in this task's files"; it is not
+  promoted to a hard dependency because it would serialize wave 2 behind wave 1 for a one-line fix
+  in files this task never touches. Task 4 carries the same caveat.
+- Tasks 4 and 5 run in the same wave (wave 2) and touch different files; Task 5 deliberately takes
+  plain strings rather than the `Group` type so it does not wait on this task. Their new test files
+  spend part of the wave red — see Verification Steps for why this task's gate is its own suite
+  rather than `npm test`.
 - Downstream, Task 7 (board render) and Task 8 (settings popup and save chain) both assume these
   fields exist and are always valid.
 - No new packages.
@@ -239,13 +303,18 @@ repository documentation:
 - Already-migrated v8 data with a damaged field: repaired on load. Already-migrated v8 data that is
   valid: byte-identical after the call — the idempotency test enforces this.
 - Two boards must not share one `groupOrder` array instance, otherwise reordering on one board
-  silently reorders the other. Use a fresh copy per board everywhere the default is produced.
+  silently reorders the other. Use a fresh copy per board everywhere the default is produced —
+  including `createDefaultBoard` (do not hand out the exported `GROUP_IDS` reference) and both
+  early returns of `migrateData`, where the shallow spread of `DEFAULT_DATA.boards[0]` would
+  otherwise hand out the module constant's own array.
 
 **Implementation hints:**
 
-- Version-number scope: bump `7` → `8` in place. Do **not** extract a shared constant
-  (Decision 10) — that is a refactor of migration infrastructure this feature was not asked to
-  perform.
+- Version-number scope: exactly one existing literal changes — `DEFAULT_DATA.version` in
+  `defaults.ts:52`. The `7`s inside `migration.ts` are historical and stay. Do **not** extract a
+  shared constant (Decision 10) — that is a refactor of migration infrastructure this feature was
+  not asked to perform. Do **not** touch `docs/technical.md`, where the version is written three
+  more times — that document is Task 12's deliverable, and editing it here would collide with it.
 - The length cap of 40 comes from the user-spec (input field maximum). The project has no shared
   validation constants and enforces limits with literals (`maxlength="200"` / `"500"` in
   `BoardSettingsPopup.svelte`); follow that and keep the number local to the sanitizer rather than
@@ -276,4 +345,7 @@ repository documentation:
 
 - [ ] Записать краткий отчёт в [0011-feat-group-customization-decisions.md](0011-feat-group-customization-decisions.md) (Summary: 1-3 предложения, ревью со ссылками на JSON, без таблиц файндингов и дампов)
 - [ ] Если отклонились от спека — описать отклонение и причину
-- [ ] Обновить user-spec/tech-spec если что-то изменилось
+- [ ] Обновить user-spec/tech-spec если что-то изменилось. Два места известны заранее:
+      Decision 10 говорит про «three source locations» с версией — фактически меняется только
+      `defaults.ts:52`; и Verify для Task 3 указан как `npm test` — сужен до
+      `npx vitest run tests/unit/migration.test.ts`, чтобы гейт не краснел из-за соседей по волне

@@ -73,7 +73,9 @@ from their arguments — they must never read a store, `board`, or any module-le
    return a fresh array from the move function.
 5. Guarantee that the two functions agree: whenever the "can move" function returns `false`, the
    move function returns an order equal to the input.
-6. Run the unit suite and `npx tsc --noEmit` until both are clean.
+6. Run **свою** сюиту (`npx vitest run tests/unit/groupOrderUtils.test.ts`) и `npx tsc --noEmit`
+   до зелёного. Полный `npm test` в этой волне не является критерием готовности — см.
+   Verification Steps.
 
 ## TDD Anchor
 
@@ -135,7 +137,7 @@ Consistency and robustness:
 - [src/ui/groupOrderUtils.ts](src/ui/groupOrderUtils.ts) — **создать**; чистые функции перестановки
 - [tests/unit/groupOrderUtils.test.ts](tests/unit/groupOrderUtils.test.ts) — **создать**; unit-тесты, пишутся первыми
 - [src/ui/boardLayoutUtils.ts](src/ui/boardLayoutUtils.ts) — образец такого же чистого модуля рядом: импортирует только тип `GroupId`, никаких сторов
-- [src/ui/boardLayoutUtils.test.ts](src/ui/boardLayoutUtils.test.ts) — образец стиля тестов (сейчас лежит не в `tests/unit/`; переезд делает Task 1)
+- [tests/unit/boardLayoutUtils.test.ts](tests/unit/boardLayoutUtils.test.ts) — образец стиля тестов; файл перенесён сюда из `src/ui/` задачей Task 1, которая идёт волной раньше, так что к моменту выполнения этой задачи он уже лежит в `tests/unit/`
 - [src/data/types.ts](src/data/types.ts) — существующий union `GroupId` и константа `GROUP_IDS`; читать, не менять
 - [tests/unit/statusTransitions.test.ts](tests/unit/statusTransitions.test.ts) — образец теста в `tests/unit/` с относительным импортом `../../src/...`
 - [src/ui/BoardSettingsPopup.svelte](src/ui/BoardSettingsPopup.svelte) — будущий потребитель (Task 8): читать, чтобы подобрать сигнатуры под его локальное состояние; **в этой задаче не менять**
@@ -145,7 +147,17 @@ Consistency and robustness:
 - `npx vitest run tests/unit/groupOrderUtils.test.ts` — все тесты проходят.
 - Порядок TDD подтверждён: тесты запускались до реализации и падали (модуль отсутствовал).
 - `npx tsc --noEmit` — чисто. Если появляются ошибки про `boardSettings.notes` — это предсуществующая проблема, которую чинит Task 2 (Decision 9), не эта задача.
-- `npm test` — остальные unit-сюиты не сломаны.
+- **Полный `npm test` в этой задаче не запускается как критерий приёмки.** Задача идёт в волне 2
+  вместе с Task 3 (правит `tests/unit/migration.test.ts`, добавляет сюиты санитайзера) и Task 5
+  (создаёт `tests/unit/groupTitle.test.ts`); обе штатно проходят фазу красного теста в тот же
+  момент времени. Полный прогон здесь покраснеет по чужой вине и ничего не скажет о качестве
+  этой задачи. Изоляция проверки — сознательная (`verify:` во frontmatter указывает ровно на
+  свою сюиту).
+- *Необязательная заключительная проверка,* если хочется убедиться, что новый файл не сломал
+  существующие сюиты: `npx vitest run tests/unit/statusTransitions.test.ts tests/unit/boardLayoutUtils.test.ts`
+  — это те сюиты, которых волна 2 не касается. Красный результат в `migration.test.ts` или
+  `groupTitle.test.ts` при любом более широком прогоне относится к Task 3 / Task 5 — не чинить
+  его здесь, а сообщить в отчёте.
 - `grep -n "import" src/ui/groupOrderUtils.ts` — только `import type { GroupId } from '../data/types'` (либо вообще без импортов). Никаких стора, i18n, svelte, `Board`, `Group`.
 
 ## Details

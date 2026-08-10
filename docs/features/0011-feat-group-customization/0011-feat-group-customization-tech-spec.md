@@ -89,10 +89,12 @@ values, the notes block would float above them. This reproduced in the research 
 ### Decision 3: Three distinct test attributes, none reused
 **Decision:** The board group wrapper gets `data-group-container`; the settings popup row gets
 `data-settings-group`. The existing `data-group-id` on the group body stays as is.
-**Rationale:** Reusing `data-group-id` on the wrapper would match two elements per group:
-Playwright strict mode would fail twelve inline assertions, and four `document.querySelector`
-calls in the card-columns suite would silently return the wrapper and read an empty custom
-property — a real check turning into a false pass. The popup needs its own attribute rather
+**Rationale:** Reusing `data-group-id` on the wrapper would match two elements per group.
+Twelve inline assertions would fail loudly under Playwright strict mode, and three sites would
+fail silently, which is worse: four `document.querySelector` calls in the card-columns suite
+would return the wrapper and read an empty custom property, and the expand helper swallows the
+strict-mode violation in a `catch`, so it would quietly collapse an already-expanded group.
+Real checks turning into false passes. The popup needs its own attribute rather
 than either of the other two, because the popup and the board are in the DOM simultaneously
 (the overlay does not unmount the board), so a shared attribute collides across them.
 **Alternatives considered:** One shared attribute — rejected for the collisions above.
@@ -112,9 +114,9 @@ its placeholder. Routing the field through the helper would put the default name
 as literal text: the placeholder would never be visible, and pressing Save without editing
 anything would store the default as an explicit title for all six groups, silently freezing the
 current language and flipping every empty group to the neutral hint.
-**Alternatives considered:** Using the helper for the field too — rejected for the reason above.
 **Alternatives considered:** Inline `group.title || $groupLabels[id]` in each component —
-rejected: four copies of a rule that the test plan requires to be covered.
+rejected: four copies of a rule that the test plan requires to be covered. Using the helper for
+the editing field too — rejected for the reason stated above.
 
 ### Decision 5: Reorder logic extracted as pure functions
 **Decision:** Arrow behavior (move visible group past hidden neighbours, move hidden group by
@@ -150,17 +152,18 @@ Decision 6 exists to prevent.
 only the string case — rejected: same failure mode as an unguarded order field.
 
 ### Decision 8: Node is pinned in the repo, upgrade is a precondition
-**Decision:** Add `engines` to `package.json` and an `.nvmrc` requiring Node ≥ 22.12. The
-actual upgrade happens on the developer machine and is a precondition to execution.
+**Decision:** Add `engines` to `package.json` and an `.nvmrc` requiring `^22.12.0 || >=24.0.0`.
+The actual upgrade happens on the developer machine and is a precondition to execution.
 **Rationale:** Three constraints apply: the test runner's own (`^20 || ^22 || >=24`), the one it
 pulls in transitively through vite (`^20.19.0 || >=22.12.0`), and the package manager's
-(`^20.17.0 || >=22.9.0`). A floor of 22.12 satisfies all three; note it deliberately excludes
-the 23.x line, which the test runner itself declares unsupported. Pinning the floor in the repo
+(`^20.17.0 || >=22.9.0`). The range `^22.12.0 || >=24.0.0` satisfies all three. A bare
+`>= 22.12` would not: it admits the 23.x line, which the test runner itself declares
+unsupported. The 20.x branch is dropped deliberately — two supported branches double the
+verification surface for no benefit here. Pinning the floor in the repo
 keeps the drift from recurring. The bundler (esbuild) imposes no relevant constraint.
 **Alternatives considered:** Rolling the test runner back to a version compatible with Node 18
 — rejected by the user deliberately: it would anchor the project to an unsupported runtime.
-Allowing `>=20.19` as well — rejected: two supported branches double the verification surface
-for no benefit here.
+Allowing the 20.x branch as well — rejected for the reason stated above.
 
 ### Decision 9: Autopilot assumption — fix the pre-existing type error
 **Decision:** Add the missing `'boardSettings.notes'` key to the `TranslationKey` union.
@@ -173,9 +176,11 @@ type-check gate. The fix is one line.
 
 ### Decision 10: Autopilot assumption — no data version constant is introduced
 **Decision:** Bump the hardcoded `7` to `8` in place, without extracting a shared constant.
-**Rationale:** The version is hardcoded in three source locations and asserted in nine test
-expectations. Introducing a constant is a refactor of migration infrastructure this feature was
-not asked to perform, and CLAUDE.md forbids improving adjacent code beyond the request.
+**Rationale:** The version literal appears in three source locations, but only one of them is
+the current-version marker that this feature raises — the other two belong to an earlier
+migration step and must stay where they are. Nine test expectations assert the version.
+Introducing a constant is a refactor of migration infrastructure this feature was not asked to
+perform, and CLAUDE.md forbids improving adjacent code beyond the request.
 **Alternatives considered:** Extracting `CURRENT_VERSION` — rejected as unrequested scope.
 
 ### Decision 11: Autopilot assumption — no static type checking for Svelte files
@@ -325,7 +330,7 @@ user.
 |------|---------|--------------|
 | 1 | bash | `node -v` ≥ 22.12, then `npm test` runs at all and collects the board-layout suite |
 | 2 | bash | `npx tsc --noEmit` — clean, no missing translation keys |
-| 3 | bash | `npm test` — migration and sanitization suites pass |
+| 3 | bash | `npx vitest run tests/unit/migration.test.ts` — migration and sanitization pass |
 | 4 | bash | `npx vitest run tests/unit/groupOrderUtils.test.ts` |
 | 5 | bash | `npx vitest run tests/unit/groupTitle.test.ts` |
 | 6 | bash | `npm run build`; `npx playwright test tests/e2e/core.spec.ts` |
@@ -416,7 +421,7 @@ as the other display sites.
   fields on every load so damaged data cannot blank the board.
 - **Skill:** code-writing
 - **Reviewers:** dev-code-reviewer, dev-security-auditor, dev-test-reviewer
-- **Verify:** bash — `npm test`
+- **Verify:** bash — `npx vitest run tests/unit/migration.test.ts` (the full suite would go red on neighbours still in their red phase)
 - **Files to modify:** `src/data/types.ts`, `src/data/defaults.ts`, `src/data/migration.ts`, `tests/unit/migration.test.ts`
 - **Files to read:** `src/data/cleanup.ts`, `docs/features/0011-feat-group-customization/0011-feat-group-customization-code-research.md`
 
@@ -479,7 +484,7 @@ as the other display sites.
 - **Reviewers:** dev-code-reviewer, dev-security-auditor, dev-test-reviewer
 - **Verify:** bash — `npm run build`, `npm test` and `npx playwright test tests/e2e/core.spec.ts`
 - **Files to modify:** `src/ui/BoardSettingsPopup.svelte`, `src/ui/BoardHeader.svelte`, `src/stores/dataStore.ts`, `src/styles.css`
-- **Files to read:** `src/ui/groupOrderUtils.ts`, `src/ui/groupTitle.ts`, `src/data/types.ts`
+- **Files to read:** `src/ui/groupOrderUtils.ts`, `src/data/types.ts`
 
 ### Wave 5 (тесты, зависит от Wave 4)
 

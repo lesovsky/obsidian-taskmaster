@@ -38,25 +38,41 @@ and by this wave the board already renders from that field (Task 07) — the res
 scrambled board that no partial verification would catch. This is why the tech-spec deliberately
 puts all three files in one task (see Backward Compatibility / Consumer impact).
 
-Two pure modules built earlier are consumed here, not reimplemented: `src/ui/groupOrderUtils.ts`
-(Task 04) for arrow behavior and arrow-enabled state, and `src/ui/groupTitle.ts` (Task 05) for
-resolving a group's displayed name from its stored name plus the localized default.
+One pure module built earlier is consumed here, not reimplemented: `src/ui/groupOrderUtils.ts`
+(Task 04), for arrow behavior and arrow-enabled state.
+
+**The name input is an editing field, not a display site, and must not go through the Task 05
+helper** (`src/ui/groupTitle.ts`). Its value is the raw stored `board.groups[groupId].title` —
+empty for a group that was never renamed — and the localized default appears only as the field's
+`placeholder`. Tech-spec Decision 4 now states this explicitly, and the reasoning matters:
+routing the field through the helper would put the default name into the field as literal text,
+so the placeholder could never be seen (contradicting the user-spec's "Пока поле пустое, в нём
+серым показывается дефолтное название" and Сценарий 2), and pressing Save for any reason — even
+just toggling one checkbox — would write the current localized defaults into `Group.title` for
+all six groups. After that, switching the interface language would stop retranslating them
+(contradicting Сценарий 1), and Task 06, which treats any non-empty title as "renamed", would
+replace every empty group's meaningful hint with the neutral one.
 
 ## What to do
 
 1. **Local state in `BoardSettingsPopup.svelte`.** Add two pieces of local state seeded from the
-   `board` prop: a per-group name record and a working copy of the group order. Per Decision 13
-   the name record is called `groupTitles` — the existing local `title` keeps meaning *the board's*
-   title, and that word must not acquire a second meaning in this component.
+   `board` prop: a per-group name record holding the **raw stored titles** (copied verbatim,
+   empty string when the group was never renamed) and a working copy of the group order. Per
+   Decision 13 the name record is called `groupTitles` — the existing local `title` keeps meaning
+   *the board's* title, and that word must not acquire a second meaning in this component.
 2. **Render rows in the board's order.** Replace the `{#each GROUP_IDS as groupId}` iteration
    (line 52) with an iteration over the local order copy, keyed by group id. Hidden groups stay at
    their own index — no partitioning, no sorting visible-first.
 3. **Row layout.** Each group row becomes, left to right: move-up/move-down arrows, name input,
    task counter (still only when the count is above zero), visibility toggle, full-width toggle.
    The existing column header row gains matching cells so the two stay aligned.
-4. **Name input.** Its current value is the name resolved through the Task 05 helper; its
-   placeholder is the default localized name from `$groupLabels[groupId]`; input is capped at 40
+4. **Name input.** Its value is the **raw** stored title — `board.groups[groupId].title` as it
+   sits in `data.json`, which is an empty string for every group the user has never renamed. Its
+   placeholder is the default localized name from `$groupLabels[groupId]`, so an untouched row
+   shows that default in grey while the field itself stays empty. Input is capped at 40
    characters via `maxlength`. Clearing the field means "return to the default name".
+   **Do not call `src/ui/groupTitle.ts` here** — that helper belongs to display sites (Task 06)
+   only; see Decision 4 and the Description above.
 5. **Arrows.** Wire both buttons to the Task 04 pure functions for the move itself and for the
    disabled state. They must be fed the **local** order and the **local** hidden-groups array, so
    that toggling visibility changes arrow behavior immediately, before any save.
@@ -70,9 +86,10 @@ resolving a group's displayed name from its stored name plus the localized defau
 9. **Extend `onSave` payload** with the group names and the group order, and mirror the same shape
    in `BoardHeader.saveSettings` and in the `updateBoard` signature.
 10. **Normalize in `updateBoard`.** Trim each incoming name and cap it at 40 characters before
-    storing it on the group; write the order onto the board; keep `persist()` at the end. The
-    input's `maxlength` is not the enforcement point — Decision 7 puts normalization at the store
-    boundary.
+    storing it on the group — an empty or whitespace-only name is stored as `''`, never replaced
+    by a default. Write the order onto the board **as given**, without sanitizing it (see Edge
+    cases). Keep `persist()` at the end. The input's `maxlength` is not the enforcement point —
+    Decision 7 puts title normalization at the store boundary.
 11. **Unit-test the store boundary** (see TDD Anchor) — this is the part of the task that is
     testable without a DOM.
 
@@ -89,6 +106,9 @@ its only Obsidian dependency is a type-only import in `pluginStore.ts`, which is
   becomes `''`, i.e. the group falls back to its default name.
 - `tests/unit/dataStore.test.ts::updateBoard caps a group title at 40 characters` — a 60-character
   title is stored with length 40.
+- `tests/unit/dataStore.test.ts::updateBoard keeps an empty group title empty` — saving `''` for
+  every group leaves all six `title` fields `''`; nothing substitutes a default name at the store
+  boundary. This is the store-side half of the "save without editing keeps titles empty" rule.
 - `tests/unit/dataStore.test.ts::updateBoard stores the supplied group order` — `board.groupOrder`
   equals the array handed in, not the default one.
 - `tests/unit/dataStore.test.ts::updateBoard still writes the pre-existing fields` — title,
@@ -98,8 +118,12 @@ its only Obsidian dependency is a type-only import in `pluginStore.ts`, which is
 ## Acceptance Criteria
 
 - [ ] Every group row in the board settings popup has a name input and a pair of move arrows.
-- [ ] The name input shows the current name, uses the default localized name as placeholder, and
-      refuses input beyond 40 characters.
+- [ ] The name input holds the raw stored title — it is **empty** for a group that was never
+      renamed — shows the default localized name as its grey placeholder, and refuses input
+      beyond 40 characters.
+- [ ] Opening the popup and saving without editing any name leaves every `Group.title` empty in
+      `data.json` (verifiable by inspecting the persisted board), so untouched groups keep
+      falling back to their localized defaults and still retranslate on a language switch.
 - [ ] Clearing a name and saving returns the group to its default localized name.
 - [ ] Rows are rendered in `board.groupOrder`; hidden groups keep their positions instead of
       moving to the end, and the order survives reopening the popup.
@@ -118,13 +142,14 @@ its only Obsidian dependency is a type-only import in `pluginStore.ts`, which is
 - [ ] The task counter still appears only when a group has more than zero tasks.
 - [ ] Existing visibility and full-width toggles keep working, including the "last visible group
       cannot be hidden" rule.
-- [ ] `npm run build`, `npm test` and `npx playwright test tests/e2e/core.spec.ts` all pass.
+- [ ] `npm run build`, `npm test`, `npx playwright test tests/e2e/core.spec.ts` and
+      `npx tsc --noEmit` all pass, in that order.
 
 ## Context Files
 
 **Feature artifacts:**
 - [0011-feat-group-customization.md](docs/features/0011-feat-group-customization/0011-feat-group-customization.md) — user-spec (see "Формы и ввод данных", "UX-поведение", "Граничные случаи")
-- [0011-feat-group-customization-tech-spec.md](docs/features/0011-feat-group-customization/0011-feat-group-customization-tech-spec.md) — tech-spec (Decisions 3, 5, 7, 13; Backward Compatibility)
+- [0011-feat-group-customization-tech-spec.md](docs/features/0011-feat-group-customization/0011-feat-group-customization-tech-spec.md) — tech-spec (Decisions 3, 4, 5, 6, 7, 13; Backward Compatibility)
 - [0011-feat-group-customization-decisions.md](docs/features/0011-feat-group-customization/0011-feat-group-customization-decisions.md) — decisions log
 - [0011-feat-group-customization-code-research.md](docs/features/0011-feat-group-customization/0011-feat-group-customization-code-research.md) — codebase research
 
@@ -137,20 +162,23 @@ its only Obsidian dependency is a type-only import in `pluginStore.ts`, which is
 - [src/ui/BoardSettingsPopup.svelte](src/ui/BoardSettingsPopup.svelte) — add name input, arrows, row attribute, dimming; iterate over the order
 - [src/ui/BoardHeader.svelte](src/ui/BoardHeader.svelte) — widen the `saveSettings` field shape (lines 23–29)
 - [src/stores/dataStore.ts](src/stores/dataStore.ts) — widen `updateBoard` (line 199), normalize titles, write order
-- [src/styles.css](src/styles.css) — row/header grid (lines 694–700, 713–719), popup max-height and scroll (line 638), arrow and dimmed-row styles
+- [src/styles.css](src/styles.css) — the `.tm-popup__group-header` and `.tm-popup__group-row` grids, `max-height`/scroll on `.tm-popup`, plus new arrow and dimmed-row styles. Locate these by selector name, not by line number — Tasks 06 and 07 edit this same file in earlier waves
 - [src/ui/groupOrderUtils.ts](src/ui/groupOrderUtils.ts) — read: arrow move + enabled-state functions (Task 04)
-- [src/ui/groupTitle.ts](src/ui/groupTitle.ts) — read: name resolution (Task 05)
+- [src/ui/groupTitle.ts](src/ui/groupTitle.ts) — read only, to understand the display-side rule; **not called from this task** (Decision 4)
 - [src/data/types.ts](src/data/types.ts) — read: `Group.title`, `Board.groupOrder`, `GROUP_IDS`
 - [src/i18n/index.ts](src/i18n/index.ts) — read: `t` and `groupLabels` stores
 - [tests/unit/migration.test.ts](tests/unit/migration.test.ts) — read: existing unit-test style
 
 ## Verification Steps
 
-- `npx tsc --noEmit` — clean. Note it does **not** check `.svelte` files (Decision 11), so it only
-  covers the `dataStore.ts` half of the change.
+- `npm run build` — production build succeeds. This is the **primary** gate: `.svelte` files have
+  no static type check (Decision 11), so the build is the only thing that catches component
+  errors. Run it first.
 - `npm test` — the whole unit suite passes, including the new `tests/unit/dataStore.test.ts`.
-- `npm run build` — production build succeeds; this is the real gate for the component work.
 - `npx playwright test tests/e2e/core.spec.ts` — passes.
+- `npx tsc --noEmit` — clean. Run it after the build: it does **not** check `.svelte` files
+  (Decision 11), so it only covers the `dataStore.ts` half of the change and a green result here
+  says nothing about the popup.
 - `grep -rn "data-settings-group" src/` — the attribute appears only on the popup group row;
   `grep -rn "data-group-container\|data-group-id" src/ui/BoardSettingsPopup.svelte` returns nothing.
 - Manual sanity check in Obsidian (optional, user-side): open board settings, confirm rows fit the
@@ -176,21 +204,32 @@ its only Obsidian dependency is a type-only import in `pluginStore.ts`, which is
   notesHidden and loops `GROUP_IDS` for `fullWidth`, then calls `persist()`. Add the group-title
   assignment (trimmed, capped at 40) inside that same loop and the `groupOrder` assignment; leave
   `persist()` as the last statement.
-- `src/styles.css` — `.tm-popup` (line 638) has neither `max-height` nor `overflow`; add both.
-  `.tm-popup__group-header` (694–700) and `.tm-popup__group-row` (713–719) both use
-  `grid-template-columns: 1fr 4rem 4rem` and must change together. New classes for the arrow
-  buttons and the dimmed row, all `tm-`-prefixed BEM, all in this file — no `<style>` blocks.
+- `src/styles.css` — **find every block below by selector name, not by line number.** Tasks 06
+  (group-title truncation) and 07 (`order` on the notes block) edit this same file in earlier
+  waves, so any line number quoted here would already have drifted by the time this task runs.
+  - `.tm-popup` — currently declares neither `max-height` nor `overflow`; add both.
+  - `.tm-popup__group-header` and `.tm-popup__group-row` — both currently declare
+    `grid-template-columns: 1fr 4rem 4rem` and must change together, or the header cells stop
+    lining up with the row cells.
+  - New classes for the arrow buttons and the dimmed row: all `tm-`-prefixed BEM, all in this
+    file — no `<style>` blocks.
 
 **Dependencies:**
 
 - Task 04 → `src/ui/groupOrderUtils.ts`. **Read the real module before writing code** and call its
   actual exports; do not assume function names from this description.
-- Task 05 → `src/ui/groupTitle.ts`. Same: read it, then use it. Do not inline
-  `group.title || $groupLabels[id]` — Decision 4 exists precisely to keep the rule in one place.
+- Task 05 → `src/ui/groupTitle.ts`. **Read it for context, do not call it from this component.**
+  The helper resolves a name for *display*; the popup's field is for *editing* and binds the raw
+  stored title with the localized default as placeholder (Decision 4). Nor should the rule be
+  inlined as `group.title || $groupLabels[id]` here — there is no fallback to apply in an editing
+  field at all.
 - Task 03 → `Group.title` and `Board.groupOrder` must already exist in `src/data/types.ts`.
 - Task 02 → the arrow labels and the group-name column header live in `src/i18n/{types,en,ru}.ts`.
-  Look up the actual key names there; if a needed string is missing, add it to all three files
-  rather than hardcoding text — the plugin is bilingual.
+  Task 02 fixes their names: `boardSettings.groupName` (column header), `boardSettings.moveUp`,
+  `boardSettings.moveDown` (arrow labels). Use exactly these — do **not** invent a variant or add
+  a near-duplicate next to an existing key. Verify they are present (`grep -n "boardSettings\.\(groupName\|moveUp\|moveDown\)" src/i18n/types.ts src/i18n/en.ts src/i18n/ru.ts`);
+  if any is missing, **stop and report the blocker** rather than adding it here — same policy as
+  Task 06 follows for `emptyState.renamed`. Never hardcode the text: the plugin is bilingual.
 - Task 07 → the board already renders from `board.groupOrder`, which is what makes a partial save
   chain destructive rather than merely incomplete.
 
@@ -213,6 +252,16 @@ its only Obsidian dependency is a type-only import in `pluginStore.ts`, which is
   that is the intended order, do not pre-fix them here and do not treat the full Playwright run as
   this task's gate. Only `tests/e2e/core.spec.ts` (which does not touch popup rows) is.
 - **Whitespace-only name** equals empty: the group falls back to the default localized name.
+- **An untouched name stays empty.** Saving the popup for any other reason — a visibility toggle,
+  a full-width toggle, a board-title edit — must not turn empty titles into stored defaults. This
+  follows automatically as long as the field binds the raw title (step 4) and `updateBoard` only
+  trims and caps what it is given.
+- **`groupOrder` is written to the store without sanitization, and that is intentional** — the
+  asymmetry with titles (which *are* normalized right next to it) is deliberate, not an
+  oversight. The popup can only ever produce a permutation of the six known ids, and Task 03
+  sanitizes the field on every load, outside any version branch (Decision 6), so damaged data is
+  repaired at the entry point that actually sees untrusted input. Do not duplicate that sanitizer
+  inside `updateBoard`.
 - **Duplicate names across groups are allowed** — no warning, no validation.
 - **Last visible group** still cannot be hidden (`isLastVisible`, line 55) — preserve the disabled
   checkbox and its tooltip.
@@ -226,7 +275,9 @@ its only Obsidian dependency is a type-only import in `pluginStore.ts`, which is
 **Implementation hints:**
 
 - Seed local state from the `board` prop the way the existing code does (`[...board.hiddenGroups]`,
-  `Object.fromEntries(GROUP_IDS.map(...))`) — copy, never mutate the prop.
+  `Object.fromEntries(GROUP_IDS.map(...))`) — copy, never mutate the prop. For `groupTitles` the
+  seeded value is `board.groups[id].title` verbatim (`?? ''` only as a defensive default), with
+  no resolution step in between.
 - Key the row loop by group id so Svelte reuses row DOM when the order changes.
 - Arrows are `<button>` elements with `disabled` bound to the helper's enabled-state result, and
   accessible labels from i18n — not bare characters in a `<span>`.
