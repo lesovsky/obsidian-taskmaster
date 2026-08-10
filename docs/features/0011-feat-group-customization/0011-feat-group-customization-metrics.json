@@ -18,9 +18,9 @@
       "human_wait_time_min": 0
     },
     "tech_spec": {
-      "status": "in_progress",
+      "status": "completed",
       "started": "2026-08-06 21:10:00",
-      "ended": null,
+      "ended": "2026-08-06 22:30:00",
       "human_wait_time_min": 0
     },
     "task_decomposition": null,
@@ -29,7 +29,8 @@
   },
   "quality": {
     "validation_rounds": {
-      "user_spec": 3
+      "user_spec": 3,
+      "tech_spec": 2
     },
     "validation_findings": {
       "critical": 3,
@@ -48,7 +49,7 @@
     "interview_questions": 39,
     "tasks_count": 0,
     "waves_count": 0,
-    "agents_spawned": 8,
-    "commits_count": 4
+    "agents_spawned": 18,
+    "commits_count": 8
   }
 }

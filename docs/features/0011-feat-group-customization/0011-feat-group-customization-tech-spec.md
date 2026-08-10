@@ -1,6 +1,6 @@
 ---
 created: 2026-08-06
-status: draft
+status: approved
 branch: feature/group-customization
 size: L
 ---
