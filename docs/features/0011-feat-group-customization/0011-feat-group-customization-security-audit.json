@@ -1,0 +1,54 @@
+{
+  "status": "approved",
+  "mode": "tech-spec architecture review",
+  "scope": "docs/features/0011-feat-group-customization/0011-feat-group-customization-tech-spec.md (code not yet written)",
+  "threatModel": "Local Obsidian plugin. No network, no server, no auth, no multi-tenancy. Single trust boundary: the user's own input into their own local data.json. OWASP categories A01, A02, A05, A07, A09, A10 are not applicable — there is no access control surface, no crypto, no server config, no session, no audit-trail requirement and no outbound request in this feature.",
+  "summary": {
+    "totalFindings": 1,
+    "critical": 0,
+    "major": 0,
+    "minor": 1
+  },
+  "findings": [
+    {
+      "severity": "minor",
+      "category": "best-practice",
+      "title": "Load-time sanitization covers groupOrder elements but not field types or title length",
+      "description": "Decision 6 defines sanitization only at the element level for `groupOrder` (drop unknown ids, collapse duplicates, append missing ids) and states its goal explicitly: \"the board must open\". It does not define behavior when the field itself is the wrong shape — `groupOrder` absent, `null`, or a non-array — even though Backward Compatibility promises that \"sanitization runs on every load, not only during migration, so data damaged later is repaired too\". A straightforward implementation (`board.groupOrder.filter(...)`) throws on a non-array, which is precisely the outcome Decision 6 set out to prevent. The same gap applies to `Group.title`: the Data Models section states the constraint \"stored trimmed, at most 40 characters\", but the only enforcement named anywhere in the spec or user-spec is the `maxlength` attribute on the popup input (user-spec line 101, \"лишнее не вводится\"). Data already in data.json is never re-checked, so a non-string or over-long title survives load unvalidated. Note this is asymmetric with `groupOrder`, which the spec does re-check every load. The Testing Strategy sanitization cases list only element-level defects, so no test would catch either case.",
+      "location": "Section: Decisions / Decision 6; Section: Data Models; Section: Testing Strategy / Unit tests; Task 1",
+      "impact": "Requires a hand-edited or partially-written data.json — there is no remote attacker in this model. Worst case is availability, not confidentiality or integrity: `migrateData` throws during load, the board does not open. User data is not lost, since a throw during load means `saveData()` is never reached and data.json is not overwritten. An over-long title degrades layout only (the board header truncates with ellipsis per user-spec line 165).",
+      "recommendation": "Have the sanitizer accept `unknown` and fall back to defaults rather than assume shape: `const raw = Array.isArray(board.groupOrder) ? board.groupOrder : []; board.groupOrder = [...new Set(raw.filter((id): id is GroupId => GROUP_IDS.includes(id as GroupId)))]; for (const id of GROUP_IDS) if (!board.groupOrder.includes(id)) board.groupOrder.push(id);` — this handles missing, null, non-array, unknown ids and duplicates in one path. For titles, normalize on load in the same migration pass: `group.title = typeof group.title === 'string' ? group.title.trim().slice(0, 40) : ''`. Add two unit cases to Task 1: `groupOrder` is not an array, and `title` is not a string.",
+      "cwe": "CWE-20"
+    }
+  ],
+  "verifiedNoIssue": [
+    {
+      "check": "A03 Injection / XSS via the new group title",
+      "result": "No risk. The spec routes the title to four display sites (`GroupHeader`, `CollapsibleGroup`, `GroupSettingsPopup`, `BoardSettingsPopup`) plus `EmptyState`, all Svelte components resolving `group.title || $groupLabels[groupId]` at render time. No `{@html}`, no `innerHTML`, no dynamic style string built from the title — verified: `grep -rn '@html|innerHTML' src/` returns nothing in the current codebase, and the spec introduces neither. Svelte 4 auto-escapes both text interpolation and attribute values. The CLAUDE.md convention is upheld. The title is also not used to build any CSS value: per Decision 1 the `order` property is derived from position in `groupOrder`, a number, and per Decision 3 the test hook is `data-group-container` keyed by group id, not by name. Task 9 explicitly moves E2E locators off displayed names onto ids, which removes the only place user text was being fed into a selector."
+    },
+    {
+      "check": "Input validation adequacy (trim, length limit, empty handling)",
+      "result": "Adequate for the threat model, with one defense-in-depth layer already designed in: the Testing Strategy requires that title resolution treat a whitespace-only title as empty, so display does not depend on the save-path trim alone. Duplicate titles are explicitly allowed (user-spec line 121) and carry no security meaning here — group identity is the `GroupId` literal, never the title, so a renamed or duplicated title cannot cause a group confusion. Consistent with existing precedent: `Board.title` (maxlength 200) and `Board.subtitle` (maxlength 500) are already free-form user input handled the same way."
+    },
+    {
+      "check": "Data integrity — migration v7 to v8 and groupOrder sanitization vs. task loss",
+      "result": "No task-loss path. Traced the plausible catastrophic route and it is absent: `groupOrder` is a presentation-only array of six ids and never drives `board.groups` membership or `taskIds`. Sanitization appends any missing id rather than dropping the group, so no group can disappear from render. Critically, `cleanupOrphanedTasks` (src/data/cleanup.ts) collects live ids by iterating `Object.values(board.groups)` — not `groupOrder` — so even a fully corrupt order array cannot make a task look orphaned and get deleted. `cleanupCompletedTasks` reads `board.groups.completed` directly, likewise unaffected. The migration adds fields only (`title: ''`, `groupOrder: [...GROUP_IDS]`), touching no task data, and Task 1's test list asserts \"tasks are untouched\" explicitly. Down-migration is correctly identified as unnecessary — an older plugin reading v8 ignores unknown fields. The version bump is applied consistently (Decision 9)."
+    },
+    {
+      "check": "Sensitive data — logging and storage",
+      "result": "Clean. The spec contains no logging, telemetry, network call or new persistence target — `grep -i 'console\\.|log(|logger|telemetry|fetch(|http'` over the tech-spec returns nothing. Group titles are user-authored labels stored in the same local data.json that already holds task titles and descriptions; no new data class and no new storage surface is introduced. Decision 6 deliberately keeps sanitization silent, so malformed data is not echoed anywhere either."
+    },
+    {
+      "check": "A06 Vulnerable and outdated components",
+      "result": "Confirmed: 'New packages: None.' No addition to package.json dependencies or devDependencies — the only package.json change is an `engines` field (Decision 7). Decision 7 is a net security improvement rather than a risk: it pins Node >= 22.12 (active LTS) and rejects the alternative of rolling the test runner back to stay on Node 18, which reached end-of-life and no longer receives security patches. The `.nvmrc` plus `engines` pin prevents the runtime drift from recurring."
+    },
+    {
+      "check": "Hardcoded secrets",
+      "result": "None. No credentials, tokens, keys or connection strings appear in the spec; the feature has no component that would need one."
+    },
+    {
+      "check": "A08 Software and data integrity",
+      "result": "No new deserialization surface. Data continues to flow through Obsidian's existing `loadData()`/`saveData()` JSON path; this feature adds fields to that document but introduces no new parser, no eval, and no dynamic import. The migration pipeline order (migrate, then cleanup) is unchanged."
+    }
+  ]
+}
