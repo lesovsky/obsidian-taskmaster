@@ -12,9 +12,9 @@
   },
   "phases": {
     "user_spec": {
-      "status": "in_progress",
+      "status": "completed",
       "started": "2026-08-06 16:53:20",
-      "ended": null,
+      "ended": "2026-08-06 21:05:00",
       "human_wait_time_min": 0
     },
     "tech_spec": null,
@@ -43,7 +43,7 @@
     "interview_questions": 39,
     "tasks_count": 0,
     "waves_count": 0,
-    "agents_spawned": 0,
-    "commits_count": 0
+    "agents_spawned": 8,
+    "commits_count": 4
   }
 }
