@@ -1,5 +1,5 @@
 ---
-status: planned                    # planned -> in_progress -> done
+status: done                    # planned -> in_progress -> done
 depends_on: ["02", "03", "04", "05", "07"]     # ID задач-зависимостей (строки: ["01", "02"])
 wave: 5                            # волна параллельного выполнения
 skills: [code-writing]             # МАССИВ скиллов для загрузки
@@ -115,34 +115,53 @@ its only Obsidian dependency is a type-only import in `pluginStore.ts`, which is
   subtitle, hiddenGroups, notesHidden and per-group fullWidth keep their current behavior after
   the signature change (regression guard for the chain edit).
 
+## Дополнительное требование, выявленное при выполнении волны 2
+
+Список скрытых групп доски нигде не санируется. Миграция трогает это поле только в
+исторической ветке и только при строго отсутствующем значении, поэтому на текущих данных оно
+не проверяется вовсе. Попап копирует его в локальное состояние спредом при инициализации —
+и на повреждённом значении (например, `null` после ручной правки файла данных) падает там же,
+до того как управление дойдёт до логики перестановки. Это делает бесполезной защиту внутри
+чистых функций: они получают управление слишком поздно.
+
+Требование: при инициализации локального состояния попап должен принимать список скрытых
+групп в любом виде и приводить его к массиву известных идентификаторов — по тому же принципу,
+по которому загрузка данных обходится с порядком групп. Симметрия здесь не косметическая:
+оба поля хранят идентификаторы групп, оба правятся руками в файле данных, и оба ведут к
+пустому экрану вместо доски.
+
+Также учесть контракт функций перестановки: если на вход придёт не массив, перенос вернёт
+пустой массив — единственный случай, когда результат не совпадает со входом при отрицательном
+предикате. Записывать результат перестановки только когда предикат вернул истину.
+
 ## Acceptance Criteria
 
-- [ ] Every group row in the board settings popup has a name input and a pair of move arrows.
-- [ ] The name input holds the raw stored title — it is **empty** for a group that was never
+- [x] Every group row in the board settings popup has a name input and a pair of move arrows.
+- [x] The name input holds the raw stored title — it is **empty** for a group that was never
       renamed — shows the default localized name as its grey placeholder, and refuses input
       beyond 40 characters.
-- [ ] Opening the popup and saving without editing any name leaves every `Group.title` empty in
+- [x] Opening the popup and saving without editing any name leaves every `Group.title` empty in
       `data.json` (verifiable by inspecting the persisted board), so untouched groups keep
       falling back to their localized defaults and still retranslate on a language switch.
-- [ ] Clearing a name and saving returns the group to its default localized name.
-- [ ] Rows are rendered in `board.groupOrder`; hidden groups keep their positions instead of
+- [x] Clearing a name and saving returns the group to its default localized name.
+- [x] Rows are rendered in `board.groupOrder`; hidden groups keep their positions instead of
       moving to the end, and the order survives reopening the popup.
-- [ ] A visible group's arrow swaps it with the nearest *visible* neighbour, skipping hidden ones;
+- [x] A visible group's arrow swaps it with the nearest *visible* neighbour, skipping hidden ones;
       a hidden group's arrow swaps it with its immediate list neighbour.
-- [ ] An arrow is disabled when there is nowhere to move in that direction; a single visible group
+- [x] An arrow is disabled when there is nowhere to move in that direction; a single visible group
       has both arrows disabled.
-- [ ] Toggling visibility changes both the row's dimming and its arrow behavior immediately,
+- [x] Toggling visibility changes both the row's dimming and its arrow behavior immediately,
       without saving.
-- [ ] Each group row carries `data-settings-group="{groupId}"`, and that attribute name is used
+- [x] Each group row carries `data-settings-group="{groupId}"`, and that attribute name is used
       nowhere else in the codebase.
-- [ ] With all rows present the popup stays inside the viewport and its body scrolls vertically.
-- [ ] Save writes names and order to `data.json`; Cancel and an overlay click discard both.
-- [ ] `updateBoard` trims titles and caps them at 40 characters regardless of the entry point, and
+- [x] With all rows present the popup stays inside the viewport and its body scrolls vertically.
+- [x] Save writes names and order to `data.json`; Cancel and an overlay click discard both.
+- [x] `updateBoard` trims titles and caps them at 40 characters regardless of the entry point, and
       calls `persist()`.
-- [ ] The task counter still appears only when a group has more than zero tasks.
-- [ ] Existing visibility and full-width toggles keep working, including the "last visible group
+- [x] The task counter still appears only when a group has more than zero tasks.
+- [x] Existing visibility and full-width toggles keep working, including the "last visible group
       cannot be hidden" rule.
-- [ ] `npm run build`, `npm test`, `npx playwright test tests/e2e/core.spec.ts` and
+- [x] `npm run build`, `npm test`, `npx playwright test tests/e2e/core.spec.ts` and
       `npx tsc --noEmit` all pass, in that order.
 
 ## Context Files
@@ -298,6 +317,6 @@ its only Obsidian dependency is a type-only import in `pluginStore.ts`, which is
 
 ## Post-completion
 
-- [ ] Записать краткий отчёт в [0011-feat-group-customization-decisions.md](docs/features/0011-feat-group-customization/0011-feat-group-customization-decisions.md) (Summary: 1-3 предложения, ревью со ссылками на JSON, без таблиц файндингов и дампов)
-- [ ] Если отклонились от спека — описать отклонение и причину
-- [ ] Обновить user-spec/tech-spec если что-то изменилось
+- [x] Записать краткий отчёт в [0011-feat-group-customization-decisions.md](docs/features/0011-feat-group-customization/0011-feat-group-customization-decisions.md) (Summary: 1-3 предложения, ревью со ссылками на JSON, без таблиц файндингов и дампов)
+- [x] Если отклонились от спека — описать отклонение и причину
+- [x] Обновить user-spec/tech-spec если что-то изменилось

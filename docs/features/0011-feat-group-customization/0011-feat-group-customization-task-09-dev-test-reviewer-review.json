@@ -1,0 +1,46 @@
+{
+  "reviewer": "dev-test-reviewer",
+  "status": "passed",
+  "summary": "Commit a7a1b75 is a clean, non-weakening locator migration. All seven scrutiny points check out: (1) no body-addressing [data-group-id] locator was repointed at the wrapper — every such locator in helpers.ts, core.spec.ts, 0006 and 0008 is byte-identical in content (only line numbers shifted by +1/-5 from the added import and the deleted constant), and the four document.querySelector helpers in 0008 are identical down to their line numbers (25, 35, 43, 183); (2) scenario count is exactly 84 (17+16+16+35) before and after, no skip/fixme/only anywhere, and exactly two expect lines were touched — both 1:1 replacements that keep toBeVisible(); (3) 0006 Sc.3 and Sc.14 still target the header ('[data-group-container=\"backlog\"] .tm-collapsible-group__header'), a descendant of the wrapper and a sibling of the absent body, so the 'header visible while body absent' intent is preserved and the assertion still fails on zero matches; (4) no .first() or .nth() was added or removed, and every migrated locator resolves to exactly one element (Playwright strict mode would otherwise fail the 12 expect() sites that use them); (5) expandGroup keeps the isVisible() body guard ahead of the header lookup, so non-collapsible groups still short-circuit; (6) no group or popup row is addressed by display name anywhere under tests/e2e/ — the five surviving hasText filters are all button labels (Cancel, Delete board, No, Confirm deletion), and the remaining 'Backlog'/'In Progress' string literals in core.spec.ts are toHaveText/toContainText assertions on rendered titles, not locators; (7) src/ is untouched. Full suite re-run: 84 passed in 26.9s. The three findings below are all low-severity observations, two of which are follow-up items outside this task's mandate; none blocks acceptance. Note on incidental coverage: the old Sc.3/Sc.14 header locators also proved, as a side effect, that the backlog header rendered the text 'Backlog'; that side effect is gone, but the binding is still asserted directly by core.spec.ts:253-255 ('.tm-collapsible-group:has([data-group-id=\"backlog\"]) .tm-collapsible-group__title' toHaveText 'Backlog'), so no real coverage was lost.",
+  "findings": [
+    {
+      "severity": "minor",
+      "category": "anti_pattern",
+      "location": "tests/e2e/0007-dynamic-layout.spec.ts:19-24 (getGroupWrapperClass), tests/e2e/0007-dynamic-layout.spec.ts:280 (Sc.21)",
+      "issue": "The old wrapper lookups keyed on content ('.tm-task-group:has([data-group-id=\"X\"])' then '..', or the collapsible header text then '..'/'..'), so they implicitly verified that the wrapper carrying the layout class actually contains group X's body. The new lookup keys on the wrapper's own data-group-container attribute, so a regression that paired a wrapper with the wrong group's content would no longer be caught by isHalf/isHalfAlone/isFull or by the Sc.21 boundingBox. This is the trade-off the task explicitly asked for (remove the .locator('..') hops) and the risk is close to theoretical — BoardLayout.svelte:207-298 hardcodes the wrapper-to-child pairing literally, and 0006 Sc.10/Sc.11 (lines 178, 186) still reach the wrapper through ':has([data-group-id])' and therefore retain the pairing check for focus and inProgress.",
+      "recommendation": "No change to this commit. If the pairing is ever considered worth an explicit guard, add one dedicated assertion in Task 10 rather than reintroducing the '..' hops — e.g. for each id in GROUP_IDS: await expect(page.locator(`[data-group-container=\"${id}\"] [data-group-id]`)).toHaveAttribute('data-group-id', id). One assertion covers all six pairings and costs nothing in the other 16 scenarios.",
+      "litmusTestFailed": false
+    },
+    {
+      "severity": "minor",
+      "category": "anti_pattern",
+      "location": "tests/e2e/0006-group-visibility.spec.ts:71 (Sc.2)",
+      "issue": "expect(inProgressRow.locator('.tm-popup__group-count')).not.toBeVisible() passes vacuously if the row locator '[data-settings-group=\"inProgress\"]' matches nothing at all — not.toBeVisible() is satisfied by a missing element. A typo or a renamed group id would turn this half of the scenario into a silent pass. The shape is pre-existing (the old filter({ hasText: 'In Progress' }) had the identical weakness), so the migration neither introduced nor worsened it, and the 'inProgress' spelling is independently proven correct by 0007 Sc.4:78, which clicks a toggle inside '[data-settings-group=\"inProgress\"]' — a click on zero elements times out.",
+      "recommendation": "Follow-up, not this task (the task forbids touching assertions). In Task 10 or a cleanup pass, anchor the negative assertion by proving the row exists first: 'await expect(inProgressRow).toBeVisible(); await expect(inProgressRow.locator('.tm-popup__group-count')).toHaveCount(0);'. toHaveCount(0) also states the intent ('no counter is rendered') more precisely than not.toBeVisible().",
+      "litmusTestFailed": true
+    },
+    {
+      "severity": "minor",
+      "category": "missing_coverage",
+      "location": "tsconfig.json (include: [\"src/**/*.ts\", \"src/**/*.svelte\"]) vs tests/e2e/0006-group-visibility.spec.ts:20,32 and tests/e2e/0007-dynamic-layout.spec.ts:19,41",
+      "issue": "The task's implementation hint claims that typing hideGroup/showGroup/setFullWidth as GroupId 'makes a missed call site a compile error rather than a runtime timeout'. In this repository that protection does not actually exist: tsconfig.json includes only src/**, there is no tsconfig for tests and no typecheck script in package.json, and Playwright transpiles TS with esbuild without type checking. The GroupId annotations are therefore documentation only — an invalid id string would still surface as a 30s timeout, exactly the failure mode the typing was meant to replace. The migration itself is complete (grep confirms zero display-name call sites survive), so nothing is broken today; the gap is that the safety net the task relied on is not wired up.",
+      "recommendation": "Out of scope for Task 09 (no new files, tests-only diff). For the feature wrap-up: add tests/tsconfig.json extending the root config with include ['**/*.ts'] and a 'typecheck': 'tsc --noEmit && tsc --noEmit -p tests' script, then run it alongside npx playwright test in the verification step. Until then, treat 'grep -rn \"data-settings-group=\\|data-group-container=\" tests/e2e/' as the manual substitute for the compile gate.",
+      "litmusTestFailed": false
+    }
+  ],
+  "metrics": {
+    "filesReviewed": 8,
+    "litmusTest": {
+      "checked": 84,
+      "passed": 83,
+      "failed": 1
+    },
+    "coverageAssessment": "adequate",
+    "pyramidBalance": {
+      "unit": 111,
+      "integration": 0,
+      "e2e": 84,
+      "assessment": "healthy"
+    }
+  }
+}

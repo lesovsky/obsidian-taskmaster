@@ -1,0 +1,51 @@
+{
+  "reviewer": "dev-code-reviewer",
+  "status": "approved_with_suggestions",
+  "summary": "Task 08 is implemented correctly and completely: the save chain is type-consistent across all three links, the name input binds the raw stored title with the localized default only as placeholder (no resolveGroupTitle, no inlined fallback), reordering goes exclusively through groupOrderUtils with the result written only when canMoveGroup returns true, and normalization sits at the store boundary via the same sanitizeGroupTitle the loader uses. All gates pass (npm run build, npm test 94/94 including the 6 TDD anchors, playwright core.spec.ts 35/35, npx tsc --noEmit clean), and every acceptance criterion was verified empirically in the harness browser — row order, placeholder/maxlength, blank save keeping all six titles empty, save/cancel semantics, dimming, arrow skipping and disabled states, notes-row grid alignment, 80vh scrolling, and 40-char names not growing the row. Findings are four minor polish items; none block.",
+  "criticalIssues": [],
+  "suggestions": [
+    {
+      "file": "src/ui/BoardSettingsPopup.svelte",
+      "line": 98,
+      "severity": "minor",
+      "category": "maintainability",
+      "suggestion": "The arrow predicate runs against the full `groupOrder` while rows render from `presentGroups`, so in the hand-edited case where a group object was deleted from `board.groups` an arrow can be enabled yet produce no visible change. Verified in the harness: with `board.groups.delegated` removed, the `orgIntentions` down arrow is enabled, and clicking it swaps `orgIntentions` with the unrendered `delegated`, leaving the visible row list identical. Everything else in that scenario behaves correctly — no exception, no data loss, and the save writes the full six-id order. If it is worth closing, feed the arrows the same filtered list the rows use (`canMoveGroup(presentGroups, ...)`) and merge the result back into `groupOrder`; alternatively leave it, since the state is already degraded and self-repairs on the next load via sanitizeGroupOrder.",
+      "benefit": "Removes the one case where a control looks live but does nothing.",
+      "optional": true
+    },
+    {
+      "file": "src/stores/dataStore.ts",
+      "line": 200,
+      "severity": "minor",
+      "category": "maintainability",
+      "suggestion": "The save-chain field shape is now an inline object type written out three times (BoardSettingsPopup `onSave` prop, BoardHeader `saveSettings` parameter, `updateBoard` signature), with `fullWidths` renamed to `groupFullWidths` in the middle link. Two of the three sites live in `.svelte` files, which Decision 11 explicitly leaves outside static type checking, so a future field addition that updates only part of the chain would compile, build and pass `tsc --noEmit` while writing `undefined` into the board — exactly the failure mode the task description warns about. Exporting one named type (e.g. `BoardSettingsFields` in `src/data/types.ts`) consumed by all three would make the popup end of the chain the single declaration site. Noted as optional because CLAUDE.md asks for the minimum change that solves the problem, and the task deliberately specified mirroring the shape rather than extracting it.",
+      "benefit": "Turns the one boundary the codebase cannot type-check into a single declaration, so the next field cannot be half-wired.",
+      "optional": true
+    },
+    {
+      "file": "src/styles.css",
+      "line": 723,
+      "severity": "minor",
+      "category": "maintainability",
+      "suggestion": "`.tm-popup__group-header-move` sets `font-size` and `color` on a span that is always empty (`<span class=\"tm-popup__group-header-move\"></span>`), so the rule has no rendered effect. The class itself is worth keeping as the grid placeholder; the two declarations inside it are dead.",
+      "benefit": "Two fewer lines of stylesheet that suggest a visual intent that does not exist.",
+      "optional": true
+    },
+    {
+      "file": "src/ui/BoardSettingsPopup.svelte",
+      "line": 90,
+      "severity": "minor",
+      "category": "best-practices",
+      "suggestion": "Two small a11y/UX overlaps in the widened row: (1) the row's `title` attribute (\"cannot hide last group\") is inherited by the whole row, so it now also pops up while hovering the name input and the move arrows, where it is unrelated — moving it onto the visibility checkbox would scope it to the control it describes; (2) the name input's `aria-label` and `placeholder` carry the same `$groupLabels[groupId]` text, which some screen readers announce twice. Both are cosmetic and neither contradicts the spec.",
+      "benefit": "Tooltips and announcements describe the control under the pointer rather than the row it happens to sit in.",
+      "optional": true
+    }
+  ],
+  "metrics": {
+    "filesReviewed": 5,
+    "criticalIssuesCount": 0,
+    "majorIssuesCount": 0,
+    "minorIssuesCount": 4,
+    "testCoverageAssessment": "adequate"
+  }
+}

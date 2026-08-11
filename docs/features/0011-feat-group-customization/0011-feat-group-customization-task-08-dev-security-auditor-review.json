@@ -1,0 +1,61 @@
+{
+  "status": "approved",
+  "summary": {
+    "totalFindings": 5,
+    "critical": 0,
+    "major": 1,
+    "minor": 4
+  },
+  "findings": [
+    {
+      "severity": "major",
+      "category": "A04:2021 Insecure Design (input validation at the wrong trust boundary)",
+      "title": "board.hiddenGroups is still never sanitized at load — a non-iterable value makes the whole board unrenderable, and the new popup-side guard cannot be reached in that state",
+      "description": "Task 08 added a guard for hand-edited `hiddenGroups`, but placed it only in the popup's local-state seed (BoardSettingsPopup.svelte:24-26). The loader still leaves the field untouched: migrateData() only fills it when it is `undefined` inside the historical `version < 4` branch (migration.ts:101-108), and the unconditional sanitization block at migration.ts:154-159 covers `groupOrder` and `group.title` but not `hiddenGroups`. Verified by running migrateData() over v8 data with a corrupted field: `null`, `{}`, `42`, `true`, `'focus'` and `['focus','__proto__','focus']` all pass through unchanged.\n\nThe consumer that runs first is BoardLayout.svelte:21, `$: hidden = new Set(board.hiddenGroups)`. Measured results: `null` -> empty Set (survives), `'focus'` -> Set of 5 characters (survives, groups all visible), but `{}` / `42` / `true` -> `TypeError: ... is not iterable`. That throw happens inside a reactive statement executed during component init, i.e. while App.svelte is creating its children, so the failure is not contained to BoardLayout — the App subtree (including BoardHeader and its settings gear) does not mount.\n\nNet effect: the exact class of corruption the guard was written for splits in two. For `hiddenGroups: null` the new guard is genuinely load-bearing (the old `[...board.hiddenGroups]` threw, the board did not) and saving the popup even repairs data.json. For any non-iterable value the board dies before render and the popup — the only place that now knows how to normalize the field — is unreachable, so there is no in-app recovery path at all. The tech-spec's own argument for Decision 6/7 (\"the input cap alone protects only fresh input, leaving hand-edited data unchecked — an asymmetry with groupOrder, which is re-validated on every load\") applies verbatim to `hiddenGroups`; the symmetry the task text asked for was implemented one layer too high.\n\nNot introduced by this commit — `new Set(board.hiddenGroups)` dates to d9304a3 — and the task's literal wording (\"попап должен принимать список скрытых групп в любом виде\") is satisfied, which is why this is major rather than critical.",
+      "location": "src/data/migration.ts:154 (sanitization block), src/ui/BoardLayout.svelte:21, src/ui/BoardSettingsPopup.svelte:24",
+      "impact": "A hand-edited or corrupted data.json with `hiddenGroups` set to an object, number or boolean leaves the TaskMaster view blank with no way to reach board settings. The user must find and repair data.json by hand. Data is not lost, but the plugin is unusable until then.",
+      "recommendation": "Add a `sanitizeHiddenGroups(value: unknown): GroupId[]` next to `sanitizeGroupOrder` in src/data/migration.ts and call it in the same unconditional loop:\n\n```ts\nexport function sanitizeHiddenGroups(value: unknown): GroupId[] {\n  if (!Array.isArray(value)) return [];\n  return (value as unknown[]).filter((id): id is GroupId => GROUP_IDS.includes(id as GroupId));\n}\n\n// migration.ts:154\nfor (const board of result.boards) {\n  board.groupOrder = sanitizeGroupOrder(board.groupOrder);\n  board.hiddenGroups = sanitizeHiddenGroups(board.hiddenGroups);\n  ...\n}\n```\n\nOnce that exists the popup's own guard becomes redundant defense-in-depth and can stay as-is. This edit is outside Task 08's declared files (src/data/migration.ts belongs to Task 03), so it belongs in a follow-up task rather than a fix round on this commit.",
+      "cwe": "CWE-20"
+    },
+    {
+      "severity": "minor",
+      "category": "A04:2021 Insecure Design",
+      "title": "board.title and board.subtitle are copied into popup local state without a type guard and throw at popup init on a non-string value",
+      "description": "The parent asked which fields the popup copies into local state can crash it. Beyond the group fields, `let title = board.title` (line 18) and `let subtitle = board.subtitle` (line 19) are copied verbatim, and both are then used as strings: `$: canSave = title.trim().length > 0` (line 40) runs during component init, and `subtitle.trim()` runs in handleSave (line 55). Neither field is sanitized anywhere on load — migrateData never touches them. A hand-edited `\"title\": null` therefore throws the moment the settings popup is created, which in Svelte 4 propagates out of the click handler's flush and breaks the view rather than just the dialog.\n\nSame failure class as the `hiddenGroups` spread that this task hardened, one line above it. Pre-existing (lines 18-19 are unchanged by this commit) and lower impact than the finding above — the board itself still renders, only the settings dialog is lost — so it is recorded as minor.",
+      "location": "src/ui/BoardSettingsPopup.svelte:18-19, 40, 55",
+      "impact": "A corrupted board title or subtitle in data.json makes the board settings dialog unopenable — which is also the dialog the user would need to fix the board.",
+      "recommendation": "Seed defensively, matching the style already used for the group fields on lines 24-36:\n\n```ts\nlet title = typeof board.title === 'string' ? board.title : '';\nlet subtitle = typeof board.subtitle === 'string' ? board.subtitle : '';\n```\n\nOr, preferably and consistently with Decision 7, normalize both in the loader alongside the group titles.",
+      "cwe": "CWE-20"
+    },
+    {
+      "severity": "minor",
+      "category": "best-practice",
+      "title": "updateBoard stores caller-owned arrays by reference into persisted state",
+      "description": "`board.hiddenGroups = fields.hiddenGroups` (dataStore.ts:206) and `board.groupOrder = fields.groupOrder` (dataStore.ts:211) install the popup component's live local arrays into the persisted data structure — BoardHeader forwards them untouched via `{ ...fields, groupFullWidths }` (BoardHeader.svelte:27). By contrast `groupFullWidths` is rebuilt into a fresh object and `groupTitles` values are copied through sanitizeGroupTitle, so only these two fields alias.\n\nNot exploitable today: BoardHeader sets `showSettings = false` immediately after the call, so the popup unmounts and its handlers (`moveGroup` returns a new array, the visibility toggle reassigns via spread/filter) never mutate in place anyway. The risk is future-shaped — any later in-place `push`/`splice` on the popup's local array would silently rewrite persisted board state without a `persist()` call, producing a store/disk divergence that survives until the next unrelated save.",
+      "location": "src/stores/dataStore.ts:206,211",
+      "impact": "Latent: a future in-place edit of the popup's local arrays would mutate persisted data outside the persist() contract, with no error and no test able to see it.",
+      "recommendation": "Copy at the store boundary, which is also where Decision 7 already puts title normalization: `board.hiddenGroups = [...fields.hiddenGroups];` and `board.groupOrder = [...fields.groupOrder];`. This is not the duplicate sanitizer that Decision 6 rules out — it is a copy, not a validation.",
+      "cwe": "CWE-1188"
+    },
+    {
+      "severity": "minor",
+      "category": "A03:2021 Injection (display spoofing, not script execution)",
+      "title": "sanitizeGroupTitle normalizes length and surrounding whitespace but not control or bidi characters",
+      "description": "sanitizeGroupTitle (migration.ts:38-46) trims, caps at 40 UTF-16 units and correctly drops a lone high surrogate left by the cap, but passes through interior control characters (U+0000-U+001F, including newline and tab) and Unicode bidi overrides (U+202A-U+202E, U+2066-U+2069) and zero-width characters. Such a title is stored and then rendered into the group header (GroupHeader.svelte:19), the collapsible group header (CollapsibleGroup.svelte:42), the group settings heading (GroupSettingsPopup.svelte:30) and back into the popup's edit field.\n\nNot reachable through the new input — `<input type=\"text\">` strips newlines from pasted values — so this only applies to hand-edited data.json, which is the declared threat model. No script execution is possible: every site uses `{}` interpolation, Svelte escapes it, and there is no `{@html}` anywhere in src/ (the only match is a comment in groupTitle.ts warning against it).",
+      "location": "src/data/migration.ts:45",
+      "impact": "A hand-edited title containing an RLO/LRO override can reverse the rendering of neighbouring header text, and control characters can mangle the group header layout. Cosmetic/spoofing only, self-inflicted under this threat model.",
+      "recommendation": "Strip the two ranges inside the existing sanitizer, before the length cap so the cap still counts visible characters:\n\n```ts\nreturn value\n  .replace(/[\\u0000-\\u001F\\u007F\\u200B-\\u200F\\u202A-\\u202E\\u2066-\\u2069]/g, '')\n  .trim()\n  .slice(0, GROUP_TITLE_MAX_LENGTH)\n  .replace(/[\\uD800-\\uDBFF]$/, '');\n```\n\nLow priority; migration.ts is outside Task 08's file list, so fold it into the same follow-up as the hiddenGroups sanitizer if it is taken at all.",
+      "cwe": "CWE-838"
+    },
+    {
+      "severity": "minor",
+      "category": "best-practice",
+      "title": "The group name input's aria-label is always the default localized label, never the current name",
+      "description": "The name input carries `aria-label={$groupLabels[groupId]}` (BoardSettingsPopup.svelte:117) while `placeholder` uses the same value (line 115). Both values come from i18n dictionaries, not from user data, so there is no attribute-injection surface here — this is the answer to the 'are placeholder/aria-label/title attributes safe' question, and they are, at all three sites (row `title`, arrow `title`/`aria-label`, input `placeholder`/`aria-label`).\n\nThe issue is a correctness one: once a group is renamed, a screen reader announces the field as e.g. 'Focus' while it contains 'Долгострой', and six rows can end up with accessible names that no longer distinguish them from what is on screen. Recorded because the audit brief asked about these attributes; it is an accessibility nit, not a vulnerability.",
+      "location": "src/ui/BoardSettingsPopup.svelte:117",
+      "impact": "Screen-reader users get a stale field name after renaming a group. No security impact.",
+      "recommendation": "Either label the input from the column header semantics (a visually hidden `<label for>` per row) or keep the default label but add it as the row's accessible name rather than the input's — e.g. `aria-label={`${$t('boardSettings.groupName')}: ${$groupLabels[groupId]}`}`. Cosmetic; safe to defer.",
+      "cwe": null
+    }
+  ]
+}

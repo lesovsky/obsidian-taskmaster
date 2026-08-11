@@ -1,0 +1,31 @@
+{
+  "status": "approved",
+  "summary": {
+    "totalFindings": 2,
+    "critical": 0,
+    "major": 0,
+    "minor": 2
+  },
+  "findings": [
+    {
+      "severity": "minor",
+      "category": "best-practice",
+      "title": "No runtime array guard — the module's \"never throw\" property is conditional on the caller",
+      "description": "findSwapIndex calls order.indexOf(...), order.length, order[i] and hiddenGroups.includes(...) with no shape check. The declared parameter type GroupId[] is erased at build time, so a non-array value coming from a hand-edited data.json propagates straight into these calls. Verified by direct probe of the compiled module: order = null / undefined / {} and hiddenGroups = null / undefined / {} each raise an uncaught TypeError (e.g. \"Cannot read properties of null (reading 'indexOf')\", \"hiddenGroups.includes is not a function\"). Task 04, step 4 states the requirement more broadly than the acceptance criteria do — \"Keep the functions total and defensive: never throw\" — and that broader property does not hold. Reachability today is limited and is the reason this is minor, not major: board.groupOrder is re-sanitized on every load by sanitizeGroupOrder (src/data/migration.ts:152-157, outside every version branch), so `order` is always a clean permutation of the six ids; and Task 08 feeds the arrows a local array built by spreading board.hiddenGroups, which itself throws earlier for a null value. The module is therefore a second failure site, not the first one — but it is the only layer that could still make the settings popup fail on an already-open board, and the guard costs three lines. A second, quieter symptom of the same missing check: a string hiddenGroups does not throw at all — `.includes` silently switches to substring semantics, so \"focusBar\".includes(\"focus\") reports a group hidden when it is not, and arrows behave incorrectly without any visible error.",
+      "location": "src/ui/groupOrderUtils.ts:23-36 (findSwapIndex — order.indexOf at :23, hiddenGroups.includes at :26 and :34)",
+      "impact": "An uncaught TypeError inside a Svelte click handler on hand-corrupted data.json. In the settings popup this leaves the dialog in a half-rendered state with no user-facing message; the exception surfaces only in the developer console. No data loss (moveGroup never mutates its inputs) and no privilege or confidentiality consequence — this is availability of one dialog on locally corrupted data.",
+      "recommendation": "Add two cheap guards at the top of findSwapIndex, keeping both exported functions total for any input:\n\n  function findSwapIndex(order, groupId, direction, hiddenGroups) {\n    if (!Array.isArray(order) || !Array.isArray(hiddenGroups)) return -1;\n    const from = order.indexOf(groupId);\n    ...\n  }\n\nand make moveGroup tolerate a non-array order in its own copy step: `const next = Array.isArray(order) ? [...order] : [];`. With -1 returned, canMoveGroup already reports false and moveGroup already returns the order unchanged, so the existing agreement invariant is preserved for free. This also removes the string-hiddenGroups substring misbehaviour described above.",
+      "cwe": "CWE-20"
+    },
+    {
+      "severity": "minor",
+      "category": "best-practice",
+      "title": "hiddenGroups is never sanitized, so the invariant this module relies on is not enforced anywhere",
+      "description": "Adjacent-scope finding, raised because it is what makes finding 1 reachable at all. The feature sanitizes groupOrder and group titles on every load (src/data/migration.ts:152-157, deliberately outside the version branches, per tech-spec Decision 6), but hiddenGroups gets no equivalent treatment. The only code that ever touches it is the version < 4 branch (src/data/migration.ts:100-105), which (a) replaces the value only when it is strictly `undefined` — `null`, a string, or an object all pass through — and (b) does not run at all for data already at version 4 or above, which is every current install. Decision 6's own rationale (\"Handling only the array case would still throw on a hand-edited null — the very outcome this is meant to prevent\") applies verbatim to hiddenGroups, but the decision was scoped to groupOrder only. Concrete consequence with `\"hiddenGroups\": null` in a v8 data.json: the board itself still renders (BoardLayout.svelte:21 uses `new Set(board.hiddenGroups)`, and `new Set(null)` is legal and yields an empty set), but opening board settings throws at BoardSettingsPopup.svelte:14 `[...board.hiddenGroups]`. With `\"hiddenGroups\": {}` the spread throws as well. That failure predates this commit; what is new is that Task 08 will route the same unvalidated value into groupOrderUtils.",
+      "location": "src/data/migration.ts:100-105 and :152-157 (asymmetry with sanitizeGroupOrder); consumed at src/ui/groupOrderUtils.ts:26",
+      "impact": "Board settings become unreachable on a hand-corrupted or externally-synced data.json, with no message and no self-repair — the same class of failure Decision 6 was written to eliminate for groupOrder. Local availability only; no confidentiality or integrity impact.",
+      "recommendation": "Mirror the existing sanitizer for the visibility set and apply it in the same unconditional block, e.g.\n\n  export function sanitizeHiddenGroups(value: unknown): GroupId[] {\n    if (!Array.isArray(value)) return [];\n    return [...new Set(value.filter((id): id is GroupId => GROUP_IDS.includes(id as GroupId)))];\n  }\n\ncalled next to `board.groupOrder = sanitizeGroupOrder(board.groupOrder)` at src/data/migration.ts:153. This belongs to the migration/sanitization layer (Task 03 scope), not to Task 04 — file it against that layer rather than reopening this task. Keep the guard from finding 1 regardless: defence in depth is the point, and groupOrderUtils is unit-testable in isolation whereas the popup is not.",
+      "cwe": "CWE-20"
+    }
+  ]
+}

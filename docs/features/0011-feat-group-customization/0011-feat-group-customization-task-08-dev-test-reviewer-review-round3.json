@@ -1,0 +1,116 @@
+{
+  "reviewer": "dev-test-reviewer",
+  "round": 3,
+  "final": true,
+  "status": "passed",
+  "commit": "0edc923",
+  "previousCommit": "9c0ee19",
+  "summary": "Task 08's tests hold. Every mutant the orchestrator named was run independently in a throwaway worktree at 0edc923 (baseline 111/111, removed before writing this) and every one of them died: moveGroupWithinPresent delegating straight to moveGroup (2 tests red), three separate write-back shift-by-one variants (2-3 tests red), the value guard reverted to hasOwnProperty (1), `=== true` reverted to a raw assignment (1), the duplicate collapse removed (1). Both round-2 survivors are genuinely closed: persist() moved above the update block now fails 'persists the board after writing it' because the fake snapshots with JSON round-trip, and duplicate handling in sanitizeHiddenGroups is pinned in both directions — the collapse test also kills a Set that returns GROUP_IDS order instead of input order. Nine further mutants of my own were added; six more died (input array mutated in place; `moved` computed from `order` and filtered; returning moveGroup(presentGroups) directly, which would silently drop absent ids from the saved order — a data-loss shape, killed by 2 tests; `group === undefined` letting null through; a missing fullWidth key keeping the existing value) and three survived. Two of the three survivors are provably equivalent mutants, not gaps: the internal `canMoveGroup(presentGroups, ...)` guard in moveGroupWithinPresent can be swapped for `canMoveGroup(order, ...)` or deleted outright with no observable difference, because moveGroup already no-ops when its own predicate is false and canMoveGroup(present)==true implies canMoveGroup(order)==true for a subsequence. No test can pin that line; it is defensive-only. The third survivor is a real but small gap (hiddenGroups is written verbatim, and a store-side sanitizer would go unnoticed). Nothing here blocks the wave. The one discovery worth the next wave's attention is not a defect in Task 08's tests but a hole they point at: the new test 'survives a board whose group value was nulled by hand' is true about updateBoard and false about the plugin — measured on 0edc923, `\"delegated\": null` makes migrateData throw at main.ts:52 ('Cannot read properties of null (reading title)') and cleanupOrphanedTasks throw too, so the plugin never boots with that data, and the popup's hasOwnProperty filter would put a null group into presentGroups and crash the row render on `.taskIds`. The deleted-group shape that moveGroupWithinPresent actually serves is coherent end to end — verified: migration, both cleanups and the popup filter all survive it. Isolation re-verified: 3x --sequence.shuffle 111/111, each file green alone, tsc --noEmit clean. tests/e2e untouched; the 27 red 0006/0007/0008 scenarios were taken as the declared pre-Task-09 state and not re-measured.",
+  "findings": [
+    {
+      "severity": "minor",
+      "category": "missing_coverage",
+      "location": "src/data/migration.ts:156 (sanitization loop) + src/ui/BoardSettingsPopup.svelte:39,77 — pointed at by tests/unit/dataStore.test.ts:190 'survives a board whose group value was nulled by hand'",
+      "issue": "The new store test pins a real branch (both `hasOwnProperty` and `group === undefined` mutants die on it alone) but its name over-claims: `\"delegated\": null` is not survivable at the system level, and nothing at any level says so. Measured on 0edc923 by driving the real load path: migrateData throws `TypeError: Cannot read properties of null (reading 'title')` at the unconditional sanitization loop (migration.ts:156, reached from main.ts:52 on every load), and cleanupOrphanedTasks throws `Cannot read properties of null (reading 'taskIds')`. The popup is the second unfixed twin: `presentGroups` filters on `Object.prototype.hasOwnProperty.call(board.groups, id)`, which is true for a null-valued key, so the null group enters the each-block and line 77 `board.groups[groupId].taskIds.length` throws while rendering. Net effect: the store guard added in this commit is unreachable through the UI for exactly the input its comment names, and the suite reads green for a data shape that stops the plugin from loading. Kept minor rather than major because the broken file is Task 03's (migration.ts), Task 08's own behaviour is fully pinned, and the shape the task really serves — a *deleted* group — was checked and is coherent end to end (migrateData, cleanupCompletedTasks, cleanupOrphanedTasks and the popup filter all survive it, measured on 0edc923).",
+      "recommendation": "Route to the next wave, not to a Task 08 fix. Two lines and two tests: (1) in migration.ts:156, `for (const group of Object.values(board.groups)) { if (!group) continue; group.title = ... }`, and the same guard in cleanupOrphanedTasks where it reads `group.taskIds`; test in tests/unit/migration.test.ts — `it('survives a board whose group value is null', () => { const board = createDefaultBoard('B'); (board.groups as Record<string, unknown>).delegated = null; expect(() => migrateData({ ...DEFAULT_DATA, boards: [board], tasks: {} } as never)).not.toThrow(); })`. (2) in BoardSettingsPopup.svelte:39 change the filter to a value check — `groupOrder.filter(id => Boolean(board.groups[id]))` — so a nulled group is treated like a deleted one and simply loses its row, which is what every other layer already assumes. (3) If neither is done, rename the store test to what it actually pins: 'writes the remaining groups when one group value is null'.",
+      "litmusTestFailed": false
+    },
+    {
+      "severity": "minor",
+      "category": "missing_coverage",
+      "location": "src/stores/dataStore.ts:206 (`board.hiddenGroups = fields.hiddenGroups`) / tests/unit/dataStore.test.ts:131 'still writes the pre-existing fields'",
+      "issue": "The verbatim-write contract is pinned for groupOrder ('stores the group order verbatim, without sanitizing it' kills a store-side sanitizer) but not for its twin hiddenGroups. Measured on 0edc923: replacing the assignment with `[...new Set(fields.hiddenGroups)].filter(id => GROUP_IDS.includes(id))` leaves the suite green (111/111). The single-element `['delegated']` fixture in 'still writes the pre-existing fields' cannot distinguish the two policies. Low stakes — the popup now sanitizes on read, so both policies produce the same file today — but it is the one place where Decision 6's 'sanitize on load, not on write' framing is asserted for one field and assumed for the other.",
+      "recommendation": "Extend the existing test by two lines rather than adding a case: `updateBoard(board.id, fields({ hiddenGroups: ['delegated', 'delegated', 'focus'] })); expect(readBoard(board.id).hiddenGroups).toEqual(['delegated', 'delegated', 'focus']);` — the assertion that fails the moment someone adds a second sanitizer at the store boundary.",
+      "litmusTestFailed": false
+    },
+    {
+      "severity": "minor",
+      "category": "anti_pattern",
+      "location": "tests/unit/dataStore.test.ts:171-173 (fake plugin cast) + tsconfig.json include",
+      "issue": "The handoff records that retyping the fake `as unknown as Plugin` instead of `as never` means 'renaming saveData no longer type-checks silently'. That is not what it buys, on two counts, both measured on 0edc923. First, `x as unknown as T` is a double assertion and by definition never errors — it is exactly as permissive as `as never`. Second, tsconfig.json `include` is `[\"src/**/*.ts\", \"src/**/*.svelte\"]`, so no test file is type-checked at all: I inserted `const deliberateTypeError: number = 'not a number';` into dataStore.test.ts and `npx tsc --noEmit` still exited 0. The behaviour is nonetheless safe — renaming the fake's method to `saveDataRenamed` does turn 'persists the board after writing it' red, because persist() calls the missing method at runtime — so this is a claim-accuracy problem, not a coverage one. Worth correcting because the decisions log would otherwise tell the next wave that tsc guards the test/production seam, and it does not guard any test file anywhere in this project.",
+      "recommendation": "Correct the wording in the decisions entry to 'the rename is caught at runtime by the persist test, not by tsc'. If the team does want type coverage over tests, that is a one-line infrastructure change belonging to a separate task: add `\"tests/**/*.ts\"` to tsconfig include (it will surface the intentionally partial `{ focus: true } as Record<GroupId, boolean>` fixture at dataStore.test.ts:182, which then needs `as unknown as Record<GroupId, boolean>`). Do not do this inside Task 08.",
+      "litmusTestFailed": false
+    },
+    {
+      "severity": "minor",
+      "category": "missing_coverage",
+      "location": "Carried forward, unchanged on 0edc923: src/styles.css .tm-popup__group-row--hidden; BoardSettingsPopup.svelte:110 maxlength; tests/unit/dataStore.test.ts:75 and :96",
+      "issue": "Four deferrals from rounds 1-2 are still open and still recorded only in review files. (a) The row-dimming class .tm-popup__group-row--hidden is asserted nowhere — grep over tests/e2e finds no reference, and Task 10's Сц.11 is about arrow behaviour, not the class. (b) Task 10's Сц.10 types exactly 40 characters, so it passes with or without the input's maxlength. (c) No test feeds a group name of exactly 40 characters to the store, so 'a legal-length name survives untouched' rests on the same assertion as 'an over-long name is cut'. (d) No test saves a whitespace-only name over a *stored* title; whitespace-equals-cleared is only asserted against an already-empty title. (c) and (d) are cheap and belong in a fix wave; (a) and (b) belong in Task 10's scenario text.",
+      "recommendation": "Two lines in tests/unit/dataStore.test.ts: `it('leaves a name of exactly 40 characters untouched', () => { const exact = 'A'.repeat(40); updateBoard(board.id, fields({ groupTitles: titles({ focus: exact }) })); expect(readBoard(board.id).groups.focus.title).toBe(exact); });` and, appended to 'clears a previously stored title when an empty name is saved': `board.groups.focus.title = 'Старое название'; updateBoard(board.id, fields({ groupTitles: titles({ focus: '   ' }) })); expect(readBoard(board.id).groups.focus.title).toBe('');`. For (a) and (b), paste items 1 and 2 of `handoffToNextWave` below into Task 10.",
+      "litmusTestFailed": false
+    }
+  ],
+  "handoffToNextWave": {
+    "note": "Concrete, pasteable list of what remains uncovered at any level for Task 08's behaviour, measured on 0edc923. Items 1-4 are E2E and belong in Task 10's scenario text; items 5-8 are unit and belong in a fix wave or Task 11; item 9 is cross-task and belongs wherever migration.ts is next touched.",
+    "items": [
+      "1. (Task 10, extend Сц.11) Скрытая строка группы визуально приглушена. Перед сохранением: снять видимость с `delegated`, затем `await expect(page.locator('[data-settings-group=\"delegated\"]')).toHaveClass(/tm-popup__group-row--hidden/)`; вернуть видимость и проверить `not.toHaveClass(...)`. Сейчас класс `.tm-popup__group-row--hidden` не упоминается ни в одном тесте проекта.",
+      "2. (Task 10, extend Сц.10) Поле названия группы не даёт ввести больше 40 символов. Заполнить поле строкой в 45 символов и до сохранения проверить `expect(await input.inputValue()).toHaveLength(40)`. Текущая формулировка Сц.10 вводит ровно 40 и проходит независимо от наличия `maxlength` у input.",
+      "3. (Task 10, новый сценарий) Повреждённые данные: группа удалена из data.json. Подготовить снимок доски, в котором объект `board.groups.delegated` удалён, а `groupOrder` содержит все шесть идентификаторов. Проверить: (a) попап настроек открывается, (b) строк ровно пять и строки `delegated` нет, (c) стрелка «вниз» у `orgIntentions` меняет её местами с `completed` — со следующей *нарисованной* строкой, а не с невидимым слотом, — и после сохранения `delegated` остаётся на своей абсолютной позиции в `groupOrder` в data.json. Это единственный путь, которым `moveGroupWithinPresent` и `presentGroups` проверяются через реальный попап: сейчас функция покрыта юнитами, а передача аргументов из компонента — нет.",
+      "4. (Task 10, новый сценарий) Повреждённые данные: `hiddenGroups: null` и `hiddenGroups: ['focus','focus']` в data.json. Проверить, что попап открывается (без санитайзера спред в компоненте падал бы до всякой логики стрелок), и что после сохранения без правок в data.json лежит `[]` и `['focus']` соответственно — то есть дедупликация, добавленная в `sanitizeHiddenGroups`, действительно доезжает до файла.",
+      "5. (Unit) `updateBoard` пишет `hiddenGroups` как есть, без санации на записи — зеркало уже покрытого контракта для `groupOrder`. Мутант `board.hiddenGroups = [...new Set(fields.hiddenGroups)].filter(...)` выживает на 0edc923. Тест: сохранить `['delegated','delegated','focus']` и проверить точное равенство.",
+      "6. (Unit) Граница длины названия: имя ровно в 40 символов должно проходить без изменений. Сейчас не покрыто, из-за чего `length >= 40 ? slice(0, 39) : value` прошёл бы мимо.",
+      "7. (Unit) Название из одних пробелов, сохранённое поверх *непустого* хранимого названия, должно очищать его. Сейчас «пробелы = пусто» проверяется только на доске, у которой название уже было пустым.",
+      "8. (Unit, необязательное) `moveGroupWithinPresent` с не-массивом в `order` возвращает `[]` — то самое молчаливое обнуление порядка, от которого раньше защищал снятый предикат в `handleMove`. Через попап недостижимо (`groupOrder` инициализируется спредом `[...board.groupOrder]`, а загрузка санирует поле), поэтому это вопрос контракта модуля, а не дефект. Если фиксировать — `expect(moveGroupWithinPresent(null as never, ['focus'], 'focus', 'up', [])).toEqual([])` рядом с уже существующим блоком про не-массивы.",
+      "9. (Cross-task, migration.ts + cleanup.ts + BoardSettingsPopup.svelte) Группа со значением `null` в data.json роняет загрузку плагина. Измерено на 0edc923: `migrateData` бросает `TypeError: Cannot read properties of null (reading 'title')` в безусловном цикле санации (migration.ts:156, вызывается из main.ts:52 на каждой загрузке), `cleanupOrphanedTasks` бросает на `.taskIds`, а фильтр `presentGroups` в попапе пропускает такую группу в `{#each}` (hasOwnProperty на ключе со значением `null` — true) и рендер строки падает на `board.groups[groupId].taskIds.length`. Защита, добавленная в `updateBoard` в этом коммите, для этого входа недостижима. Починка — `if (!group) continue` в обоих циклах и `groupOrder.filter(id => Boolean(board.groups[id]))` в попапе; тест — `migrateData` на доске с `groups.delegated = null` не бросает. Форма «группа удалена» (та, ради которой написан `moveGroupWithinPresent`) проверена и проходит весь путь загрузки без единого исключения — чинить нужно только форму «null»."
+    ]
+  },
+  "mutationExperiments": {
+    "measuredOnCommit": "0edc923",
+    "environment": "throwaway detached worktree at 0edc923 under the session scratchpad, node_modules symlinked, removed with `git worktree remove --force` before writing this report; shared tree ends at 0edc923 with no modified tracked files",
+    "baseline": "111 passed (7 files) before every mutant; each mutant applied to a pristine checkout and reverted with `git checkout -- src tests` immediately after the run",
+    "total": 16,
+    "killed": 13,
+    "survived": 3,
+    "orchestratorRequested": [
+      { "mutant": "moveGroupWithinPresent ignores presentGroups and delegates to moveGroup(order, ...)", "result": "killed", "evidence": "2 failed | 109 passed — 'a visible row steps over a slot with no row' and 'a hidden row also steps over a slot with no row'" },
+      { "mutant": "write-back loop: `i` increments for every slot, not only present ones", "result": "killed", "evidence": "2 failed | 109 passed — same two tests" },
+      { "mutant": "write-back loop: `i += 1` before `next[k] = moved[i]` (off-by-one forward)", "result": "killed", "evidence": "3 failed | 108 passed — the two above plus 'behaves exactly like moveGroup when every id is present'" },
+      { "mutant": "write-back loop: `let i = 1` instead of 0", "result": "killed", "evidence": "3 failed | 108 passed — same three" },
+      { "mutant": "value guard reverted to `hasOwnProperty`", "result": "killed", "evidence": "1 failed | 110 passed — sole killer 'survives a board whose group value was nulled by hand'" },
+      { "mutant": "`=== true` reverted to a raw assignment", "result": "killed", "evidence": "1 failed | 110 passed — sole killer 'stores a missing full-width flag as false instead of undefined' (via the backlog assertion, not the focus one)" },
+      { "mutant": "duplicate collapse removed from sanitizeHiddenGroups (back to the round-1 filter)", "result": "killed", "evidence": "1 failed | 110 passed — sole killer 'collapses duplicates'" }
+    ],
+    "addedThisRound": [
+      { "mutant": "persist() called before the dataStore.update block (round-2 survivor 1)", "result": "killed", "evidence": "1 failed | 110 passed — 'persists the board after writing it'; the JSON round-trip snapshot in the fake is what closes it" },
+      { "mutant": "`const next = order` — no copy, input mutated in place", "result": "killed", "evidence": "2 failed | 109 passed — 'behaves exactly like moveGroup when every id is present' and 'returns an unchanged copy when there is nowhere to move'" },
+      { "mutant": "`moved` computed from `order` then filtered down to presentGroups", "result": "killed", "evidence": "2 failed | 109 passed" },
+      { "mutant": "return moveGroup(presentGroups, ...) directly, dropping absent ids from the saved order (data loss)", "result": "killed", "evidence": "2 failed | 109 passed — the six-element expectation in the missing-slot tests is what catches the shortened array" },
+      { "mutant": "`if (group === undefined) continue` — null slips through the guard", "result": "killed", "evidence": "1 failed | 110 passed — 'survives a board whose group value was nulled by hand'" },
+      { "mutant": "sanitizeHiddenGroups returns GROUP_IDS order instead of input order", "result": "killed", "evidence": "1 failed | 110 passed — 'collapses duplicates' pins order as well as dedup, since ['focus','backlog'] differs from GROUP_IDS order" },
+      { "mutant": "missing fullWidth key keeps the existing value (`?? group.fullWidth`) instead of false", "result": "killed", "evidence": "1 failed | 110 passed — the policy is pinned, and it matches the popup's own `?? false` fallback" },
+      { "mutant": "internal guard uses `canMoveGroup(order, ...)` instead of `canMoveGroup(presentGroups, ...)`", "result": "survived", "verdict": "equivalent mutant, not a gap — proven, see equivalentMutants" },
+      { "mutant": "internal `canMoveGroup` guard deleted outright", "result": "survived", "verdict": "equivalent mutant, not a gap — proven, see equivalentMutants" },
+      { "mutant": "store sanitizes hiddenGroups on write", "result": "survived", "verdict": "real gap, finding 2" }
+    ],
+    "equivalentMutants": {
+      "claim": "The `if (!canMoveGroup(presentGroups, groupId, direction, hiddenGroups)) return next;` line in moveGroupWithinPresent (groupOrderUtils.ts:128) has no observable effect for any input the popup can produce, so no test can pin it. This is a property of the code, not a hole in the tests.",
+      "proof": "(a) When the guard is false, moveGroup(presentGroups, ...) runs its own findSwap, gets null, and returns an unchanged copy of presentGroups; the write-back then writes each present value back into the slot it already occupied, so `next` equals `order` — the same value the guard would have returned early. (b) Swapping presentGroups for order in the guard cannot change the outcome either: presentGroups is a subsequence of order, so canMoveGroup(presentGroups,...)==true implies canMoveGroup(order,...)==true (a first/last element of order is also first/last of any subsequence containing it, and any non-hidden target reachable within presentGroups is reachable within the superset), while the converse direction lands on path (a). (c) The only inputs that would separate them — a non-array `order` or a non-array `presentGroups` — are unreachable: the popup derives presentGroups with `.filter` and initialises groupOrder with a spread that would have thrown first.",
+      "consequence": "No action. If a future reader wants the line pinned anyway, the only way is a contract test with a deliberately non-array presentGroups, which asserts a shape the caller cannot produce."
+    }
+  },
+  "litmusTest": {
+    "checked": 21,
+    "passed": 20,
+    "failed": 1,
+    "note": "The 6 tests added or changed by 0edc923 were checked individually and every one is litmus-positive: each is the sole or joint killer of a mutant on the line it exercises. The single carried-over litmus-negative test remains 'keeps an empty group title empty' — re-confirmed in round 2 as the only killer of a per-group localized-default substitution, so it stays."
+  },
+  "metrics": {
+    "measuredOnCommit": "0edc923",
+    "filesReviewed": 8,
+    "unitSuiteOnCommit": "111 passed (7 files) on 0edc923 — dataStore.test.ts 15, groupOrderUtils.test.ts 31; identical in the shared tree and in the throwaway worktree",
+    "unitSuitePreviousCommit": "104 passed (7 files) on 9c0ee19 — dataStore.test.ts 13, groupOrderUtils.test.ts 26",
+    "testsAddedThisCommit": 6,
+    "typeCheck": "npx tsc --noEmit exits 0 on 0edc923 — but note finding 3: tsconfig include covers src/ only, so no test file is type-checked",
+    "isolation": "verified on 0edc923: 3x `vitest run --sequence.shuffle` → 111/111 each; dataStore.test.ts alone 15/15; groupOrderUtils.test.ts alone 31/31; pluginStore restored by afterEach",
+    "coverageAssessment": "adequate",
+    "pyramidBalance": {
+      "unit": 46,
+      "integration": 0,
+      "e2e": 0,
+      "assessment": "healthy",
+      "note": "unit = the two files this task owns (dataStore.test.ts 15 + groupOrderUtils.test.ts 31) out of 111 project-wide. e2e for feature 0011 is 0 by design — Task 10 adds 14 scenarios; grep confirms no existing e2e spec references data-settings-group, tm-popup__group-move, tm-popup__group-row--hidden or tm-popup__group-title-input."
+    },
+    "e2eNotMeasured": "tests/e2e was not run and not edited in this round. The 27 red scenarios in 0006/0007/0008 are the declared pre-Task-09 state and were taken as given.",
+    "worktreeHygiene": "All 16 mutant runs and 2 diagnostic probes happened in a detached worktree at 0edc923 under the session scratchpad; removed with `git worktree remove --force` before this report. `git worktree list` now shows only the main tree. Shared tree ends at 0edc923, no modified tracked files (untracked: logs/ and sibling round-3 review reports)."
+  }
+}

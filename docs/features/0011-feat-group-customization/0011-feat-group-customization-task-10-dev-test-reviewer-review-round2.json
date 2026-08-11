@@ -1,0 +1,86 @@
+{
+  "reviewer": "dev-test-reviewer",
+  "status": "needs_improvement",
+  "summary": "Round 1's major finding is closed for the reason it was raised. Сц.15 puts the hidden-row arrow through a real browser and — this is the part no unit test could ever make — proves the position chosen while the row was hidden is the position the group lands on when it is made visible again; that half fails red if re-showing a group resets, appends or pins its slot. The hardening pass is real too: `visibleGroupOrder` turns three pairwise rank comparisons into exact-sequence assertions (a three-slot move now reds Сц.3/Сц.4/Сц.11 where it used to pass), the drag helper settles on the DOM node SortableJS actually moved instead of on a geometric proxy that was true whether or not a drag had started, and `readSavedSnapshot` now waits for stored-equals-store rather than key-exists. I found no new false-green introduced by either rewrite: the drag helper cannot fabricate a landing, because useSortable.ts reverts the DOM before calling `moveTask`, so a broken store update puts the card back in the source list and Сц.5 goes red; and `visibleGroupOrder` degrades to the fixed BoardLayout DOM sequence if the `order` styles vanish, which reds every post-move assertion. What remains is hardening, and one honest correction of my own round-1 advice: the configuration I recommended for Сц.15 (a single hidden group) cannot distinguish the hidden branch of `findSwap` from the visible one, because a lone hidden row's literal neighbours are all visible — both branches produce the identical sequence. Removing the hidden branch still leaves all fifteen scenarios green. That case *is* unit-tested (groupOrderUtils.test.ts:65), so it drops to minor, but Сц.15's name claims more than Сц.15 shows. On the open question: keep line 608 — it is not uncontrollable, the perturbation was the wrong knob.",
+  "findings": [
+    {
+      "severity": "minor",
+      "category": "missing_coverage",
+      "location": "tests/e2e/0011-group-customization.spec.ts:404-425 (Сц.15)",
+      "issue": "Residual of the round-1 major, and my round-1 recommendation is the cause. Сц.15 hides exactly one group. With `hiddenGroups = ['inProgress']` the hidden row's literal neighbours (focus, backlog) are both visible, so the hidden branch of findSwap (groupOrderUtils.ts:58-61, `to = from + step`) and the visible loop (:65-67, skip hidden) return the same swap. Delete lines 58-61 entirely and Сц.15's row-order assertion and its board-order assertion both stay green — the same litmus that produced the round-1 major. The branch only becomes observable when a hidden row's literal neighbour is itself hidden. Downgraded to minor because that exact case is unit-tested (tests/unit/groupOrderUtils.test.ts:65 'hidden group swaps with its immediate hidden neighbour'), and because the wiring claim the major was really about — hidden row moved → re-shown → lands at the chosen board position — is genuinely closed by the second half of this scenario.",
+      "recommendation": "One extra toggle click makes the branch observable. Hide `inProgress` AND `orgIntentions` (adjacent in the default order), save, reopen, press 'up' once on `orgIntentions`. Literal-neighbour semantics give `['backlog','focus','orgIntentions','inProgress','delegated','completed']`; the visible-skipping loop would swap orgIntentions with focus and give `['backlog','orgIntentions','inProgress','focus','delegated','completed']` — the two sequences differ, so `settingsRowOrder` discriminates. Then re-show both, save, and assert `visibleGroupOrder` equals the first sequence. Negative control: comment out lines 58-61 of groupOrderUtils.ts — must go red (today it does not).",
+      "litmusTestFailed": true
+    },
+    {
+      "severity": "minor",
+      "category": "anti_pattern",
+      "location": "tests/e2e/0011-group-customization.spec.ts:404-412 (Сц.15) and :427-439 (Сц.6)",
+      "issue": "Neither scenario ever asserts that the hide actually landed, and in both the expected sequence is byte-identical to the sequence produced when nothing was hidden. Сц.15: with `inProgress` still visible, two 'up' presses give exactly `['inProgress','backlog','focus',…]` via the visible branch, and the final board assertion — which expects all six groups — is what a never-hidden board shows anyway. Сц.6: `clickMoveArrow(delegated,'up')` yields the same row order with or without the hide, because orgIntentions is delegated's immediate neighbour either way. So if `visibilityToggle`'s `.first()` ever resolved to the fullWidth checkbox (BoardSettingsPopup.svelte renders two bare `.tm-popup__group-toggle` inputs per row, :121 and :134), both scenarios stay green. Сц.4 and Сц.11 do pin the helper — their exact-sequence assertions omit inProgress — but that is cross-scenario evidence, not a property of Сц.6 or Сц.15. This was round-1 finding 5; the helper was extracted, the guard was not added.",
+      "recommendation": "Two lines. In Сц.15, after the first `saveBoardSettings`: `expect(await visibleGroupOrder(page)).toEqual(['backlog','focus','orgIntentions','delegated','completed'])` — it proves the hide landed and pins the pre-move baseline. In Сц.6, after reopening: `await expect(page.locator('[data-settings-group=\"inProgress\"]')).toHaveClass(/tm-popup__group-row--hidden/)` — that class comes from `class:tm-popup__group-row--hidden={!isVisible}` (BoardSettingsPopup.svelte:86) and is independent of checkbox position. Negative control for both: point `visibilityToggle` at `.nth(1)` — both new assertions must go red while every existing assertion in those two scenarios stays green.",
+      "litmusTestFailed": true
+    },
+    {
+      "severity": "minor",
+      "category": "anti_pattern",
+      "location": "tests/e2e/0011-group-customization.spec.ts:653 (Сц.12)",
+      "issue": "Direct answer to \"does any assertion remain that cannot distinguish a working product from a broken one\": yes, this one, and it is the only strict case in the file. `scrollable` is selected inside the page by the predicate `c.scrollHeight > c.clientHeight + 1`, and line 652 already asserts it is non-null. `expect(scrollable!.scrollHeight).toBeGreaterThan(scrollable!.clientHeight)` therefore restates the selection predicate and cannot fail for any product state — it is implied by the line above it. Round-1 finding 8 asked for its deletion; the viewport half of the scenario got its control (max-height removal), the tautology stayed.",
+      "recommendation": "Delete line 653. The scenario keeps three assertions that all discriminate: `scrollable !== null` (nothing in the popup scrolls → red), `endTop > startTop` (the container refuses to scroll → red), and the two viewport bounds (now controlled by the verified `max-height: 80vh` removal).",
+      "litmusTestFailed": true
+    },
+    {
+      "severity": "minor",
+      "category": "anti_pattern",
+      "location": "tests/e2e/0011-group-customization.spec.ts:608 (Сц.10) — the open question",
+      "issue": "Judgement: keep the assertion, and do not document it as uncontrollable — it is controllable, the perturbation was aimed at the wrong rule. Removing `min-width: 0` from `.tm-group-header__title` is a no-op by construction: per CSS Flexbox §4.5 the automatic minimum size of a flex item is zero when its `overflow` is anything other than `visible`, and that rule already carries `overflow: hidden` (styles.css:143). `min-width: 0` is dead CSS there. The property line 608 actually guards is the one the ellipsis depends on. Note also the layout context: `.tm-board-layout` uses `grid-template-columns: minmax(0,1fr) minmax(0,1fr)` and `.tm-task-group` carries `overflow: hidden`, so `containerRight` is pinned by the grid track and cannot be widened by any title style — which is why every perturbation that moves `titleRight` past it must come from the title's own sizing.",
+      "recommendation": "Establish the control with `page.addStyleTag({ content: '.tm-group-header__title { overflow: visible }' })` before the second `measure()`. The item's automatic minimum size becomes min-content — the full 40-character nowrap string, ~320px against a ~335px half-column that also has to hold the counter, the spacer and two 1.5rem buttons — so the title box overflows the group container and line 608 goes red (line 607 goes red too, since `clientWidth` then equals `scrollWidth`). Record that observation in the comment instead of an \"no control found\" note, and keep the assertion: it is the only one that fails when the title box escapes its container rather than merely losing its ellipsis.",
+      "litmusTestFailed": false
+    },
+    {
+      "severity": "minor",
+      "category": "missing_coverage",
+      "location": "tests/e2e/0011-group-customization.spec.ts:590 (Сц.10)",
+      "issue": "Round-1 finding 7 asked for a baseline on the `before` measurement; it was not added. `before` is used as the reference for both the height comparison (:605) and, implicitly, the truncation claim (:607), but nothing asserts the default title 'Focus' is itself untruncated and on one line. If a future style change made the default title wrap or overflow, the height comparison would compare two wrapped lines to two wrapped lines and the scenario would report success on a broken header.",
+      "recommendation": "One line after `const before = await measure();`: `expect(before.scrollWidth).toBeLessThanOrEqual(before.clientWidth);`. Negative control: set the viewport to 320px wide before the first measure — the default title truncates and the new assertion goes red.",
+      "litmusTestFailed": false
+    },
+    {
+      "severity": "minor",
+      "category": "anti_pattern",
+      "location": "tests/e2e/0011-group-customization.spec.ts:253-272 (`dragCardToGroup`)",
+      "issue": "The rewrite is a clear improvement and introduces no false-green — `cardIsInTarget` reads the node SortableJS moved into the receiving list, which is exactly the drop semantics, and the fallback drag clone cannot be mistaken for it (SortableJS appends it to `rootEl.parentNode` of the *source* list, outside any `[data-group-id]`). Two residual issues, both false-red / cost only. First, a TOCTOU window the code's own comment describes: `landed` is read after the 250 ms settle, then `mouse.up()` fires with no re-check, while `dragover` keeps firing under the motionless pointer and can pull the card back out. Second, the fixed `waitForTimeout(SORTABLE_SETTLE_MS)` is paid unconditionally on every attempt, so a drag that lands in 30 ms still costs 250 ms, and the ghost-class `.catch(() => { throw … })` at :244 discards the underlying Playwright error (locator, timeout value, actual DOM state) in favour of a fixed string, which will make the next real failure harder to read.",
+      "recommendation": "Replace the sleep-then-check with a poll and close the window: inside the loop use `const landedNow = await expect.poll(cardIsInTarget, { timeout: 800, intervals: [50,50,100,200] }).toBe(true).then(() => true, () => false);` and, after the loop, re-assert `if (!(await cardIsInTarget())) throw new Error(…)` immediately before `mouse.up()`. Drop `SORTABLE_SETTLE_MS`. For the ghost wait, keep the message but preserve the cause: `.catch((e) => { throw new Error(\\`SortableJS never picked up card ${taskId}: ${e.message}\\`); })`.",
+      "litmusTestFailed": false
+    },
+    {
+      "severity": "minor",
+      "category": "missing_coverage",
+      "location": "tests/e2e/0011-group-customization.spec.ts:521-566 (Сц.9)",
+      "issue": "The exact-sequence hardening was applied to Сц.3, Сц.4 and Сц.11 but not to Сц.9, which still asserts order with pairwise ranks (`bRanks['focus'] < bRanks['backlog']`, `aRanks['delegated'] < aRanks['orgIntentions']`). A product that moved the group two or three slots satisfies these identically — the exact weakness the round-1 pass was meant to remove. Separately, Сц.9's reload half has no control of its own: delete `reloadFromSnapshot` and every post-reload assertion still passes, because the pre-reload state already satisfies them. Сц.1's doctored-snapshot control proves the helper works, which covers the helper but not this scenario's claim.",
+      "recommendation": "Swap the four pairwise checks for `visibleGroupOrder`: board A after `clickMoveArrow(delegated,'up')` is `['backlog','focus','inProgress','delegated','orgIntentions','completed']`; board B after `clickMoveArrow(backlog,'down')` is `['focus','backlog','inProgress','orgIntentions','delegated','completed']`. Assert both before and after the reload. For the reload control, doctor the snapshot exactly as in Сц.1 — `(snapshot as any).boards[1].groups.focus.title = 'WRONG'` before `reloadFromSnapshot` — and confirm the post-reload board-B title assertion goes red.",
+      "litmusTestFailed": false
+    },
+    {
+      "severity": "minor",
+      "category": "missing_coverage",
+      "location": "tests/e2e/0011-group-customization.spec.ts — round-1 findings 9, 10, 11 and 12, all still open",
+      "issue": "Four coverage items from round 1 were not addressed and are not mentioned in the round-2 commit message, so recording them once rather than silently dropping them. (a) No scenario asserts a disabled arrow — `canMoveGroup`'s wiring into `disabled={…}` (BoardSettingsPopup.svelte:96, :104) is exercised on the enabled path only. (b) Сц.2 never sends a whitespace-only or padded title, so the popup→`sanitizeGroupTitle`→board→reopened-field round trip for the user-spec criterion \"пробелы по краям обрезаются\" is unit-tested only. (c) Сц.5 drags plain↔collapsible only, never plain↔plain after a reorder. (d) Сц.14 still addresses the board as `data.boards[0]` while claiming something about the *active* board. None of these can produce a false green in what is currently asserted; they are unreached paths.",
+      "recommendation": "Cheapest first: (d) is two lines — read `.tm-board-header__select` inputValue and `find` the board by id. (a) is two assertions inside the already-open popup of Сц.3: `backlog` + moveUp `toBeDisabled()`, `completed` + moveDown `toBeDisabled()`; negative control `toBeEnabled()` must red. (b) is a fourth step in Сц.2: fill `'   '`, save, assert the header shows `en['group.delegated']` and the reopened field has value `''`; then `'  Handed over  '`, save, assert header text is exactly `'Handed over'`. (c) is two more calls to the existing drag helper: `focus → inProgress` and back, with the same `cardsIn` count assertions.",
+      "litmusTestFailed": false
+    }
+  ],
+  "metrics": {
+    "filesReviewed": 10,
+    "litmusTest": {
+      "checked": 15,
+      "passed": 12,
+      "failed": 3
+    },
+    "coverageAssessment": "adequate",
+    "pyramidBalance": {
+      "unit": 111,
+      "integration": 0,
+      "e2e": 99,
+      "assessment": "healthy"
+    }
+  }
+}

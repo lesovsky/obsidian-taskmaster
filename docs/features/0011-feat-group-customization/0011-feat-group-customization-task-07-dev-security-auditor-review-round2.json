@@ -1,0 +1,99 @@
+{
+  "status": "approved",
+  "audit": {
+    "task": "Task 07 — board renders in configured group order (round 2 re-audit)",
+    "round": 2,
+    "commit": "fc0b9e50fe39f1dc15daf93f02cebf98c0ef879d",
+    "round1Commit": "3dda490711831999c807f535cf3bba120a617bd5",
+    "taskParent": "347ed31",
+    "branch": "feature/group-customization",
+    "round1Report": "docs/features/0011-feat-group-customization/0011-feat-group-customization-task-07-dev-security-auditor-review.json",
+    "diffReviewed": "git diff 3dda490..fc0b9e5 (source changes confined to src/ui/BoardLayout.svelte and one comment in tests/unit/boardLayoutUtils.test.ts) and git diff 347ed31..fc0b9e5 for the whole task",
+    "measuredOn": "Every number below was measured on fc0b9e5 unless it explicitly names 3dda490. All probes ran in throwaway `git worktree` copies (wt-secaudit-r2-1940551 at fc0b9e5, wt-secaudit-old-1940551 at 3dda490), both removed afterwards. The shared working tree was never modified: final `git status --porcelain` shows only `?? logs/` (pre-existing) and the other two reviewers' round-2 report files. Probe harnesses were served on ports 5199/5198 so the concurrent reviewer's server on 5173 was never reused or disturbed.",
+    "note": "Port 5173 was occupied by another reviewer's esbuild server for the whole session. playwright.config.ts uses `reuseExistingServer: !CI`, so running the repo config would have silently tested THEIR build. All e2e numbers here come from a config with no webServer pointed at my own worktree build."
+  },
+  "dispositionOfRound1Findings": [
+    {
+      "id": "SEC-01",
+      "title": "BoardSettingsPopup crashes on a hand-deleted group",
+      "routing": "handoff to Task 08 + decisions log",
+      "verdict": "agreed — routing confirmed correct",
+      "evidence": "Still live and unchanged at fc0b9e5, verified empirically in the harness: a board with `groups.orgIntentions` hand-deleted renders 5 wrappers with zero page errors, but clicking the board-settings gear leaves the popup closed and logs `TypeError: Cannot read properties of undefined (reading 'fullWidth')`. Control on the same run: the healthy board opens the popup fine. The three sites from round 1 are byte-identical at fc0b9e5 — BoardSettingsPopup.svelte:16-18 (`GROUP_IDS.map(id => [id, board.groups[id].fullWidth])`), BoardSettingsPopup.svelte:53 (`board.groups[groupId].taskIds.length`), dataStore.ts:207-208 (`for (const id of GROUP_IDS) board.groups[id].fullWidth = ...`). Task 08's own task file names all three as files it edits: BoardSettingsPopup.svelte ('iterate over the order'), and dataStore.ts:199 `updateBoard`. So Task 08 is the one place that touches every site — the routing is right, and fixing it inside Task 07 would have meant editing files Task 07 does not own.",
+      "caveatForTask08": "Task 08's planned change does NOT fix SEC-01 as a side effect, and it would be easy to assume it does. Task 08 replaces `{#each GROUP_IDS as groupId}` with an iteration over `board.groupOrder` — but `board.groupOrder` is precisely the list that can name a group whose object was deleted (that is the whole premise of the Task 07 skip logic). So the `{@const count = board.groups[groupId].taskIds.length}` read stays just as unguarded, only reached via a different list. Separately, the `fullWidths` seed at BoardSettingsPopup.svelte:16-18 and the sweep at dataStore.ts:207-208 remain GROUP_IDS-based unless changed on purpose. Task 08 needs an explicit existence filter in all three places, not just the iteration-source swap."
+    },
+    {
+      "id": "SEC-02",
+      "title": "The 'board must open' claim was overstated",
+      "routing": "comment qualified in BoardLayout.svelte (applied); cleanup.ts guard routed to debt register",
+      "verdict": "applied correctly — the comment now states the truth, and does not overcorrect",
+      "evidence": "BoardLayout.svelte:26-29 now reads «доска открывается без них» followed by an explicit carve-out naming cleanup.ts:4, the fixed access path, and the fact that it fails at load before any render. Each of those three claims verified independently on fc0b9e5. (1) Line reference: cleanup.ts:4 is exactly `const retentionDays = board.groups.completed.completedRetentionDays ?? 30;`. (2) Scope of the carve-out: replaying the real load sequence from main.ts loadPluginData (migrateData -> cleanupCompletedTasks -> cleanupOrphanedTasks) once per group gives `delete groups.backlog|focus|inProgress|orgIntentions|delegated -> LOAD OK` and `delete groups.completed -> THREW at cleanupCompletedTasks: TypeError: Cannot read properties of undefined (reading 'completedRetentionDays')`. The comment singles out exactly the one group that fails and exactly the right thrower. (3) 'before any render': the throw happens in loadPluginData, which main.ts awaits at onload before the view is registered. Not overcorrected: the comment does not disclaim the skip logic generally, does not invent failure modes for the other five groups, and correctly says the cure does not belong in this file."
+    },
+    {
+      "id": "SEC-03",
+      "title": "Truthiness guard walked the prototype chain",
+      "routing": "fixed in place — filter is now `Object.hasOwn(board.groups, id)`",
+      "verdict": "applied; behaviour unchanged on every input reachable today; guard is now locally sound",
+      "evidence": "See verifiedClaims entries 'SEC-03 equivalence' and 'SEC-03 has real value'. One new, unrelated observation came out of checking this fix — see finding NEW-01."
+    }
+  ],
+  "verifiedClaims": [
+    {
+      "claim": "SEC-03 equivalence: `Object.hasOwn(board.groups, id)` behaves identically to the old `board.groups[id]` truthiness test on every input that can reach BoardLayout today.",
+      "verdict": "confirmed — proved rather than sampled",
+      "evidence": "The two guards can only differ on (a) inherited keys and (b) own keys holding a falsy value. Case (a) is the fix itself. Case (b) is unreachable, and the proof is structural: every own value in `board.groups` that is not an extensible object with a `taskIds` array kills the load before render. Measured on fc0b9e5 by replaying the real load sequence with `groups.focus` set to each of null, undefined, 0, false, '', 'x', NaN, {}, [], {fullWidth:true}, {taskIds:[]}, {taskIds:[],fullWidth:false,title:''}: the seven non-objects all THREW at migrateData (migration.ts:157 `group.title = sanitizeGroupTitle(group.title)` — reading `.title` of null/undefined, and in strict-mode ESM, assigning `.title` on a primitive), and {}, [] and {fullWidth:true} all THREW at cleanupOrphanedTasks (cleanup.ts:24 `group.taskIds.forEach`). Only the two well-formed objects survived, and for both `oldGuard === newGuard === true`. Disagreements among load-survivors: []. This also holds on the e2e harness path, which runs migrateData but not the cleanups — migrateData alone already rejects every falsy value. Deleted key: both guards false, board renders. So the fix is a strict improvement with no reachable behaviour change."
+    },
+    {
+      "claim": "SEC-03 has real value, not just theoretical soundness: the fix actually prevents the failure it names.",
+      "verdict": "confirmed by A/B measurement on the two commits",
+      "evidence": "I simulated exactly the scenario the new comment cites — a second writer to `groupOrder` that bypasses sanitizeGroupOrder, which is what Task 08 adds — by mutating the live store object in place and forcing a re-render via `updateSettings({})`, so migrateData is never re-entered. Poisoning `groupOrder` with the inherited key 'constructor' ahead of the six real ids: on 3dda490 the six wrappers silently shifted from computed order 1,2,3,4,5,6 to 2,3,4,5,6,7 — a phantom slot consumed, no error, no visible symptom, order 1 left vacant. On fc0b9e5 the same input leaves order dense at 1..6 with 'constructor' dropped and zero page errors. This is the silent-visual-corruption failure mode round 1 predicted, reproduced on the old code and demonstrably absent on the new."
+    },
+    {
+      "claim": "The round-1 guarantee 'no rendered wrapper can carry an undefined order' still holds after the `{#if}` construct was replaced with `renderedGroups.has('<id>')`.",
+      "verdict": "re-established, and the new form is strictly stronger than the one round 1 relied on",
+      "evidence": "Source level: `renderedGroups`, `groupStyles` and `groupClasses` are all derived from the single array `orderedGroups` (BoardLayout.svelte:34-53), so `renderedGroups.has(id)` implies `id` is in `orderedGroups`, which implies `groupStyles[id]` was written as the string `order: N`. Duplicate ids cannot break it either — they would collapse onto the same object key, still defined. Compiled level (read from the fc0b9e5 harness bundle): all three derivations sit in `$$self.$$.update()` guarded by the *identical* dirty bit `131072` (orderedGroups) at lines 10780, 10784 and 10788, so there is no flush in which `renderedGroups` is fresh while `groupStyles` is stale; the template reads `ctx[3].has(...)` only after that pass completes. Empirical: 11 independent seeded boards (each reset to pristine defaults first, no state carry-over) — reversed order, one group deleted, two groups deleted, all six deleted, five hidden, deleted+hidden+reversed combined, groupOrder null, single-id groupOrder, prototype keys in groupOrder, and two malformed-but-surviving group objects — produced zero wrappers lacking a `style` matching /^order:\\s*\\d+$/, zero wrappers with computed order 0 or '', zero wrappers without a class, dense 1..n in every case, and zero page errors. Why the new form is stronger: the old one tested the truthiness of a formatted string, so it was correct only because 'order: 0' never occurs; the new one tests set membership and is independent of the value's shape. The comment's own justification (a future numeric order where 0 is falsy would silently drop the first group) is accurate."
+    },
+    {
+      "claim": "The round-1 conclusions about the inline `style` attribute (no CSS injection, no attribute breakout) are unaffected by the round-2 changes.",
+      "verdict": "confirmed",
+      "evidence": "`groupStyles` construction is byte-identical between 3dda490 and fc0b9e5 — the diff touches only the `{#if}` conditions and the filter. The compiled fc0b9e5 bundle still emits `attr(div, \"style\", div_style_value = ...)` for all six wrappers (Element.setAttribute, no HTML parsing) and `attr(div, \"data-group-container\", \"backlog\")` etc. as quoted literals. Re-verified end to end anyway: a board seeded with `groups.focus.title = '\"><img src=x onerror=window.__pwned=1>; background:red'` rendered the focus wrapper as `style=\"order: 2\"` with class `tm-board-layout__group--half`; `document.querySelectorAll('img').length` was 0, `window.__pwned` was null, and the stored title came back truncated to 40 chars by sanitizeGroupTitle. Zero page errors."
+    },
+    {
+      "claim": "No prototype pollution via the derivations; the sanitizer allowlist is still in place.",
+      "verdict": "confirmed",
+      "evidence": "`Object.fromEntries` with a '__proto__' entry creates an own data property and leaves Object.prototype untouched (re-verified on Node 22.23.1 at fc0b9e5: own descriptor present, `({}).polluted` undefined, Object.prototype key count unchanged). sanitizeGroupOrder still allowlists against GROUP_IDS — seeding `['constructor','toString','__proto__','focus','focus','nope']` comes back as a clean six-id permutation. Note the change in the sanitizer's role: it is no longer load-bearing for BoardLayout's correctness, only a redundant outer layer. That is the point of the fix."
+    },
+    {
+      "claim": "Mandatory scans on the round-2 diff.",
+      "verdict": "clean",
+      "evidence": "The `3dda490..fc0b9e5` source diff is 25 changed lines in one component plus a 4-line test comment. No secrets (no api_key/secret/password/token/bearer/private-key patterns). No `{@html}`, no eval/new Function/innerHTML/outerHTML/insertAdjacentHTML anywhere in src/. No new dependency, no new network, storage or IPC surface. Threat model is unchanged from round 1: a local Obsidian plugin whose only attacker-relevant input is a hand-edited data.json owned by the user; relevant OWASP surface is A03 (DOM injection) and A04 (availability under corrupt data)."
+    },
+    {
+      "claim": "Gates at fc0b9e5, re-measured independently rather than taken on trust.",
+      "verdict": "green — matches the numbers supplied with the task",
+      "evidence": "In a clean worktree at fc0b9e5 with my probe files removed, Node 22.23.1 via /snap/bin: `npm test` — 87 passed / 6 files. `npm run build` — succeeded with exactly 2 warnings, both the pre-existing a11y warnings on BoardSettingsPopup.svelte:31 and GroupSettingsPopup.svelte:29, neither touched by this diff. Full `playwright test` against my own isolated server — 84 passed. `npx tsc --noEmit` deliberately not cited as a gate for the .svelte change (Decision 11); it is referenced in finding NEW-01 only as evidence about a .ts file I created and deleted inside the throwaway worktree."
+    },
+    {
+      "claim": "Verified and dismissed, recorded so round 3 does not rediscover it: the new guard admits falsy OWN values where the old truthiness test rejected them.",
+      "verdict": "not a finding — proved unreachable",
+      "evidence": "In isolation, swapping truthiness for `Object.hasOwn` trades one theoretical unsoundness for another: `groups.focus = null` is an own property, so hasOwn admits it and the following `.map` would throw on `null.fullWidth`, where the old guard would have skipped it. I chased this and it is unreachable — migrateData throws on every falsy own value before BoardLayout ever runs (see the SEC-03 equivalence entry), on both the plugin load path and the harness path. It is also not the direction Task 08 pushes on: Task 08 adds a writer to `groupOrder` (a list of ids), not to `board.groups`, so the reachable risk it introduces is precisely the prototype-chain one the fix closes. Net: the swap is an improvement, not a trade."
+    }
+  ],
+  "summary": {
+    "totalFindings": 1,
+    "critical": 0,
+    "major": 0,
+    "minor": 1
+  },
+  "findings": [
+    {
+      "severity": "minor",
+      "category": "best-practice — language level declared vs. language level used",
+      "title": "The round-2 fix introduces the codebase's first ES2022 API into the one file kind that is never type-checked, under a tsconfig that declares ES2021",
+      "description": "`Object.hasOwn` (BoardLayout.svelte:35) is ES2022. The project's tsconfig.json declares `\"target\": \"ES2021\"` and `\"lib\": [\"ES2021\", \"DOM\", \"DOM.Iterable\"]`. Verified on fc0b9e5: placing the identical expression in a `.ts` file under src/ makes `npx tsc --noEmit` fail with `error TS2550: Property 'hasOwn' does not exist on type 'ObjectConstructor'. Do you need to change your target library? Try changing the 'lib' compiler option to 'es2022' or later.` — removing that file restores a clean run. It compiles today only because the call lives in a `.svelte` file, which tsc does not check (Decision 11) and which esbuild-svelte compiles without type checking. A grep across src/ for post-ES2021 APIs (`.at(`, `Object.groupBy`, `findLast`, `structuredClone`, `toSorted`/`toReversed`/`toSpliced`, logical-assignment operators, `Object.hasOwn`) returns this one call and nothing else, so there is no existing precedent for exceeding the declared level. I own the origin of this: my round-1 recommendation named ES2022 and asserted 'the project already targets modern Electron/Chromium' without checking the tsconfig lib. The runtime is fine on desktop — Object.hasOwn is Chromium 93+, and Obsidian 1.0.0 is well past that.",
+      "impact": "Two consequences, one certain and one contingent. Certain: this feature repeatedly extracts logic from components into `.ts` modules to gain unit-test reach (boardLayoutUtils.ts, groupOrderUtils.ts, groupTitle.ts all came from that pattern), and the moment this filter follows them, `npx tsc --noEmit` breaks — a gate that Task 08's own verification steps require to be clean, so the breakage surfaces as a confusing failure in someone else's task. Contingent: manifest.json declares `\"isDesktopOnly\": false`, and Object.hasOwn needs Safari 15.4 (March 2022) on iOS. On an older mobile webview the call throws inside a reactive statement and takes the whole board down — a harder failure than the silent misordering it was added to prevent. I rate that risk low, not zero, and note it because the manifest currently claims mobile support while the tsconfig claims ES2021 and the code needs ES2022; all three should say the same thing.",
+      "recommendation": "Pick one, both are one line and neither changes behaviour. (a) Bump tsconfig.json to `\"target\": \"ES2022\"` and `\"lib\": [\"ES2022\", \"DOM\", \"DOM.Iterable\"]` — makes the declared level match reality and keeps `tsc --noEmit` meaningful if the filter is ever extracted; take this if the team is content to require Chromium 93 / Safari 15.4. (b) Use `Object.prototype.hasOwnProperty.call(board.groups, id)` — ES5, identical semantics for this input, no floor change, survives extraction to `.ts` untouched; take this if the declared mobile support is meant literally. Do not revert to the truthiness test: that reintroduces SEC-03, which I demonstrated is a live silent-corruption risk under the second `groupOrder` writer Task 08 adds. This does not warrant reopening Task 07 on its own — route it to Task 08 (which already edits the popup and dataStore, and whose gate is the one that would break) or to the feature's debt register alongside the cleanup.ts guard.",
+      "location": "src/ui/BoardLayout.svelte:35 (the call); tsconfig.json:4-5 (declared target/lib); manifest.json:9 (isDesktopOnly: false)",
+      "cwe": null
+    }
+  ]
+}

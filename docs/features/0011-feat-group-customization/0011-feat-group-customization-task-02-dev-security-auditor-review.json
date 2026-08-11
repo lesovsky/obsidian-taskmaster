@@ -1,0 +1,21 @@
+{
+  "status": "approved",
+  "summary": {
+    "totalFindings": 1,
+    "critical": 0,
+    "major": 0,
+    "minor": 1
+  },
+  "findings": [
+    {
+      "severity": "minor",
+      "category": "best-practice",
+      "title": "Forward-looking: user-editable group names will render next to the header string added here",
+      "description": "This task itself is clean — all four new values are static literals. The note concerns the consumers named in the task contract. 'boardSettings.groupName' is a column header for a column whose cells will hold user-supplied group names once feature 0011 lands renaming; today src/ui/BoardSettingsPopup.svelte:60 renders a constant from $groupLabels, so no user data flows through that column yet. When Task 08 replaces that constant with an editable name, the name becomes the only untrusted string in the popup. Rendering it via Svelte {variable} interpolation keeps it escaped; a switch to {@html} for any reason (e.g. to bold a matched substring or to show a badge inline) would turn the rename field into a stored-XSS sink inside the Obsidian renderer process, where scripts have Electron/Node reach rather than browser-sandbox reach. Same applies to Task 06's use of 'emptyState.renamed' if the hint is ever composed with the group name. Also worth carrying over from the existing code: board title and description inputs are bounded with maxlength=200 / 500 (BoardSettingsPopup.svelte:36, 41); the new group-name input should carry a comparable bound so a pathological name cannot bloat data.json or break the popup layout.",
+      "impact": "None in the current diff. If a future task renders a user-supplied group name through {@html}, an attacker-authored or self-inflicted payload persisted in data.json would execute on every board open, with Obsidian plugin privileges. An unbounded name field would allow uncapped growth of data.json.",
+      "recommendation": "Tasks 06 and 08: render these keys and any adjacent group name with {variable} interpolation and standard attribute bindings (title={$t('boardSettings.moveUp')}), never {@html}. Give the group-name input an explicit maxlength consistent with the existing fields, e.g. <input class=\"tm-popup__input\" type=\"text\" bind:value={groupName} maxlength=\"200\" />. This matches the project rule in CLAUDE.md and needs no change to the current task.",
+      "location": "src/i18n/en.ts:61, src/i18n/ru.ts:61 (keys); future consumers src/ui/BoardSettingsPopup.svelte, src/ui/EmptyState.svelte",
+      "cwe": "CWE-79"
+    }
+  ]
+}

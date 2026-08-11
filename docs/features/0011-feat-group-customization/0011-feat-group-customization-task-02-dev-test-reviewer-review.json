@@ -1,0 +1,38 @@
+{
+  "reviewer": "dev-test-reviewer",
+  "status": "passed",
+  "summary": "The compiler-as-test approach is adequate for this change and no new test is warranted. Task 02 is a pure declaration/data change: four keys added to the TranslationKey union plus their en/ru values, and the Decision 9 fix for 'boardSettings.notes'. There is no branching, transformation, or decision logic in the diff — nothing a unit test could assert that would not simply restate the dictionary literal. The one invariant this task does establish (every key exists in the union and in BOTH dictionaries) is genuinely guarded statically by Translations = Record<TranslationKey, string>, and I verified that guard by mutation rather than taking it on trust: removing 'boardSettings.moveUp' from ru.ts alone produces TS2741, and removing 'emptyState.renamed' from the union alone produces TS2353 in both en.ts and ru.ts. The TDD anchor's RED/GREEN transitions are therefore real, not decorative, and the litmus test passes — revert the change and the 'test' fails. Current tree: npx tsc --noEmit exits 0, and only the three declared files under src/i18n/ are modified. Two minor observations follow, neither of them a defect in task 02 and neither requiring any edit to task 02's files: the type guards key PRESENCE but is blind to key VALUES, and it does not guard the naming contract that tasks 06 and 08 depend on, because their consumption sites are .svelte files that tsc silently skips.",
+  "findings": [
+    {
+      "severity": "minor",
+      "category": "missing_coverage",
+      "location": "Section: Testing Strategy (tech-spec) — consumer of 'emptyState.renamed', Task 06 / src/ui/EmptyState.svelte",
+      "issue": "'emptyState.renamed' is a user-visible string taken verbatim from the user-spec, but as the plan stands no test in the feature will ever observe it. Its consumer is EmptyState.svelte, which per Decision 4 is deliberately excluded from the testable title-resolution helper and decides between the original and the neutral hint on its own. That decision therefore sits in a .svelte file, which (a) tsc skips entirely — I confirmed this by injecting a bogus $t('boardSettings.thisKeyDoesNotExist') into BoardSettingsPopup.svelte and getting zero errors, while the same literal in a .ts file errors with TS2322 — and (b) cannot be unit-tested because vitest runs environment: 'node' with no DOM library. The tech-spec E2E list covers renaming, clearing a title, reordering and drag-and-drop, but has no case for an empty renamed group, so the neutral hint introduced by this task is unverified end to end. Not a defect in Task 02 and not fixable in its files — flagged so the gap is not silently inherited by Task 06.",
+      "recommendation": "Add one case to the tech-spec E2E list (Task 06 scope, tests/e2e/ — Playwright and the harness already exist): rename a group that has no tasks, save, and assert the group body shows the neutral hint 'Nothing here yet — drag tasks in' (RU: 'Пока пусто — перетащите сюда задачи') rather than that group's original role-specific hint; then clear the title, save, and assert the original hint returns. This is the only assertion that distinguishes 'the neutral hint was wired' from 'the key was declared and never used'. Do not add a unit test for this — the branch is inside a Svelte component and the node-environment runner cannot reach it.",
+      "litmusTestFailed": false
+    },
+    {
+      "severity": "minor",
+      "category": "missing_coverage",
+      "location": "docs/features/0011-feat-group-customization/0011-feat-group-customization-task-02.md — sections 'Контракт имён ключей для задач 06 и 08' and 'TDD Anchor'",
+      "issue": "The task presents the four key names as a hard contract for tasks 06 and 08 and presents the compiler as the mechanism that enforces the anchor. The compiler enforces dictionary completeness and en/ru parity, but it does not enforce the contract itself, and the task text can be read as implying that it does. I renamed 'boardSettings.moveUp' to 'boardSettings.arrowUp' consistently across types.ts, en.ts and ru.ts: npx tsc --noEmit reported zero errors. Nothing statically ties a key name to its future consumer, because the consumers are .svelte files tsc ignores; on top of that EmptyState.svelte already reaches its key through an `as TranslationKey` cast, which defeats key checking even under a Svelte-aware checker. The runtime degrades silently rather than loudly: t() is `dict[key] ?? key`, so a typo in Task 08 renders the literal string 'boardSettings.moveUp' into a tooltip instead of throwing. Additionally the type accepts any string as a value — an empty string, the two arrow labels swapped, or a Russian string left in en.ts all type-check clean (verified). So the compiler covers key sets, not key texts.",
+      "recommendation": "No change to Task 02's code. Two documentation-level fixes: (1) in the TDD Anchor, state the guard's exact scope — 'the type guards that the key set of the union and of both dictionaries agree; it does not guard key names against their consumers, nor any key's text' — so tasks 06 and 08 do not treat a green tsc as proof they wired the right key; (2) in the contract section, replace 'if the key is missing this is a blocker' with a positive check tasks 06/08 can actually run, since a missing key will not surface as a compile error in a .svelte consumer: grep the exact names in src/i18n/types.ts before use, and assert the rendered label text (not the key) in the E2E case that exercises the arrows. The value-level blind spots (empty string, wrong language, swapped up/down) do not justify a test here: an assertion like expect(en['boardSettings.moveUp']).toBe('Move up') only restates the dictionary literal, fails exactly when someone intentionally edits copy, and catches no bug — the redundant-testing anti-pattern. If the project later wants a guard for that class, the correct shape is a single project-level invariant test (no value is empty; en and ru key sets are identical), which is out of scope for this task and belongs to the test setup Task 01 is currently migrating.",
+      "litmusTestFailed": false
+    }
+  ],
+  "metrics": {
+    "filesReviewed": 6,
+    "litmusTest": {
+      "checked": 1,
+      "passed": 1,
+      "failed": 0
+    },
+    "coverageAssessment": "adequate",
+    "pyramidBalance": {
+      "unit": 0,
+      "integration": 0,
+      "e2e": 0,
+      "assessment": "healthy"
+    }
+  }
+}

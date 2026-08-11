@@ -1,0 +1,105 @@
+{
+  "status": "approved",
+  "round": 2,
+  "scope": "git diff 65696f7..9c0ee19 (src/ui/BoardSettingsPopup.svelte, src/ui/groupOrderUtils.ts, src/styles.css, tests/unit/*), plus targeted re-verification of the round 1 findings and of the two questions raised by the orchestrator (arrowHidden order integrity, updateBoard missing-group guard).",
+  "verification": {
+    "gates": "npx vitest run — 7 files / 104 tests passed; npx tsc --noEmit — clean (re-run at 9c0ee19 in a throwaway worktree, worktree removed).",
+    "property_testing": "20000 random single moves and 5000 random 12-move chains over permutations, truncated orders and orders containing a deliberate duplicate, with random hidden+missing subsets fed as arrowHidden. Invariants asserted: length preserved, multiset of ids preserved, and moveGroup === input whenever canMoveGroup is false. Zero violations.",
+    "targeted_probes": "migrateData and updateBoard exercised against a board whose group value is present-but-null; updateBoard exercised with an incomplete groupFullWidths/groupTitles map."
+  },
+  "summary": {
+    "totalFindings": 5,
+    "critical": 0,
+    "major": 1,
+    "minor": 4,
+    "newThisRound": 2,
+    "carriedForward": 3,
+    "closedThisRound": 2
+  },
+  "answers_to_orchestrator": {
+    "arrowHidden_cannot_corrupt_groupOrder": "Confirmed safe. moveGroup is a two-index swap on a copy of `order`; hiddenGroups (and therefore arrowHidden) only selects which target index findSwap picks, never which elements are written. Both indices are bounded by findSwap (`from` comes from indexOf and is != -1; the hidden branch checks `0 <= to < length`; the visible branch iterates only inside the array), and `from !== to` always, so the result is a permutation of the input by construction. This holds even for adversarial inputs the popup cannot actually produce — a truncated order, an order containing a duplicate, or an arrowHidden listing ids absent from the order. 20000 randomized single moves and 5000 randomized move chains produced no dropped or duplicated id. Feeding missing groups into arrowHidden is also self-consistent with the render: presentGroups (rows) and arrowHidden (arrow logic) are derived from the same hasOwnProperty predicate over the same `board.groups`, so a row can never exist without matching arrow semantics.",
+    "updateBoard_guard_cannot_skip_a_write_it_should_perform": "Confirmed for the absent-key case: `continue` fires only when `board.groups` has no own key for that id, and there is no object to write into, so nothing is lost. The guard has one blind spot in the other direction — a key that is present with a null value (see finding SEC-08-R2-01) passes hasOwnProperty and then throws instead of skipping. That blind spot is currently unreachable, because the same data kills migrateData at load (see MAJOR). No case was found where the guard skips a group that exists.",
+    "is_the_MAJOR_deferral_wrong": "The deferral is defensible for Task 08, but round 1 understated the blast radius, and the follow-up should be scoped wider than 'wire sanitizeHiddenGroups into migration.ts / BoardLayout.svelte'. Evidence: migrateData's post-migration sanitization loop dereferences every value in board.groups (`group.title = sanitizeGroupTitle(group.title)`) and every board's groupOrder unconditionally. A board with a null group value throws TypeError there, migrateData is not wrapped in try/catch in main.ts:52, so onload rejects and the plugin does not load at all — strictly worse than the BoardLayout:21 case, and equally unrepairable from the UI. cleanup.ts also reads board.groups.completed.completedRetentionDays by fixed path (already noted in the BoardLayout comment). So the real follow-up is 'make the load path total over hand-edited data.json shapes', of which hiddenGroups is one instance. Task 08 introduced none of this, added no new reachable path into it, and the round-2 diff makes the situation strictly better (one more shape is now sanitized, with tests). Blocking Task 08 on it would be wrong; leaving the follow-up described as a hiddenGroups-only fix would be."
+  },
+  "findings": [
+    {
+      "id": "SEC-08-R2-00",
+      "severity": "major",
+      "status": "carried forward from round 1, deliberately deferred, blast radius corrected upward",
+      "category": "A04 Insecure Design",
+      "title": "Load path is not total over hand-edited data.json shapes; hiddenGroups is only one instance and not the worst one",
+      "description": "Round 1 flagged that board.hiddenGroups is never sanitized at load, so `{}`, `42` or `true` throws at `new Set(board.hiddenGroups)` in BoardLayout.svelte:21 (note: `null` and `undefined` do NOT throw there — `new Set(null)` is empty — so the crashing shapes are the non-iterable non-null ones). Round 2 confirms the finding stands and that the same class reaches further up the stack: migration.ts's sanitization loop dereferences `group.title` for every value of board.groups and is not defended against a null/non-object group value. Probed directly: a board with `groups.delegated = null` makes migrateData throw `TypeError: Cannot read properties of null (reading 'title')`. main.ts:52 calls migrateData without a try/catch, so onload rejects and the plugin never mounts — there is no board, no header, and no settings popup to repair the file with. Task 08 neither introduced nor widened this; 9c0ee19 narrows it slightly by extracting a tested sanitizer for one of the fields.",
+      "location": "src/data/migration.ts:154-158 (sanitization loop), src/main.ts:52 (unguarded migrateData), src/ui/BoardLayout.svelte:21 (new Set(board.hiddenGroups)), src/data/cleanup.ts:4 (fixed path into groups.completed)",
+      "impact": "Denial of service against the user's own plugin, triggered by a locally corrupted or hand-edited data.json (including a partial write or a sync conflict from Obsidian Sync, not only deliberate editing). No confidentiality or integrity exposure, and the underlying task data stays intact on disk — recovery requires editing data.json back by hand, outside the plugin. Not remotely triggerable: data.json has no untrusted writer.",
+      "recommendation": "Scope the logged follow-up as 'make migrateData total', not as 'wire sanitizeHiddenGroups'. Concretely: (1) in the post-migration sanitization loop, skip or rebuild non-object group values — `for (const id of GROUP_IDS) { const g = (board.groups as Record<string, unknown>)[id]; if (!g || typeof g !== 'object') continue; ... }`; (2) add `board.hiddenGroups = sanitizeHiddenGroups(board.hiddenGroups)` in the same loop, reusing src/ui/groupOrderUtils.ts (or move the helper into data/ so migration does not import from ui/); (3) coerce board.title/subtitle to strings there as well (see SEC-08-R2-02); (4) wrap the migrateData call in main.ts in a try/catch that falls back to freshDefaultData() only after the raw file has been backed up, so a corrupt file degrades to a loadable plugin instead of no plugin. Steps 1 and 4 carry the availability weight; step 2 alone does not.",
+      "cwe": "CWE-20"
+    },
+    {
+      "id": "SEC-08-R2-01",
+      "severity": "minor",
+      "status": "new in round 2 review (code unchanged since 65696f7)",
+      "category": "best-practice",
+      "title": "updateBoard's missing-group guard checks key presence, not value, and a throw inside it leaves a half-written board with persist() skipped",
+      "description": "`if (!Object.prototype.hasOwnProperty.call(board.groups, id)) continue;` returns true for a key that exists with a null (or otherwise non-object) value, so the next line throws. Probed: with `groups.delegated = null`, updateBoard throws `TypeError: Cannot set properties of null (setting 'fullWidth')` after it has already written board.title, subtitle, hiddenGroups, groupOrder and the titles of every group ordered before delegated in GROUP_IDS. Because the throw escapes `dataStore.update`, the store never calls set(): subscribers keep rendering the pre-save state while the underlying object is half-mutated, `persist()` at dataStore.ts:224 never runs, and BoardHeader.saveSettings never reaches `showSettings = false`. The half-written object is then flushed to disk by the next unrelated persist() from any other action. This is currently unreachable in production because migrateData throws on the same data at load (see MAJOR) — it is a robustness gap in the guard, not a live defect.",
+      "location": "src/stores/dataStore.ts:215-219",
+      "impact": "Silent partial write of board settings plus an unhandled exception in a Svelte event handler, under the same hand-edited-data.json precondition as the MAJOR. Reachability today is nil; it becomes real the moment the load path is made total (i.e. exactly when the MAJOR is fixed), which is why it is worth fixing in the same change.",
+      "recommendation": "Guard on the value, not the key: `const group = (board.groups as Partial<Board['groups']>)[id]; if (!group) continue; group.fullWidth = ...; group.title = sanitizeGroupTitle(...);`. This also removes the repeated index lookups. Optionally build the new board object and assign it at the end, so a throw mid-loop leaves the store untouched rather than half-mutated.",
+      "cwe": "CWE-754"
+    },
+    {
+      "id": "SEC-08-R2-02",
+      "severity": "minor",
+      "status": "carried forward from round 1, deferred into the same follow-up — agreed",
+      "category": "A04 Insecure Design",
+      "title": "board.title / board.subtitle are copied and trimmed without a type check",
+      "description": "BoardSettingsPopup.svelte:18-19 copies board.title/subtitle verbatim, and the reactive `canSave = title.trim().length > 0` at line 36 dereferences .trim() on whatever was in data.json. A numeric or null title throws during popup initialization. Same class and same precondition as the MAJOR; folding it into one load-time fix is the right call, since fixing it in the popup alone would leave BoardHeader's `<option>{b.title}</option>` and every other reader unprotected.",
+      "location": "src/ui/BoardSettingsPopup.svelte:18-19, 36",
+      "impact": "Board settings popup fails to open on a hand-edited data.json. Local availability only.",
+      "recommendation": "Coerce in migrateData's sanitization loop: `board.title = typeof board.title === 'string' ? board.title : ''` (and the same for subtitle), so every reader inherits the guarantee.",
+      "cwe": "CWE-20"
+    },
+    {
+      "id": "SEC-08-R2-03",
+      "severity": "minor",
+      "status": "carried forward from round 1, downgraded — closing as won't-fix is safe",
+      "category": "best-practice",
+      "title": "updateBoard stores the caller's hiddenGroups / groupOrder arrays by reference",
+      "description": "dataStore.ts:206 and :211 assign the popup's local array instances into the persisted board. Round 2 verified the stated justification and found a second, stronger one: the popup never mutates either array in place — visibility toggles use `[...hiddenGroups, id]` / `.filter(...)`, and moveGroup returns a fresh array — so even if the component outlived the save (it does not; BoardHeader sets showSettings = false immediately), aliasing could not corrupt the store. The residual risk is purely that a future edit introduces a `.push()` on the local array.",
+      "location": "src/stores/dataStore.ts:206, src/stores/dataStore.ts:211",
+      "impact": "None reachable today. Latent coupling: a later in-place mutation in the popup would silently edit persisted state without going through updateBoard, and without persist().",
+      "recommendation": "Optional. If cheap, copy at the boundary — `board.hiddenGroups = [...fields.hiddenGroups]; board.groupOrder = [...fields.groupOrder];` — which is two characters of defense and removes the invariant a future editor has to know about. Accepting the current code is also defensible given the reassignment-only style is consistent throughout the popup.",
+      "cwe": "CWE-1108"
+    },
+    {
+      "id": "SEC-08-R2-04",
+      "severity": "minor",
+      "status": "new in round 2",
+      "category": "best-practice",
+      "title": "groupFullWidths values are written unnormalized while groupTitles go through a sanitizer",
+      "description": "In the same loop, `board.groups[id].title = sanitizeGroupTitle(fields.groupTitles[id])` normalizes its input to a string, but `board.groups[id].fullWidth = fields.groupFullWidths[id]` writes whatever it is given. Probed with an empty map: `fullWidth` is persisted as `undefined` while `title` correctly degrades to `''`. The current caller chain (BoardSettingsPopup builds fullWidths from GROUP_IDS with `?? false`, BoardHeader.saveSettings rebuilds it from GROUP_IDS) makes every key present today, so this is defensive only — but the asymmetry means the boolean field has no boundary at all, and `undefined` reaching data.json would then flow into computeGroupClasses on the next load.",
+      "location": "src/stores/dataStore.ts:216",
+      "impact": "Undefined persisted into a field typed boolean if any caller ever supplies a partial map; not reachable through today's UI.",
+      "recommendation": "Normalize alongside the title: `board.groups[id].fullWidth = fields.groupFullWidths[id] === true;`. One expression, matches the sanitizer already applied to the sibling field.",
+      "cwe": "CWE-20"
+    }
+  ],
+  "closed_findings": [
+    {
+      "id": "round1 minor — control/bidi characters pass sanitizeGroupTitle",
+      "resolution": "Closed, accepted. sanitizeGroupTitle trims, caps at 40 and repairs a split surrogate; it does not strip U+202E and friends. Confirmed not exploitable in this codebase: group names are rendered through Svelte text interpolation (no {@html} anywhere in src/), so a bidi override can only reorder glyphs inside the group header of the user's own vault. It is a spoofing nuisance with no second party to spoof. Deferring it to Task 03's file is correct; deferring it indefinitely is also acceptable."
+    },
+    {
+      "id": "round1 minor — aria-label duplicates the default label",
+      "resolution": "Closed, rationale accepted. The label names which group's field the input is; with the placeholder carrying the same text there is no accessible-name gap. Not a security finding; withdrawn."
+    }
+  ],
+  "diff_review_notes": [
+    "sanitizeHiddenGroups uses GROUP_IDS.includes (array membership), not property lookup, so '__proto__' and 'constructor' are rejected rather than resolved through the prototype chain — verified by the new unit test and re-verified independently. No prototype-pollution path.",
+    "sanitizeHiddenGroups preserves duplicates ('focus','focus'). Harmless: every consumer uses .includes() or new Set(), and a duplicate hidden id cannot affect the order swap. Not worth a filter.",
+    "arrowHidden uses Object.prototype.hasOwnProperty.call rather than Object.hasOwn, consistent with the ES2021 floor declared in tsconfig.json/esbuild.config.mjs and with the existing BoardLayout guard. Correct for a plugin that is not desktop-only.",
+    "Test changes introduce no leakage: seedBoards copies DEFAULT_DATA.settings before seeding, and the one test that injects a fake plugin into pluginStore resets it to null in afterEach.",
+    "styles.css drop of .tm-popup__group-header-move: no remaining references anywhere in src/ or tests/ (only in the round 1 code-reviewer report that requested it).",
+    "No secrets, credentials, tokens or network calls anywhere in the diff. No new dependencies. Plugin has no server surface, so OWASP A01/A02/A05/A07/A09/A10 have no applicable attack surface in this change; A03 is covered by the project-wide no-{@html} rule, which the diff does not break."
+  ],
+  "out_of_scope_note": "logs/ is untracked and not matched by .gitignore, so a `git add -A` would commit local review/e2e run artifacts (logs/reviews/*.json, logs/manual-08/*). Housekeeping, unrelated to Task 08 — no secrets observed in those files — but worth an ignore entry."
+}

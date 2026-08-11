@@ -1,0 +1,62 @@
+{
+  "reviewer": "dev-code-reviewer",
+  "status": "approved_with_suggestions",
+  "summary": "Commit a7a1b75 does exactly what Task 09 asked and nothing more: every name-based group/popup-row locator is replaced by data-group-container / data-settings-group, both label constants are gone with no name-to-id map behind them, getGroupWrapperClass collapsed into a single wrapper lookup with no .locator('..') and no per-group-type branch, and hideGroup/showGroup/setFullWidth are typed GroupId with all 26 call sites passing ids. src/ is untouched, the four document.querySelector body reads in 0008 are byte-identical, and the full suite runs 84 passed / 0 failed / 0 skipped. Remaining findings are minor: one comment that restates its selector, a pre-existing unused import in a touched file, and the fact that no build step type-checks tests/, so the new GroupId typing is documentation rather than an enforced guard.",
+  "criticalIssues": [],
+  "suggestions": [
+    {
+      "file": "tests/e2e/core.spec.ts",
+      "line": 257,
+      "severity": "minor",
+      "category": "readability",
+      "suggestion": "The rewritten comment \"// Collapse again — the header is reached through the group's wrapper attribute\" only restates what the selector on the next line already says. The comment it replaced carried scenario state (\"now body is in DOM\"), which is genuinely obsolete, so rewriting was correct — but the replacement is a \"what\" comment. Either drop it to a bare \"// Collapse again\" or say why the wrapper is used here (the click must work in both collapsed and expanded state), matching the wording already used in helpers.ts:91-92 and 0007-dynamic-layout.spec.ts:20-21, which do explain the reason.",
+      "benefit": "Comments stay at the 'why' level and match the two other migrated sites, which already document the rationale rather than the mechanism.",
+      "optional": true
+    },
+    {
+      "file": "tests/e2e/0006-group-visibility.spec.ts",
+      "line": 7,
+      "severity": "minor",
+      "category": "maintainability",
+      "suggestion": "`expandGroup` is imported but never called in this file (only occurrence is the import itself). Verified pre-existing — the import is unchanged by this commit (present at a7a1b75^ line 7), and CLAUDE.md's 'only remove imports your changes made unused' rule means removing it here would be drive-by scope. Noted so it can be swept up by whoever next edits this import block, e.g. Task 10.",
+      "benefit": "Removes a dangling import without attaching unrelated cleanup to a locator-migration commit.",
+      "optional": true
+    },
+    {
+      "file": "tsconfig.json",
+      "line": 17,
+      "severity": "minor",
+      "category": "best-practices",
+      "suggestion": "The task hint claims a typed GroupId parameter 'makes a missed call site a compile error rather than a runtime timeout'. In this repo that does not hold: tsconfig `include` is [\"src/**/*.ts\", \"src/**/*.svelte\"], so `npx tsc --noEmit` never sees tests/, and Playwright transpiles TS with esbuild without type checking. The typing is still worth having as intent, and all call sites were verified by hand (13 hideGroup/showGroup + 13 setFullWidth, all passing group ids), but the safety net the task assumed does not exist. If that guard is wanted, add tests/**/*.ts to the type-check scope in a separate change — not in this commit.",
+      "benefit": "A missed or misspelled group id in an E2E helper call would fail at type-check instead of as a 30s locator timeout.",
+      "optional": true
+    },
+    {
+      "file": "tests/e2e/0007-dynamic-layout.spec.ts",
+      "line": 22,
+      "severity": "minor",
+      "category": "maintainability",
+      "suggestion": "getGroupWrapperClass returns `(await wrapper.getAttribute('class')) ?? ''` for a locator that does not exist when the group is hidden — Playwright will spend the full action timeout before throwing, and the `?? ''` reads as if absence is handled. This behaviour is identical to the pre-commit code (the old .tm-task-group:has(...) branch had the same property), so it is not a regression and no current scenario hits it. Flagged only so the empty-string fallback is not mistaken for hidden-group support.",
+      "benefit": "Prevents a future scenario from mis-reading a timeout as 'wrapper has no class'.",
+      "optional": true
+    }
+  ],
+  "metrics": {
+    "filesReviewed": 5,
+    "criticalIssuesCount": 0,
+    "majorIssuesCount": 0,
+    "minorIssuesCount": 4,
+    "testCoverageAssessment": "adequate",
+    "verification": {
+      "fullSuite": "npx playwright test — 84 passed, 0 failed, 0 skipped (25.8s). One earlier full run showed 10 core.spec failures with net::ERR_CONNECTION_REFUSED — the esbuild harness dev server died mid-run; core.spec.ts alone passed 35/35 immediately after, and the next full run was 84/84. Harness-server flake, unrelated to this commit, but worth watching if it recurs in CI.",
+      "nameBasedLocators": "grep for hasText: 'Backlog|Focus|In Progress|Org Intentions|Delegated|Completed' under tests/e2e/ — no matches",
+      "removedConstants": "grep COLLAPSIBLE_GROUP_LABELS|COLLAPSIBLE_HEADER_TEXT under tests/ — no matches; no replacement id-to-name map introduced anywhere",
+      "srcUntouched": "git diff --stat a7a1b75^ a7a1b75 -- src/ — empty",
+      "bodyLocatorsIntact": "0008-card-columns.spec.ts diff touches only L204 (popup row); the four document.querySelector('[data-group-id=...]') calls at L25/35/43/183 are unchanged",
+      "markupCrossCheck": "data-group-container confirmed on the six wrapper divs in src/ui/BoardLayout.svelte L209-285; data-settings-group confirmed on the popup group row in src/ui/BoardSettingsPopup.svelte L87, inside the {#each presentGroups} block, absent from the Notes row (L144) as required. Within a row, .tm-popup__group-toggle matches exactly the two checkboxes (L121, L134) — the Task 08 name input (.tm-popup__group-title-input) and move buttons (.tm-popup__group-move-btn) carry different classes, so .first()/.nth(1) still mean visibility/fullWidth.",
+      "strictMode": "Every migrated locator resolves to exactly one element — confirmed both by the markup (one wrapper per rendered group, one row per group) and by the green run, since Playwright strict mode would fail loudly otherwise. No .first() was added to silence a multi-match.",
+      "styleConsistency": "All migrated locators follow one form: backticked template literal where a groupId is interpolated, single-quoted string with a double-quoted attribute value where the id is a constant. Consistent across all five files, no stylistic drift.",
+      "scopeDiscipline": "No drive-by refactor found. Every removed line is a locator or a comment that described the removed lookup; the two out-of-scope .tm-task-group:has(...).locator('..') sites in 0006 (L178, L186) are correctly left alone, as is 0008's plain-string group id typing."
+    }
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "reviewer": "dev-code-reviewer",
+  "status": "approved_with_suggestions",
+  "summary": "Task 03 is implemented exactly as specified: both fields are added to the model with correct semantics, DEFAULT_DATA.version is the only version literal bumped, the historical `version < 7` block is byte-identical, the new `version < 8` block follows the existing style, and the sanitization block sits outside every version branch so already-migrated damaged data is repaired on load. Both sanitizers take `unknown`, are pure, never throw, and every aliasing hazard the task called out (createDefaultBoard, per-board arrays, both early returns) is handled and covered by a test. Verified independently: `npx vitest run tests/unit/migration.test.ts` = 32 passed, `npm test` = 79 passed / 6 files, `npx tsc --noEmit` clean, `cleanupOrphanedTasks` still derives live ids from `Object.values(board.groups)`. Only minor, optional findings remain.",
+  "criticalIssues": [],
+  "suggestions": [
+    {
+      "file": "tests/unit/cleanup.test.ts",
+      "line": 12,
+      "severity": "minor",
+      "category": "maintainability",
+      "suggestion": "`makeGroup(): Group` (line 12) and `makeBoard(): Board` (line 23) still return literals without the newly required `title` / `groupOrder`. The annotations no longer match the interfaces; this stays invisible only because `tsconfig.json` has `\"include\": [\"src/**/*.ts\", \"src/**/*.svelte\"]`, so `tests/` is never type-checked, and vitest does not type-check either. Add `title: ''` to `makeGroup` and `groupOrder: [...GROUP_IDS]` to `makeBoard` (GROUP_IDS is already imported in that file). No runtime impact — `cleanup.ts` touches neither field — and the suite is green today.",
+      "benefit": "Fixtures stay structurally valid against the model, so the day tests are added to the type-check gate (or a `Board`-shaped fixture is reused by a feature that does read `groupOrder`) there is no surprise batch of errors to untangle.",
+      "optional": true
+    },
+    {
+      "file": "src/data/migration.ts",
+      "line": 48,
+      "severity": "minor",
+      "category": "readability",
+      "suggestion": "The two early returns (lines 47-54 and 59-66) are now byte-identical four-line object literals preceded by an identical two-line comment. A single local helper — e.g. `function freshDefaultData(): PluginData { return { ...DEFAULT_DATA, boards: [{ ...DEFAULT_DATA.boards[0], groupOrder: [...DEFAULT_DATA.boards[0].groupOrder] }] }; }` called from both — keeps the comment in one place and removes the risk that a future field is copied into one branch only. This was a single duplicated line before the change, so the duplication is newly meaningful rather than pre-existing noise.",
+      "benefit": "One place to update when the next required field is added; the two paths cannot drift apart silently.",
+      "optional": true
+    },
+    {
+      "file": "src/data/migration.ts",
+      "line": 43,
+      "severity": "minor",
+      "category": "best-practices",
+      "suggestion": "`value.trim().slice(0, GROUP_TITLE_MAX_LENGTH)` cuts on UTF-16 code units, so a stored title whose 40th and 41st units form a surrogate pair (any non-BMP emoji) is truncated to a lone surrogate that renders as a replacement character and round-trips into `data.json` that way. The input field of Task 8 cannot produce this — `maxlength` also counts code units but the browser refuses to split a pair — so it is reachable only through hand-edited files, which is exactly this sanitizer's audience. If you want it exact: `[...value.trim()].slice(0, GROUP_TITLE_MAX_LENGTH).join('')`. Leaving it as is is a defensible read of the spec (\"at most 40 characters\", same counting rule as the input attribute) — flagging so the choice is deliberate.",
+      "benefit": "A hand-edited emoji title degrades to a shorter valid string instead of a broken glyph persisted back to disk.",
+      "optional": true
+    },
+    {
+      "file": "src/data/migration.ts",
+      "line": 52,
+      "severity": "minor",
+      "category": "maintainability",
+      "suggestion": "Raising the item the task anticipated (step 7, scope note), for the decisions log only — no change requested here. The shallow spread in both early returns shares more than `groups` and `hiddenGroups`: `settings` and `tasks` are also the module-level `DEFAULT_DATA` instances, so two `migrateData(null)` calls hand back the same `settings` object and the same `tasks` dictionary that `DEFAULT_DATA` owns. All of it is pre-existing behaviour that this commit correctly did not touch (only `groupOrder`, which is new, was given a fresh copy). Worth one line in the decisions log so the wider aliasing is on record rather than rediscovered later.",
+      "benefit": "The known-but-untreated aliasing is documented instead of being re-derived by the next person who reads this function.",
+      "optional": true
+    }
+  ],
+  "metrics": {
+    "filesReviewed": 4,
+    "criticalIssuesCount": 0,
+    "majorIssuesCount": 0,
+    "minorIssuesCount": 4,
+    "testCoverageAssessment": "excellent"
+  }
+}

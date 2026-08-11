@@ -1,5 +1,5 @@
 ---
-status: planned
+status: done
 depends_on: ["07", "08"]
 wave: 6
 skills: [code-writing]
@@ -107,19 +107,19 @@ Guard assertions that must hold at the end (check by inspection, not by adding t
 
 ## Acceptance Criteria
 
-- [ ] `npx playwright test` passes in full — all 84 pre-existing scenarios, no skips, no retries relied upon
-- [ ] No locator under `tests/e2e/` addresses a group or a popup row by its displayed name
+- [x] `npx playwright test` passes in full — all 84 pre-existing scenarios, no skips, no retries relied upon
+- [x] No locator under `tests/e2e/` addresses a group or a popup row by its displayed name
       (`'Backlog'`, `'Focus'`, `'In Progress'`, `'Org Intentions'`, `'Delegated'`, `'Completed'`)
-- [ ] `COLLAPSIBLE_GROUP_LABELS` (helpers.ts) and `COLLAPSIBLE_HEADER_TEXT` (0007) are gone, with no
+- [x] `COLLAPSIBLE_GROUP_LABELS` (helpers.ts) and `COLLAPSIBLE_HEADER_TEXT` (0007) are gone, with no
       replacement name-to-id map left behind
-- [ ] `getGroupWrapperClass` reaches the wrapper directly, with no `.locator('..')` hop and no
+- [x] `getGroupWrapperClass` reaches the wrapper directly, with no `.locator('..')` hop and no
       per-group-type branch
-- [ ] `hideGroup`, `showGroup` and `setFullWidth` take a `GroupId` (typed, not `string`), and every call
+- [x] `hideGroup`, `showGroup` and `setFullWidth` take a `GroupId` (typed, not `string`), and every call
       site passes a group id
-- [ ] Every `[data-group-id="X"]` locator addressing the group **body** is byte-identical to before —
+- [x] Every `[data-group-id="X"]` locator addressing the group **body** is byte-identical to before —
       including the four `document.querySelector` calls in `0008-card-columns.spec.ts`
-- [ ] Scenario count, assertions and scenario names are unchanged; nothing was weakened to reach green
-- [ ] No production code under `src/` was modified by this task
+- [x] Scenario count, assertions and scenario names are unchanged; nothing was weakened to reach green
+- [x] No production code under `src/` was modified by this task
 
 ## Context Files
 
@@ -267,6 +267,6 @@ Guard assertions that must hold at the end (check by inspection, not by adding t
 
 ## Post-completion
 
-- [ ] Записать краткий отчёт в [0011-feat-group-customization-decisions.md](docs/features/0011-feat-group-customization/0011-feat-group-customization-decisions.md) (Summary: 1–3 предложения, ревью со ссылками на JSON, без таблиц файндингов и дампов)
-- [ ] Если отклонились от спека — описать отклонение и причину (в частности, если пришлось тронуть что-то за пределами списка локаторов)
-- [ ] Обновить user-spec/tech-spec если что-то изменилось
+- [x] Записать краткий отчёт в [0011-feat-group-customization-decisions.md](docs/features/0011-feat-group-customization/0011-feat-group-customization-decisions.md) (Summary: 1–3 предложения, ревью со ссылками на JSON, без таблиц файндингов и дампов)
+- [x] Если отклонились от спека — описать отклонение и причину (в частности, если пришлось тронуть что-то за пределами списка локаторов)
+- [x] Обновить user-spec/tech-spec если что-то изменилось

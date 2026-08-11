@@ -1,0 +1,168 @@
+{
+  "reviewer": "dev-test-reviewer",
+  "round": 2,
+  "status": "passed",
+  "commit": "9c0ee19",
+  "previousCommit": "65696f7",
+  "summary": "Both round-1 majors are genuinely closed, verified independently on 9c0ee19 in a throwaway worktree (removed before writing this). All ten mutants the fixer claims to have killed were re-run here and all ten died; four further mutants of my own were added, of which two more died and two survived. The persist criterion is now pinned by a fake plugin injected into pluginStore: removing persist() from updateBoard fails the suite, and — the stronger check the fixer did not claim — a persist that saves a pre-update deep copy also fails. The cleared-name criterion is pinned by a test that pre-seeds a stored title and saves an empty one, which kills the `|| existing` mutant. Attribution per test confirms each new test earns its place: 'writes each name onto its own group' is the sole killer of the cross-wired-key mutant, 'caps ... keeping the first 40' the sole killer of slice(-40), the boardId pair jointly kills both boards[0] and boards[at(-1)], and — checked explicitly because round 1 suspected redundancy — 'keeps an empty group title empty' is still the only test that catches a localized default substituted for a group no other test asserts (mutant on 'completed'), so leaving it unchanged was the right call. Isolation is intact: 104/104 on three shuffled runs and all 13 dataStore tests green when run alone; the injected fake plugin cannot leak (afterEach resets pluginStore for every test in the describe, and vitest isolates files by default). No new problem of consequence was introduced by the fixes themselves. The one thing shipped in 9c0ee19 that nobody reviewed is not a test at all: BoardSettingsPopup.svelte gained `arrowHidden` (code-reviewer suggestion 1), new inline logic that is uncovered at every level and absent from the Task 10 scenario list. Remaining findings are five minors, three of them explicitly deferred coverage carried over from round 1; none blocks the task.",
+  "findings": [
+    {
+      "severity": "minor",
+      "category": "missing_coverage",
+      "location": "src/ui/BoardSettingsPopup.svelte:44-46, 51-52, 101, 109",
+      "issue": "The fix commit added new production logic that no review round has covered: `arrowHidden` (hidden groups ∪ groups missing from `board.groups`) now feeds both `canMoveGroup` and `handleMove` in place of `hiddenGroups`. It came from dev-code-reviewer suggestion 1 (optional, minor) and it implements a different resolution than the one suggested there (treat a missing group as hidden, rather than run the arrows over `presentGroups`). In the healthy case `arrowHidden` equals `hiddenGroups`, so the change is confined to the hand-edited-data path — the same path this task already hardened. Being inline in a .svelte file it is out of unit reach per Decision 11, and it is not in the Task 10 scenario list either, so it is currently uncovered at every level, exactly like `presentGroups` and the `handleMove` predicate guard flagged in round 1.",
+      "recommendation": "The extraction precedent is now established by sanitizeHiddenGroups, so use it: move the one-liner into src/ui/groupOrderUtils.ts as `export function arrowSkippedGroups(order: GroupId[], hidden: GroupId[], groups: Partial<Record<GroupId, unknown>>): GroupId[]` and cover three cases in tests/unit/groupOrderUtils.test.ts — (1) no hidden, all groups present → `[]`; (2) one hidden group → just that id; (3) a group absent from `groups` → that id included even though it is not hidden. The popup then calls it in the `$:` block. If extraction is judged out of scope for a fix wave, add the behaviour to the Task 10 list instead: with `board.groups.delegated` deleted, the `orgIntentions` down arrow must swap it with `completed` (the next rendered row), not with the invisible `delegated`.",
+      "litmusTestFailed": false
+    },
+    {
+      "severity": "minor",
+      "category": "anti_pattern",
+      "location": "tests/unit/dataStore.test.ts:166-174 ('persists the board after writing it')",
+      "issue": "The fake plugin stores the argument by reference (`saved.push(data)`), and updateBoard mutates the store object in place, so `saved[0]` is a live view of the store rather than a snapshot of what was persisted. Measured on 9c0ee19: moving `persist()` above the `dataStore.update(...)` block — i.e. persisting before the write — leaves the whole suite green (104/104), because the recorded reference acquires the new title afterwards. The realistic form of the bug is caught: a persist that saves `structuredClone(get(dataStore))` taken before the update does fail this test, so the gap is narrow, but the test as written cannot distinguish 'persisted after writing' (its own name) from 'persisted at some point around writing'.",
+      "recommendation": "One-word fix in the fake, keeping every existing assertion: `pluginStore.set({ saveData: (data: PluginData) => { saved.push(structuredClone(data)); } } as never);`. Verified on 9c0ee19 that the ordering mutant survives without it. Optionally also assert the store is untouched by the persist path itself — not required.",
+      "litmusTestFailed": false
+    },
+    {
+      "severity": "minor",
+      "category": "missing_coverage",
+      "location": "tests/unit/groupOrderUtils.test.ts:251-270 (sanitizeHiddenGroups block) / src/ui/groupOrderUtils.ts:14-17",
+      "issue": "Round 1 named six input classes for the extracted sanitizer; five are covered (valid list, non-array, unknown ids, mixed junk, new instance) and duplicates are not. Measured on 9c0ee19: adding `Array.from(new Set(...))` to sanitizeHiddenGroups leaves the suite green (104/104), so neither 'duplicates are preserved' nor 'duplicates are collapsed' is pinned, and the popup writes this list straight back into `board.hiddenGroups` on save. The other four cases are well chosen — in particular 'returns a new array, never the input instance' is not a decorative identity check: it is the only test that kills an allocation-avoiding variant that returns the input when nothing was filtered (verified on 9c0ee19).",
+      "recommendation": "Add one case pinning the intended contract, which given Decision 6's 'sanitize on load, not on write' framing should be pass-through: `it('keeps duplicates — deduplication is not this sanitizer's job', () => { expect(sanitizeHiddenGroups(['focus', 'focus'])).toEqual(['focus', 'focus']); });`. If the opposite is intended, dedupe in the implementation and assert `['focus']` — either way the mutant above stops surviving.",
+      "litmusTestFailed": false
+    },
+    {
+      "severity": "minor",
+      "category": "missing_coverage",
+      "location": "tests/unit/dataStore.test.ts:74-83 ('caps a group title at 40 characters, keeping the first 40')",
+      "issue": "The cap direction is now pinned correctly and the non-periodic input choice is right — measured on 9c0ee19, the slice(-40) mutant dies on this test alone, and the exact-string assertion also kills slice(0,39) and slice(0,41). The boundary half of the round-1 recommendation was not taken: no test feeds a name of exactly 40 characters, so 'a legal-length name survives untouched' rests on the same assertion as 'an over-long name is cut'.",
+      "recommendation": "One line next to the existing test: `it('leaves a name of exactly 40 characters untouched', () => { const exact = 'A'.repeat(40); updateBoard(board.id, fields({ groupTitles: titles({ focus: exact }) })); expect(readBoard(board.id).groups.focus.title).toBe(exact); });`. This is the assertion that fails if someone later writes the cap as `length >= 40 ? slice(0, 39) : value`.",
+      "litmusTestFailed": false
+    },
+    {
+      "severity": "minor",
+      "category": "missing_coverage",
+      "location": "tests/unit/dataStore.test.ts:95-103 ('clears a previously stored title when an empty name is saved')",
+      "issue": "The empty-string half of the round-1 recommendation landed and closes the major; the whitespace half did not. No test saves a whitespace-only name over a *stored* title, so 'whitespace equals cleared' is only asserted against a board whose title was already empty (line 68-72). The mutants this would additionally catch are contrived — the plain `|| existing` mutant dies on the empty-string case — which is why this stays minor rather than being re-raised.",
+      "recommendation": "Extend the existing test by three lines rather than adding a case: after the empty-name assertion, `board.groups.focus.title = 'Старое название'; updateBoard(board.id, fields({ groupTitles: titles({ focus: '   ' }) })); expect(readBoard(board.id).groups.focus.title).toBe('');`.",
+      "litmusTestFailed": false
+    },
+    {
+      "severity": "minor",
+      "category": "missing_coverage",
+      "location": "Carried forward from round 1: src/styles.css .tm-popup__group-row--hidden (Task 10 Сц.11), BoardSettingsPopup name input maxlength (Task 10 Сц.10), BoardSettingsPopup presentGroups + handleMove guard",
+      "issue": "Three round-1 minors were consciously not addressed and handed to the next wave. They are unchanged on 9c0ee19 and none of them has yet been written into the Task 10 scenario list, so the deferral is still only recorded in a review file: the row dimming class is asserted nowhere (grep over tests/e2e finds no reference to tm-popup__group-row--hidden), Сц.10 types exactly 40 characters and so passes with or without the input's maxlength, and the popup's presentGroups filter and handleMove predicate guard remain inline and uncovered.",
+      "recommendation": "Do the cheap part now — append the three assertions to the Task 10 scenario text so the executing agent inherits them: (1) in Сц.11, before saving, `await expect(page.locator('[data-settings-group=\"delegated\"]')).toHaveClass(/tm-popup__group-row--hidden/)` plus the negated form after re-checking; (2) in Сц.10, fill the name input with 45 characters and assert `(await input.inputValue()).toHaveLength(40)` before saving; (3) one damaged-data scenario seeding `hiddenGroups: null` and a deleted group object, asserting the popup renders and an arrow still moves a row. Add the arrowHidden case from the first finding to the same list.",
+      "litmusTestFailed": false
+    }
+  ],
+  "resolvedFromRound1": [
+    {
+      "roundOneSeverity": "major",
+      "item": "persist() unverified",
+      "verdict": "closed",
+      "evidence": "Measured on 9c0ee19: mutant 'persist() removed from updateBoard' → 1 failed | 103 passed, killed by 'persists the board after writing it'. Stronger mutant not claimed by the fixer — persist saving a structuredClone captured before the update — also killed by the same test. Residual: the pre-update-call ordering mutant survives (see finding 2)."
+    },
+    {
+      "roundOneSeverity": "major",
+      "item": "no test overwrites a non-empty title",
+      "verdict": "closed",
+      "evidence": "Measured on 9c0ee19: mutant `sanitizeGroupTitle(...) || board.groups[id].title` → 1 failed | 103 passed, killed solely by 'clears a previously stored title when an empty name is saved'. Whitespace variant still uncovered (see finding 5, minor)."
+    },
+    {
+      "roundOneSeverity": "minor",
+      "item": "per-group title mapping",
+      "verdict": "closed",
+      "evidence": "Mutant `fields.groupTitles['focus']` for all groups → killed solely by 'writes each name onto its own group' on 9c0ee19."
+    },
+    {
+      "roundOneSeverity": "minor",
+      "item": "cap direction unpinned",
+      "verdict": "closed",
+      "evidence": "Mutant slice(-40) in sanitizeGroupTitle → killed by 'caps a group title at 40 characters, keeping the first 40' (dataStore-only run) and by migration/groupTitle suites in the full run, on 9c0ee19. The non-periodic input 'A'*30+'B'*30 is the correct fix for the periodic-string trap the fixer describes. Boundary case still open (finding 4)."
+    },
+    {
+      "roundOneSeverity": "minor",
+      "item": "board selected by id",
+      "verdict": "closed, and better than asked",
+      "evidence": "On 9c0ee19 the two-board fixture kills `data.boards[0]` (via both 'writes to the board named by boardId' and 'ignores an unknown boardId'), and the mirror-image mutant `data.boards[data.boards.length - 1]` — which a two-board fixture alone would not catch — is killed by the single-board 'ignores an unknown boardId' test. The pair covers both positional shortcuts, so no three-board fixture is needed."
+    },
+    {
+      "roundOneSeverity": "minor",
+      "item": "unknown boardId guard",
+      "verdict": "closed",
+      "evidence": "Mutant removing the `if (board)` guard → 1 failed | 103 passed on 9c0ee19, killed by 'ignores an unknown boardId instead of throwing'. The weaker assertion actually shipped (title unchanged instead of whole-store deep equality) is sufficient: it is what kills a boards[0]/last-board fallback."
+    },
+    {
+      "roundOneSeverity": "minor",
+      "item": "Decision 6 asymmetry unpinned",
+      "verdict": "closed",
+      "evidence": "Mutant `board.groupOrder = sanitizeGroupOrder(fields.groupOrder)` (with the import added so it compiles) → 1 failed | 103 passed on 9c0ee19, killed by 'stores the group order verbatim, without sanitizing it'."
+    },
+    {
+      "roundOneSeverity": "minor",
+      "item": "shallow DEFAULT_DATA spread sharing settings",
+      "verdict": "closed",
+      "evidence": "seedBoards copies `settings` explicitly (tests/unit/dataStore.test.ts:22) and documents the deliberate board aliasing the missing-group and cleared-title tests rely on. Isolation re-verified on 9c0ee19: 3× --sequence.shuffle 104/104, and 13/13 dataStore tests green when run individually with -t."
+    },
+    {
+      "roundOneSeverity": "minor",
+      "item": "popup-side hardening untestable",
+      "verdict": "partly closed, as reported",
+      "evidence": "sanitizeHiddenGroups is exported and covered by four cases; the passthrough mutant → 2 failed | 102 passed on 9c0ee19. presentGroups and the handleMove guard remain inline and uncovered, and arrowHidden joined them (findings 1 and 6)."
+    },
+    {
+      "roundOneSeverity": "minor",
+      "item": "litmus failure on 'keeps an empty title empty'",
+      "verdict": "correctly left unchanged",
+      "evidence": "Re-measured on 9c0ee19 rather than assumed. The test is still litmus-negative for a dropped title write, but it is not redundant: with it removed, a mutant substituting a localized default for a single group ('completed') survives the file, and with it present that mutant is killed by this test alone. Attribution over five title mutants confirms nothing else asserts emptiness for the three groups no other test names."
+    }
+  ],
+  "newProblemsIntroduced": {
+    "fixtureCoupling": "None of consequence. seedBoards(count) keeps the deliberate store aliasing but now documents it; the two-board test re-seeds inside the test body, which leaves the outer `board` from beforeEach pointing at a board no longer in the store — harmless today because that test never reads it, worth a one-line comment if the test grows.",
+    "pluginStoreLeak": "Not reproducible. afterEach(() => pluginStore.set(null)) runs for every test in the describe, vitest 4 isolates test files by default (vitest.config.ts sets only environment and include), and the fake is a plain object with a synchronous saveData, so persist() records it before its first await — no timing dependence. 3× shuffled runs and 13 individual runs green on 9c0ee19.",
+    "overSpecificAssertions": "None found. The exact-string cap assertion and the new-array identity assertion both kill mutants that nothing else kills (verified on 9c0ee19); neither pins a refactoring-sensitive detail without a behavioural consequence.",
+    "unreviewedProductionChange": "BoardSettingsPopup.svelte arrowHidden — see finding 1. Also in the commit: .tm-popup__group-header-move removed from styles.css and its span replaced by a bare <span> (dev-code-reviewer suggestion 3) — grep confirms the class had no other reference, and grid placement is positional, so no test impact."
+  },
+  "metrics": {
+    "measuredOnCommit": "9c0ee19",
+    "filesReviewed": 7,
+    "unitSuiteOnCommit": "104 passed (7 files) on 9c0ee19 — dataStore.test.ts 13, groupOrderUtils.test.ts 26; identical in the shared tree and in the throwaway worktree",
+    "unitSuitePreviousCommit": "94 passed (7 files) on 65696f7 — dataStore.test.ts 7, groupOrderUtils.test.ts 22",
+    "litmusTest": {
+      "checked": 17,
+      "passed": 16,
+      "failed": 1,
+      "note": "The single litmus-negative test ('keeps an empty group title empty') survives deletion of the title write, but kills a per-group default substitution nothing else catches — measured, not assumed."
+    },
+    "mutationExperiments": {
+      "measuredOnCommit": "9c0ee19",
+      "baseline": "104/104 green before every mutant; each mutant applied to a pristine copy and reverted immediately after the run",
+      "total": 18,
+      "killed": 16,
+      "survived": 2,
+      "orchestratorClaimsReRun": "10 of 10 confirmed killed independently (persist removed; empty name keeps old title; cross-wired title key; cap keeps tail; board not looked up by id; order sanitized inside the store; sanitizeHiddenGroups passthrough; title write dropped; order write dropped; missing-group guard removed)",
+      "additionalMutantsAdded": 8,
+      "survivors": [
+        "persist() called before the dataStore.update block — survives because the fake records a live store reference (finding 2)",
+        "sanitizeHiddenGroups deduplicates its result — duplicate handling is unpinned (finding 3)"
+      ],
+      "notableKills": [
+        "persist saving a structuredClone taken before the update → killed by 'persists the board after writing it'",
+        "board resolved as data.boards[data.boards.length - 1] → killed by 'ignores an unknown boardId instead of throwing'",
+        "sanitizeHiddenGroups returning the input instance when nothing was filtered → killed only by 'returns a new array, never the input instance'",
+        "localized default substituted for 'completed' only → killed only by 'keeps an empty group title empty'"
+      ]
+    },
+    "isolation": "verified on 9c0ee19: 3× vitest --sequence.shuffle → 104/104 each; all 13 tests of dataStore.test.ts green when run alone via -t; pluginStore restored by afterEach",
+    "coverageAssessment": "adequate",
+    "pyramidBalance": {
+      "unit": 13,
+      "integration": 0,
+      "e2e": 0,
+      "assessment": "healthy",
+      "note": "counts tests/unit/dataStore.test.ts only; groupOrderUtils.test.ts contributes 26 more unit tests, 4 of them added by this commit"
+    },
+    "e2eNotMeasured": "tests/e2e was not run in this round. The 27 red scenarios in 0006/0007/0008 are the declared pre-Task-09 state and were taken as given, not re-measured; nothing in tests/e2e was edited.",
+    "worktreeHygiene": "All mutation runs happened in a detached worktree at 9c0ee19 under the session scratchpad; it was removed with `git worktree remove --force` before this report. The shared tree ends at 9c0ee19 with no modified tracked files (untracked: logs/, and a sibling reviewer's round-2 report)."
+  }
+}

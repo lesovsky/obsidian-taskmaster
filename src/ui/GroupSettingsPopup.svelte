@@ -1,11 +1,14 @@
 <script lang="ts">
   import type { Group, GroupId } from '../data/types';
   import { t, groupLabels } from '../i18n';
+  import { resolveGroupTitle } from './groupTitle';
 
   export let groupId: GroupId;
   export let group: Group;
   export let onSave: (fields: { wipLimit: number | null; completedRetentionDays: number | null }) => void;
   export let onClose: () => void;
+
+  $: title = resolveGroupTitle(group.title ?? '', $groupLabels[groupId]);
 
   let wipLimitStr = group.wipLimit !== null ? String(group.wipLimit) : '';
   let retentionStr = group.completedRetentionDays !== null ? String(group.completedRetentionDays) : '';
@@ -24,7 +27,7 @@
 
 <div class="tm-popup-overlay" on:click={onClose} on:keydown role="presentation">
   <div class="tm-popup" on:click|stopPropagation on:keydown|stopPropagation role="dialog">
-    <h3 class="tm-popup__title">{$t('groupSettings.heading')} {$groupLabels[groupId]}</h3>
+    <h3 class="tm-popup__title">{$t('groupSettings.heading')} {title}</h3>
 
     <div class="tm-popup__field">
       <label class="tm-popup__label" for="tm-wip">{$t('groupSettings.wipLimit')}</label>

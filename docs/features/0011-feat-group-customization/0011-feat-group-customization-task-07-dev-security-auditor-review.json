@@ -1,0 +1,113 @@
+{
+  "status": "approved",
+  "audit": {
+    "task": "Task 07 — board renders in configured group order",
+    "commit": "3dda490711831999c807f535cf3bba120a617bd5",
+    "parent": "347ed31",
+    "branch": "feature/group-customization",
+    "measuredOn": "3dda490 (verified via `git rev-parse HEAD`); working tree clean apart from other reviewers' reports and untracked logs/",
+    "filesReviewed": [
+      "src/ui/BoardLayout.svelte",
+      "src/ui/boardLayoutUtils.ts",
+      "src/styles.css",
+      "tests/unit/boardLayoutUtils.test.ts"
+    ],
+    "filesReadAsContext": [
+      "src/data/migration.ts",
+      "src/data/cleanup.ts",
+      "src/data/defaults.ts",
+      "src/data/types.ts",
+      "src/stores/dataStore.ts",
+      "src/ui/BoardSettingsPopup.svelte",
+      "src/ui/BoardHeader.svelte",
+      "src/main.ts",
+      "tests/harness/main.ts"
+    ],
+    "threatModel": "Local Obsidian desktop plugin. No server, no network, no auth, no secrets, no DB. The only attacker-relevant input is a hand-edited or corrupted data.json owned by the user. Relevant OWASP surface is therefore A03 (DOM injection through rendered attributes) and A04/availability (denial of service by corrupt data). A01/A02/A05/A06/A07/A09/A10 are not applicable to this diff."
+  },
+  "verifiedClaims": [
+    {
+      "claim": "No stored data can reach the new inline `style` attribute (CSS injection).",
+      "verdict": "confirmed",
+      "evidence": "BoardLayout.svelte:40-42 builds the value as `order: ${i + 1}` where `i` is the Array.prototype.map index — a number, never a stored string. The group id is used only as the object key, never as the value. Empirical: a board seeded with groups.focus.title = '\"><img src=x onerror=alert(1)>; background:red' rendered the wrapper as `<div class=\"tm-board-layout__group--half\" style=\"order: 2\" data-group-container=\"focus\">`; the title appeared HTML-escaped inside the header span and document.querySelectorAll('img').length was 0. Measured on 3dda490 in Chromium via the harness."
+    },
+    {
+      "claim": "Svelte's handling of `style={...}` here cannot break out of the attribute.",
+      "verdict": "confirmed",
+      "evidence": "Svelte 4 compiles the binding to `attr(div, \"style\", div_style_value)` in both create (`c()`) and update (`p()`) — i.e. Element.setAttribute, with no HTML parsing anywhere. Read directly from the compiled bundle (tests/harness/harness.js, create_if_block_8/7/..., lines ~9445 and ~9470 of the build produced from 3dda490). Even a fully attacker-controlled string could therefore at worst add CSS declarations to that one element; it could not close the attribute or inject markup. Modern Chromium has no expression()/behavior CSS script sink."
+    },
+    {
+      "claim": "The six `data-group-container` values are literals, not data.",
+      "verdict": "confirmed",
+      "evidence": "`grep -rn \"data-group-container\" src/` returns exactly six hits, all in BoardLayout.svelte (196, 212, 227, 242, 257, 272), each a quoted literal. No interpolation, so no attribute-injection surface, and no collision with data-group-id."
+    },
+    {
+      "claim": "The trust boundary — sanitize in migration.ts, trust in the component — is correctly placed and documented.",
+      "verdict": "confirmed",
+      "evidence": "sanitizeGroupOrder is allowlist-based (`GROUP_IDS.includes(id)`, migration.ts:25) and is applied at migration.ts:154-155 in a loop that sits deliberately OUTSIDE every `if (version < N)` branch, so it also repairs data damaged after the migration already ran; main.ts:52 calls migrateData on every load. The boundary is documented on both sides: BoardLayout.svelte:23-26 states what the sanitizer does and does not guarantee, and types.ts:41 annotates the field as 'always a permutation of GROUP_IDS'. Re-sanitizing in the component would duplicate the invariant in a place with no unit-test reach (vitest environment is 'node'). Empirical: groupOrder seeded as null, 'focus', {a:1}, [], [1,2,3], [{},[]] and ['focus','focus','__proto__','constructor'] each produced six rendered wrappers with a dense order 1..6 and zero page errors; the stored value came back a valid permutation in every case."
+    },
+    {
+      "claim": "No prototype pollution through the new `Object.fromEntries` derivation.",
+      "verdict": "confirmed",
+      "evidence": "Object.fromEntries uses CreateDataPropertyOrThrow, so even an entry keyed '__proto__' becomes an own data property rather than invoking the setter — verified on Node 22.23.1: Object.getOwnPropertyDescriptor(o,'__proto__') is present and Object.prototype is unmodified. Independently, '__proto__' never reaches the derivation: sanitizeGroupOrder drops it (verified end to end in probe P4)."
+    },
+    {
+      "claim": "A hand-deleted group object does not stop the board from opening; the skip is total and the derived values stay consistent.",
+      "verdict": "confirmed with one qualification (see finding SEC-02)",
+      "evidence": "Board seeded with groups.orgIntentions deleted: 5 wrappers rendered, order 1..5 dense, notes still order 100 at the bottom, zero page errors. Combined case (groups.focus deleted + delegated hidden + groupOrder reversed): 4 wrappers, order 1..4, and computeGroupClasses correctly demoted inProgress to --half-alone because its former partner was gone — classes and order stayed derived from the same array. `{#if groupStyles[id]}` is safe as an existence test because the value is always the non-empty string 'order: N' (never '' or 0), so no rendered wrapper can carry an undefined order."
+    },
+    {
+      "claim": "No callback inside the wrappers, and no per-group settings path, dereferences a missing group.",
+      "verdict": "confirmed for BoardLayout; see finding SEC-01 for BoardSettingsPopup",
+      "evidence": "All five callbacks per wrapper pass a hardcoded group-id literal and are only reachable from a rendered wrapper. `settingsGroupId` (BoardLayout.svelte:20) is written only by openGroupSettings, called only from those wrappers, so `board.groups[settingsGroupId]` at line 316 can only name an existing group. dataStore mutators index board.groups[groupId] with ids that likewise originate from rendered wrappers; the only unconditional GROUP_IDS sweep in dataStore (lines 207-208) is reached from BoardSettingsPopup, which is covered by SEC-01."
+    },
+    {
+      "claim": "Mandatory scans.",
+      "verdict": "clean",
+      "evidence": "No hardcoded secrets in the diff (regex sweep for api_key/secret/password/token/bearer/private-key over `git diff 347ed31..3dda490`: no matches). No `{@html}` anywhere in src/ (single hit is a comment in groupTitle.ts telling readers not to use it). No eval/new Function/innerHTML/outerHTML/insertAdjacentHTML in src/. `npm audit --omit=dev`: 0 vulnerabilities."
+    },
+    {
+      "claim": "Gates (run on 3dda490, Node 22.23.1).",
+      "verdict": "green",
+      "evidence": "`npm test` — 87 tests / 6 files passed, including the 3 new arbitrary-order cases (boardLayoutUtils.test.ts now 8 tests). `npm run build` — exit 0; the only 2 warnings are pre-existing a11y warnings on BoardSettingsPopup.svelte:31 and GroupSettingsPopup.svelte:29, untouched by this diff. `npx playwright test tests/e2e/0007-dynamic-layout.spec.ts tests/e2e/0006-group-visibility.spec.ts tests/e2e/0008-card-columns.spec.ts tests/e2e/core.spec.ts` — 84 passed, spec files unmodified, confirming data-group-container did not collide with data-group-id. tsc deliberately not cited (tech-spec Decision 11)."
+    }
+  ],
+  "summary": {
+    "totalFindings": 3,
+    "critical": 0,
+    "major": 0,
+    "minor": 3
+  },
+  "findings": [
+    {
+      "severity": "minor",
+      "category": "A04:2021 Insecure Design — availability under corrupt data",
+      "title": "Board settings popup still crashes on a hand-deleted group, which this task's skip logic newly made reachable",
+      "description": "BoardLayout now tolerates a groupOrder id whose group object was hand-deleted, so the board opens. BoardSettingsPopup does not: line 17 builds `GROUP_IDS.map(id => [id, board.groups[id].fullWidth])` and line 53 reads `board.groups[groupId].taskIds.length`, both sweeping all six ids unconditionally. Measured on 3dda490 in the harness: with groups.orgIntentions (and separately groups.focus) deleted, the board rendered 5 wrappers with no errors, but clicking the board-settings gear threw `TypeError: Cannot read properties of undefined (reading 'fullWidth')` and the popup never opened. This is NOT in the commit's diff and is not a regression — before this change the board itself failed to render, so the user never reached the gear. But this task is what turns the missing-group file into a usable board, so it is also what makes this popup path reachable for the first time. The same shape exists downstream in dataStore.ts:207-208 (saveBoardSettings writes fullWidth for all six ids), which the popup would call on save. Recording it here so it is owned rather than lost: the per-group GroupSettingsPopup is safe, this one is not.",
+      "impact": "On a data.json with a hand-deleted group, board settings become permanently unreachable — the user cannot toggle group visibility or full-width, i.e. cannot repair the board from the UI. Silent from the user's side: the gear simply does nothing, with the error only in the dev console. No confidentiality or integrity impact; availability of one feature only.",
+      "recommendation": "Guard the two reads in BoardSettingsPopup the same way BoardLayout does, e.g. `GROUP_IDS.filter(id => Object.hasOwn(board.groups, id)).map(id => [id, board.groups[id].fullWidth])` at line 17 and an `{#if board.groups[groupId]}` (or the same filter on the `{#each}` source) at line 52-53, and make dataStore.ts:207-208 skip ids that are absent. This is out of Task 07's declared scope — do not fold it into this commit; raise it against Task 08 (which owns the popup) or the feature's debt register.",
+      "location": "src/ui/BoardSettingsPopup.svelte:17, src/ui/BoardSettingsPopup.svelte:53, src/stores/dataStore.ts:207-208",
+      "cwe": "CWE-476"
+    },
+    {
+      "severity": "minor",
+      "category": "A04:2021 Insecure Design — availability under corrupt data",
+      "title": "The 'the board must open' invariant asserted in the new comment does not hold when the deleted group is `completed`",
+      "description": "BoardLayout.svelte:23-26 justifies the skip with «доска обязана открыться». That holds for 5 of the 6 groups but not for `completed`: cleanup.ts:4 reads `board.groups.completed.completedRetentionDays` by hard-coded path, and main.ts:52-56 runs cleanupCompletedTasks immediately after migrateData, before anything renders. Measured on 3dda490 by replaying the load sequence (migrateData → cleanupCompletedTasks → cleanupOrphanedTasks): `missing=orgIntentions -> load OK`; `missing=completed -> LOAD THREW: TypeError: Cannot read properties of undefined (reading 'completedRetentionDays')`. Neither cleanup.ts nor main.ts is in this commit's diff and this is not a regression, but the new comment states the invariant unqualified, which overstates what the codebase actually delivers and will mislead the next reader. Related, same load path and also not introduced here: the unconditional `for (const board of result.boards)` sanitization loop added by Task 03 at migration.ts:154 throws on a v8 file whose `boards` is null, 'x' or {} — verified — though main.ts:54 would have thrown on such a file before the feature too, so the observable outcome is unchanged.",
+      "impact": "A data.json with a hand-deleted `completed` group leaves the plugin unable to load at all — a self-inflicted denial of service with no in-app recovery, only manual repair of data.json. The practical severity is low (the file is user-owned and the state requires deliberate hand editing), but the discrepancy between the asserted invariant and the actual behaviour is worth recording.",
+      "recommendation": "Cheapest honest fix is to qualify the comment, e.g. add: «кроме случая удалённого completed — на нём падает cleanupCompletedTasks ещё до рендера (cleanup.ts:4)». If the invariant is meant literally, make cleanup.ts:2-8 tolerant instead: `const completed = board.groups.completed; if (!completed) return;` before reading completedRetentionDays. Prefer the comment fix inside Task 07 (it touches only the file this task already owns); route the cleanup.ts change to the feature's debt register rather than smuggling it into this commit.",
+      "location": "src/ui/BoardLayout.svelte:23-26 (claim); src/data/cleanup.ts:4 and src/main.ts:52-56 (actual behaviour)",
+      "cwe": "CWE-476"
+    },
+    {
+      "severity": "minor",
+      "category": "best-practice — defense in depth",
+      "title": "The group-existence guard is a truthiness test, so it also admits inherited Object.prototype keys",
+      "description": "BoardLayout.svelte:28 filters with `board.groups[id]`, a bracket lookup that walks the prototype chain. `board.groups['constructor']`, `board.groups['toString']` and `board.groups['valueOf']` are all truthy (verified on Node 22.23.1), so such an id would pass the filter, then `board.groups[id].fullWidth` would evaluate to undefined (falsy → treated as half-width), and the id would take a slot in both computeGroupClasses and the order numbering. No wrapper exists for it, so it would render nothing while silently shifting every real group's `order` value by one and changing which half-width groups pair up. Being explicit about reachability: this is NOT exploitable today. sanitizeGroupOrder allowlists against the six literals in GROUP_IDS on every load, and I confirmed end to end that a seeded groupOrder of ['focus','focus','__proto__','constructor'] came out as a clean six-id permutation with all six wrappers at order 1..6. The concern is purely that the guard's correctness rests entirely on the sanitizer rather than being locally sound, and Task 08 is about to add a second writer to groupOrder.",
+      "impact": "None in the current build. If a future write path to groupOrder ever bypasses sanitizeGroupOrder, the failure mode is silent visual corruption (wrong order, wrong half-width pairing) rather than an error — the hardest class of bug to notice, and the one the existing filter was added to prevent.",
+      "recommendation": "Make the guard locally sound: `.filter(id => !hidden.has(id) && Object.hasOwn(board.groups, id))`. Identical behaviour on every input reachable today, one word longer, and it stops depending on the sanitizer for correctness. Object.hasOwn is ES2022 and the project already targets modern Electron/Chromium.",
+      "location": "src/ui/BoardLayout.svelte:28",
+      "cwe": "CWE-1321"
+    }
+  ]
+}

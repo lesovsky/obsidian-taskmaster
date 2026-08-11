@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Group Customization — rename any group and reorder groups per board via the board settings popup. An empty name means the default localized one, so clearing the field is the reset; names are limited to 40 characters. Arrows move a group up or down: a visible group swaps with its nearest visible neighbour, stepping over hidden ones, while a hidden group moves to the adjacent slot and keeps its own position in the settings list. Data schema migrated to version 8
 - Notes Visibility — hide or show the Notes section per board via board settings popup. Notes content is preserved when hidden and restored when shown again; the collapsed/expanded state is also preserved. Data schema migrated to version 7
 - Dynamic Layout — configure each group's width per board: full width (100%) or half width (50%). Half-width groups are automatically paired side by side; a lone half-width group stretches to full width. Collapses to single column on narrow screens (<600px)
 - Group Visibility Settings — hide or show individual task groups per board via board settings popup. Hidden groups retain their tasks; automations (task completion, status transitions) work regardless of visibility. At least one group must remain visible

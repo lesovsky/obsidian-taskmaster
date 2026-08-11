@@ -1,0 +1,42 @@
+{
+  "reviewer": "dev-code-reviewer",
+  "status": "approved",
+  "summary": "Task 02 is a clean, minimal localization change: four new keys declared in the TranslationKey union and translated in both dictionaries, plus the one-line fix of the pre-existing 'boardSettings.notes' omission (Decision 9). Verified independently: npx tsc --noEmit exits 0, union and both dictionaries hold exactly 90 keys in identical order with no extras or gaps, user-spec strings are reproduced byte-for-byte including U+2014, and only src/i18n/{types,en,ru}.ts are modified. Keys are intentionally unused until tasks 06 and 08 — expected, not a defect.",
+  "criticalIssues": [],
+  "suggestions": [
+    {
+      "file": "docs/features/0011-feat-group-customization/0011-feat-group-customization.md",
+      "line": 94,
+      "severity": "minor",
+      "category": "cross-file-consistency",
+      "suggestion": "The user-spec ASCII layout of the settings row labels the visibility column «Показать», but the shipped header in src/ui/BoardSettingsPopup.svelte:49 renders $t('boardSettings.groupVisibility') = «Видимость групп» / 'Group Visibility'. Task 02 did not add a «Показать» key, and Task 08 (wave 5) states it will reuse the existing header cells — so no key is missing today. Flagging it because Task 02 is the designated \"all i18n keys up front\" task: if Task 08 later decides to follow the layout literally, it will have to edit the dictionaries in its own wave, which is exactly what centralizing the keys here was meant to avoid. Worth one line in the decisions log confirming the existing header wording stays.",
+      "benefit": "Removes the only remaining path by which a later wave would need to touch src/i18n/, keeping the single-writer guarantee for the dictionaries intact.",
+      "optional": true
+    },
+    {
+      "file": "src/i18n/en.ts",
+      "line": 61,
+      "severity": "minor",
+      "category": "readability",
+      "suggestion": "In EN the header row will read 'Group | Group Visibility | Full width' — 'Group' next to 'Group Visibility' is slightly repetitive. RU is unaffected («Группа | Видимость групп | Полная ширина»). No change recommended here: the RU «Группа» is locked by user-spec and 'Group' mirrors it, and the key name is a hard contract for Task 08. Just something to eyeball in the EN locale once Task 08 renders the row.",
+      "benefit": "Catches an EN-only wording awkwardness at the point where the layout actually becomes visible, rather than after release.",
+      "optional": true
+    },
+    {
+      "file": "docs/features/0011-feat-group-customization/0011-feat-group-customization-decisions.md",
+      "line": 21,
+      "severity": "minor",
+      "category": "maintainability",
+      "suggestion": "The decisions log has no Task 02 entry yet. The task's Post-completion checklist requires three things there: the fix of the pre-existing type error (Decision 9), the final key-name/text contract for tasks 06 and 08, and an explicit mark on the strings that have no user-spec basis — the EN column header 'Group' and all four arrow labels ('Move up' / 'Переместить вверх', 'Move down' / 'Переместить вниз'). Tasks 06, 08 and 10 read this file as the source of truth for those names.",
+      "benefit": "Downstream tasks get the key contract from the documented source instead of grepping the dictionaries — and Task 06 in particular is warned that locating 'emptyState.renamed' by its English text gives a false match against 'emptyState.completed'.",
+      "optional": true
+    }
+  ],
+  "metrics": {
+    "filesReviewed": 3,
+    "criticalIssuesCount": 0,
+    "majorIssuesCount": 0,
+    "minorIssuesCount": 3,
+    "testCoverageAssessment": "adequate"
+  }
+}

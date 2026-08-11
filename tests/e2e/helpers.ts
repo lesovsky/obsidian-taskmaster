@@ -86,22 +86,16 @@ export async function moveTask(
 
 // ─── Group helpers ─────────────────────────────────────────────────────────────
 
-// EN labels for collapsible groups (backlog and completed)
-const COLLAPSIBLE_GROUP_LABELS: Partial<Record<GroupId, string>> = {
-  backlog: 'Backlog',
-  completed: 'Completed',
-};
-
 /**
  * Expand a collapsible group (backlog, completed) if it is collapsed.
- * Uses title text to find the header since [data-group-id] is only in the body (when expanded).
+ * Reaches the header through [data-group-container] on the wrapper: it is present in both
+ * states, unlike [data-group-id], which lives in the body and is absent when collapsed.
  */
 export async function expandGroup(page: Page, groupId: GroupId): Promise<void> {
   const body = page.locator(`[data-group-id="${groupId}"]`);
   const isVisible = await body.isVisible().catch(() => false);
   if (!isVisible) {
-    const label = COLLAPSIBLE_GROUP_LABELS[groupId] ?? groupId;
-    await page.locator('.tm-collapsible-group__header').filter({ hasText: label }).click();
+    await page.locator(`[data-group-container="${groupId}"] .tm-collapsible-group__header`).click();
     await page.waitForSelector(`[data-group-id="${groupId}"]`, { timeout: 2000 });
   }
 }

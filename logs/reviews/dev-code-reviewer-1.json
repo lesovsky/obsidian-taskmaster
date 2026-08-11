@@ -1,0 +1,24 @@
+{
+  "reviewer": "dev-code-reviewer",
+  "status": "changes_required",
+  "summary": "The implementation correctly follows the structural pattern established by the overdue border (reactive derived value + BEM modifier class), but uses `--color-green` — a CSS variable explicitly documented in this codebase as unstable across community Obsidian themes. The project's own spec note (docs/specs/0003-feat-quick-complete.md:703) flags this variable by name and recommends `--interactive-success` instead. One major issue found.",
+  "criticalIssues": [],
+  "suggestions": [
+    {
+      "file": "src/styles.css",
+      "line": 283,
+      "severity": "major",
+      "category": "maintainability",
+      "suggestion": "Replace `var(--color-green)` with `var(--interactive-success)`. The project's own spec documentation (docs/specs/0003-feat-quick-complete.md line 703) explicitly notes that `--color-green` belongs to Obsidian's unstable internal palette and may be absent in community themes. `--interactive-success` is the project-approved semantic alternative — it is already used in `src/styles.css` at lines 377 and 481 for the complete-button hover state. Using `--color-green` here creates a visual inconsistency: the green border may render as the browser default color (black or transparent) in themes that do not define this variable, while the rest of the plugin's green elements still display correctly via `--interactive-success`.",
+      "benefit": "Consistent green rendering across all Obsidian themes, alignment with the project's documented variable policy, and parity with how every other green element in the plugin is already styled.",
+      "optional": false
+    }
+  ],
+  "metrics": {
+    "filesReviewed": 2,
+    "criticalIssuesCount": 0,
+    "majorIssuesCount": 1,
+    "minorIssuesCount": 0,
+    "testCoverageAssessment": "adequate"
+  }
+}

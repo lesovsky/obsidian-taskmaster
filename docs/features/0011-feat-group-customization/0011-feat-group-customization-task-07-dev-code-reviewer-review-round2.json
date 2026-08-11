@@ -1,0 +1,82 @@
+{
+  "reviewer": "dev-code-reviewer",
+  "round": 2,
+  "status": "approved_with_suggestions",
+  "summary": "Re-reviewed fc0b9e5 (fixes over 3dda490). Both of my round-1 minors that were actionable at this task are genuinely resolved, not moved: the render condition is now a Set derived from orderedGroups on an adjacent line, and the existence guard is now a boolean-returning call that no lint rule can prune. No regression: the reachable-state behaviour of the guard is identical, DOM order and the SortableJS-preserving structure are untouched, and the two comment/label corrections from the other reviewers check out against the source. One NEW major finding: Object.hasOwn is an ES2022 API, but this project pins lib and target to ES2021 in two places, and this is the only ES2022 API in the whole of src/ — it is emitted verbatim into main.js with no polyfill, in a plugin marked isDesktopOnly:false. A one-line drop-in replacement keeps every property the fix bought.",
+  "criticalIssues": [],
+  "suggestions": [
+    {
+      "file": "src/ui/BoardLayout.svelte",
+      "line": 35,
+      "severity": "major",
+      "category": "best-practices",
+      "suggestion": "NEW (introduced by the round-1 fix). `Object.hasOwn` is ES2022. This project declares its runtime floor twice and both say ES2021: tsconfig.json:5 `\"lib\": [\"ES2021\", \"DOM\", \"DOM.Iterable\"]` and esbuild.config.mjs:14 `target: 'es2021'`. Measured at fc0b9e5: (1) `grep -rn 'hasOwn|\\.at\\(|structuredClone|replaceAll|findLast' src/` returns only this one line — it is the sole ES2022 runtime API in the entire source tree, so there is no existing precedent that raises the floor; (2) `npm run build` emits it verbatim — `grep -o 'Object.hasOwn([^)]*)' main.js` → `Object.hasOwn(d.groups,I)`. esbuild's target only downlevels syntax, never runtime APIs, so the es2021 target neither errors nor polyfills; (3) it is a hard type error under the declared lib. I established (3) without citing tsc against .svelte (Decision 11): in a throwaway worktree I wrote a plain `src/__probe.ts` containing `Object.hasOwn(o, 'a')` and ran `npx tsc --noEmit` → `error TS2550: Property 'hasOwn' does not exist on type 'ObjectConstructor'. Try changing the 'lib' compiler option to 'es2022' or later.` The baseline run without the probe was clean (exit 0). The claim is about the lib level, not about .svelte checking. Consequences: the Svelte language server reads the same tsconfig, so this line is red in the editor for every developer today; and manifest.json sets `isDesktopOnly: false`, so the bundle also runs in Obsidian mobile's system webview, where Object.hasOwn requires Safari 15.4+ / Chrome 93+. Desktop is safe (Obsidian 1.0's Electron is well past Chromium 106); the narrow exposure is a mobile user on an OS webview older than that, where the result is a TypeError inside a reactive statement — the board fails to render, which is precisely the failure this guard exists to prevent. Fix: `Object.prototype.hasOwnProperty.call(board.groups, id)`. It is ES1, needs no lib bump, and preserves every property the round-1 fix bought — it still does not walk the prototype chain (so SEC-03 stays fixed), it still reads as a deliberate existence check, and it is still a boolean-returning call that no-unnecessary-condition cannot prune. If the team would rather keep `Object.hasOwn`, then raise both declarations to ES2022 deliberately (tsconfig lib + esbuild target) rather than leaving the code and the declared floor disagreeing. Either resolution is a one-line change; what should not ship is the disagreement.",
+      "benefit": "The shipped bundle stays inside the runtime floor the project explicitly declares, the editor stops showing an error on the line, and the guard cannot itself become the cause of the render failure it was written to prevent.",
+      "optional": false
+    },
+    {
+      "file": "src/ui/BoardLayout.svelte",
+      "line": 35,
+      "severity": "minor",
+      "category": "maintainability",
+      "suggestion": "Recorded so the reasoning is on file, not a requested change. Swapping `board.groups[id]` for `Object.hasOwn(board.groups, id)` narrowed one case while widening another: the old truthiness test also rejected a key that is present but null, whereas hasOwn accepts it and the next line `board.groups[id].fullWidth` would then throw. I checked whether that is reachable and it is not: `cleanupOrphanedTasks` iterates `Object.values(board.groups)` and dereferences `group.taskIds` (src/data/cleanup.ts:23-24), and main.ts:57 calls it on every load, before any render — a null group value kills the load upstream regardless of what this filter does. A deleted key, the case the comment actually describes, is skipped by Object.values and reaches the component, where hasOwn correctly returns false. So across the reachable state space the two guards behave identically, and hasOwn is strictly better on the prototype-chain case. Verdict: the round-1 concern is resolved rather than relocated. A conjunct such as `&& board.groups[id] != null` would close the theoretical gap too, but it would restore exactly the type-invisible dead-looking condition I asked to be removed, so it is not worth it.",
+      "benefit": "Documents that the semantic narrowing was checked against the load path rather than assumed harmless, so a future reader does not re-open it.",
+      "optional": true
+    },
+    {
+      "file": "src/ui/BoardLayout.svelte",
+      "line": 31,
+      "severity": "minor",
+      "category": "readability",
+      "suggestion": "The comment says a `'constructor'` id would pass the old filter, take a slot and shift everyone else's order. True, but it understates the effect by one: such an entry also carries `fullWidth: undefined`, which computeGroupClasses (src/ui/boardLayoutUtils.ts:8-20) reads as a half-width group, so it can form a `--half` pair with a real neighbour and change that neighbour's class as well — a layout corruption, not only an order shift. Since the whole point of the comment is to justify the guard against a future second writer, naming both effects makes the justification stronger. One clause, no code change.",
+      "benefit": "The rationale comment covers the full blast radius, so a Task 08 author weighing whether the guard still matters sees the layout consequence as well as the order one.",
+      "optional": true
+    }
+  ],
+  "round1FindingsDisposition": [
+    {
+      "finding": "R1 minor #1 — {#if groupStyles['<id>']} depends on the truthiness of a formatted string",
+      "verdict": "RESOLVED",
+      "evidence": "BoardLayout.svelte:53 `$: renderedGroups = new Set(orderedGroups.map(g => g.id));` and six `{#if renderedGroups.has('<id>')}` at lines 206/222/237/252/267/282. This is the exact alternative I proposed. Checked for regressions: (a) the single-source guarantee survives — renderedGroups, groupClasses and groupStyles all derive from orderedGroups, and renderedGroups sits three lines below it, so 'a wrapper cannot render without an order' is still evident by inspection; (b) reactive ordering is safe — Svelte topologically sorts $: statements by dependency, and all three depend only on orderedGroups, which is declared first, so declaring renderedGroups after groupStyles is irrelevant; (c) typing is right — board.groupOrder is GroupId[], so the Set is Set<GroupId> and .has('backlog') typechecks; (d) style={groupStyles['<id>']} is unchanged and is now only ever read for a group that is in the Set, so the Partial<Record> lookup can no longer be undefined at render time; (e) the latent trap is closed — a later switch to a numeric 0-based order can no longer delete the first group, because the condition no longer looks at the value at all. The comment at lines 49-52 states that rationale in the code instead of leaving it to a reviewer's memory."
+    },
+    {
+      "finding": "R1 minor #2 — board.groups[id] guard invisible to TypeScript, deletable by a lint pass",
+      "verdict": "RESOLVED (genuinely, not relocated)",
+      "evidence": "The concern was specifically that the conjunct is dead code by the declared types (Board.groups is Record<GroupId, Group>), so @typescript-eslint/no-unnecessary-condition — or a reader trusting the types — would delete it. Object.hasOwn(board.groups, id) is a boolean-returning function call, not a condition whose truthiness is decidable from a type, so that rule has nothing to flag; the guard now survives a tooling pass on its own rather than on the strength of the comment above it. It also reads as the existence check it is. The semantic side-effect of the swap is analysed in the second suggestion above and is not reachable. The one thing the swap brought with it is the ES2022 lib violation, which is a separate new finding, not a re-litigation of this one."
+    },
+    {
+      "finding": "R1 minor #3 — id present in board.groups but absent from board.groupOrder renders nothing",
+      "verdict": "NOT APPLIED — agreed, handoff confirmed",
+      "evidence": "I scoped this to Task 08 myself and still do. sanitizeGroupOrder (src/data/migration.ts:16-35) whitelists against GROUP_IDS and appends every missing id, and it runs outside all version branches on every load (migration.ts:155), so the state is unreachable from stored data. It becomes reachable only if a runtime writer emits a short groupOrder without re-sanitizing, and Task 08 owns that writer. Fixing it here would duplicate the sanitizer inside the component, which the task forbids. Carry it as an explicit check on Task 08's reorder chain: moveGroup must always emit a full permutation."
+    }
+  ],
+  "otherReviewersChangesJudged": [
+    {
+      "change": "Comment now qualifies the 'the board must open' claim with the cleanupCompletedTasks caveat (BoardLayout.svelte:27-29)",
+      "verdict": "correct and an improvement",
+      "evidence": "Verified against source: src/data/cleanup.ts:4 reads board.groups.completed.completedRetentionDays through a fixed path with no guard, and src/main.ts:55 calls cleanupCompletedTasks on every load, before the view is created. So a hand-deleted completed group does throw at load, before any render, and the old wording ('доска обязана открыться') was an overclaim that this component cannot honour. The new wording 'доска открывается без них' plus the explicit caveat and the 'лечится не здесь' pointer is accurate and correctly declines to fix it in the wrong layer. The exact-line citation (cleanup.ts:4) is right."
+    },
+    {
+      "change": "Third new unit case labelled documentation-only (tests/unit/boardLayoutUtils.test.ts:89-98)",
+      "verdict": "label is honest and verified",
+      "evidence": "Its input [g('completed', true), g('delegated', false)] is a strict prefix-equivalent of the existing [full, half, full, half] case at lines 40-52, which already asserts --full at index 0 and --half-alone for a trailing half; the single-group case at lines 54-58 already pins the alone branch. So it kills no mutant the existing cases would miss — the labelling reviewer's claim holds under inspection, without needing to rerun their mutants. Keeping it as a readable example is fine now that it no longer masquerades as regression protection; the label is precisely the thing that makes it harmless."
+    }
+  ],
+  "metrics": {
+    "filesReviewed": 4,
+    "criticalIssuesCount": 0,
+    "majorIssuesCount": 1,
+    "minorIssuesCount": 2,
+    "testCoverageAssessment": "insufficient"
+  },
+  "verificationNotes": {
+    "measuredAt": "fc0b9e5 (all numbers below), in a throwaway git worktree; the shared tree was never written to",
+    "npmTest": "87 passed / 6 files, re-run by this reviewer at fc0b9e5 — matches the orchestrator's number",
+    "npmRunBuild": "success at fc0b9e5, 2 warnings, both 'A11y: Non-interactive element <div> should not be assigned mouse or keyboard event listeners' — the same 2 pre-existing warnings, re-measured by this reviewer",
+    "playwright": "NOT re-run, deliberately. playwright.config.ts sets reuseExistingServer: !CI against a hardcoded http://localhost:5173, and ss showed 5173 already held by another reviewer's esbuild harness serving the SHARED tree. A worktree run would have silently exercised the wrong bundle and produced a number I could not honestly attribute to fc0b9e5, besides competing with a concurrent reviewer. The orchestrator's 84 passed at fc0b9e5 is taken as reported.",
+    "tscNote": "npx tsc --noEmit is NOT cited as a gate for BoardLayout.svelte (Decision 11). It was used only on a plain src/__probe.ts file to establish the project's lib level: baseline clean (exit 0), probe with Object.hasOwn → error TS2550. That is a fact about tsconfig.json, not a check of the component.",
+    "mutationTesting": "No mutants run this round. The two changed lines have zero automated coverage, so a mutant would return a guaranteed-green result that proves nothing: measured at fc0b9e5, tests/unit contains no .svelte import at all (grep -rn '\\.svelte' tests/unit/ → none), so the 87 unit tests never load BoardLayout.svelte; and grep -rn 'groupOrder' tests/e2e/ tests/harness/*.ts → zero hits, so no e2e test seeds a non-default groupOrder or a missing group either. Both round-1 fixes therefore ship with the manual harness run as their only evidence. That is consistent with my round-1 note that behavioural coverage of the rendered order is owed by Task 10, and it raises the stakes on the new major finding: a runtime lacking Object.hasOwn would throw at render, and no gate in this repo would catch it.",
+    "hygiene": "Worktree created at fc0b9e5 under the session scratchpad, removed with git worktree remove --force + prune. Shared tree verified after cleanup: git -C /home/lesovsky/Projects/obsidian-taskmaster status --porcelain → only the pre-existing untracked logs/; HEAD fc0b9e5. Note for the record: at cleanup time the worktree also contained an unexpected tests/unit/__probe_r2.test.ts that this reviewer did not create; it appeared after the npm test run (which reported 6 files / 87 tests, i.e. it was not collected) and was destroyed with the worktree. Most likely a concurrent reviewer's probe — git worktree list shows two other reviewer worktrees (wt-secaudit-r2, wt-testrev-r2) under the same scratchpad parent. No measurement reported here is affected, and the shared tree never held it.",
+    "unchangedSinceRound1": "git diff --stat 347ed31..fc0b9e5 -- src/ tests/ → src/styles.css +3, src/ui/BoardLayout.svelte +59/-19, src/ui/boardLayoutUtils.ts -2, tests/unit/boardLayoutUtils.test.ts +40. computeGroupClasses's body, the notes order:100 rule, the six data-group-container attributes and the literal DOM order of the wrappers are all byte-identical to what I approved in round 1; the round-2 diff touches only the filter predicate, the six {#if} conditions, the comments and one test comment. All twelve Acceptance Criteria remain satisfied."
+  }
+}

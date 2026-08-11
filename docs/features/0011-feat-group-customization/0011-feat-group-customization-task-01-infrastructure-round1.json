@@ -1,0 +1,85 @@
+{
+  "reviewer": "dev-infrastructure-reviewer",
+  "task": "0011-feat-group-customization-task-01",
+  "commit": "af15166d66cba4deb3d0ce4a7782530ffcaf59d0",
+  "status": "approved",
+  "summary": {
+    "totalFindings": 6,
+    "critical": 0,
+    "major": 4,
+    "minor": 2
+  },
+  "verified_facts": [
+    "node -v = v22.23.1 (via /snap/bin) — satisfies ^22.12.0 || >=24.0.0; matches .nvmrc exactly",
+    "package.json engines.node = \"^22.12.0 || >=24.0.0\"; verified with npm's bundled semver: 18.19.1/20.11.0/20.19.0/21.7.3/22.11.0/23.0.0/23.11.0 all rejected; 22.12.0/22.23.1/24.0.0/25.1.0 accepted. The 23.x rejection is proven, not claimed — a naive '>=22.12' admits 23.0.0 and 23.11.0 (checked)",
+    "vitest@4.0.18 engines = ^20.0.0 || ^22.0.0 || >=24.0.0; vite@7.3.1 engines = ^20.19.0 || >=22.12.0 — both read from node_modules, both match the tech-spec",
+    "npm discrepancy CONFIRMED: the npm actually in use is 10.9.8 (bundled with the snap node, engines ^18.17.0 || >=20.5.0). npm 11.13.0 (engines ^20.17.0 || >=22.9.0, the version the spec cited) exists at /usr/local/lib/node_modules/npm but is not the one running. The executor's conclusion also holds: the intersection is unchanged. Point-checked across 11 versions — npm is not the binding constraint at any point, because vitest ∩ vite already yields [20.19,21) ∪ [22.12,23) ∪ [24,∞), and both npm ranges are supersets of that set. Dropping 20.x per Decision 8 leaves exactly ^22.12.0 || >=24.0.0",
+    "npm test: 4 files / 30 tests, all green, including tests/unit/boardLayoutUtils.test.ts (5 tests). Previously the runner died before collection — net +5 executing tests, zero lost",
+    "npm run build succeeds (2 pre-existing esbuild a11y warnings in GroupSettingsPopup.svelte, unrelated)",
+    "git log --follow tests/unit/boardLayoutUtils.test.ts shows history back to 7ee9459 — git mv preserved provenance",
+    "Diff of the moved file is exactly 2 lines, both import paths (../../src/ui/boardLayoutUtils, ../../src/data/types) — matching the style of tests/unit/cleanup.test.ts. Test cases and expectations untouched",
+    "No *.test.ts or *.spec.ts remains anywhere under src/",
+    "vitest.config.ts correctly left unmodified — include ['tests/unit/**/*.test.ts'] collects the moved file; zero-diff decision is right",
+    "playwright.config.ts testDir = 'tests/e2e' — unaffected by the move; no vitest/playwright glob overlap",
+    "No .npmrc was added — engine-strict correctly not introduced, per the task's explicit constraint",
+    "No dependency versions changed in package.json; only the engines block was added"
+  ],
+  "findings": [
+    {
+      "severity": "major",
+      "category": "testing",
+      "title": "README declares \"Node.js 18+\" — now contradicted by the pin this task added",
+      "description": "README.md:93 and README.ru.md:93 both state the prerequisite as '[Node.js](https://nodejs.org) 18+'. As of this commit the repository also states engines.node = '^22.12.0 || >=24.0.0' and .nvmrc = 22.23.1. The repo now says two mutually exclusive things about its own runtime, and the human-facing one names the exact version proven to break the test runner. This contradiction did not exist before af15166 — before, there was simply no pin — so it is introduced by this change, not inherited. Decision 8's stated purpose ('pinning the floor in the repo keeps the drift from recurring') is only half-delivered while the README still advertises the drifted value.",
+      "location": "README.md:93, README.ru.md:93",
+      "impact": "A contributor or agent following the documented Prerequisites installs Node 18, runs npm install (npm only warns via EBADENGINE, it does not block) and then hits ERR_REQUIRE_ESM on npm test — the precise failure Task 01 exists to eliminate. Two authoritative-looking sources disagreeing is worse than one being stale: the next reader has no way to tell which is current.",
+      "recommendation": "Update both files to '- [Node.js](https://nodejs.org) ^22.12.0 || >=24.0.0 (see .nvmrc)'. One line per file. If the task owner considers README out of Task 01's declared path set, hand it to Task 12 (documentation update) explicitly rather than leaving it unowned — but note that Task 12 currently scopes only docs/technical.md and the changelogs, so it would not be picked up as written."
+    },
+    {
+      "severity": "major",
+      "category": "testing",
+      "title": "The pin is declarative only — the default shell on this machine still resolves Node 18 and npm test still fails",
+      "description": "Reproduced directly: with the unmodified PATH, `command -v node` resolves to /usr/bin/node (v18.19.1, apt), and `npm test` fails with ERR_REQUIRE_ESM exactly as before the commit. The correct runtime is reachable only via an explicit `export PATH=/snap/bin:$PATH`. Nothing in the repository bridges that gap: .nvmrc is inert here (no ~/.nvm — Node is installed via snap, not nvm), engine-strict was deliberately excluded per the task, there is no preinstall/pretest guard, there is no CI configuration at all (no .github/, no .gitlab-ci.yml), and the PATH workaround is written down nowhere in the repo. The repo-side change is correct per Decision 8, which places the runtime fix on the developer machine — this finding is about the fact that nothing surfaces or enforces the requirement.",
+      "location": "package.json (engines), .nvmrc, repository root (no CI, no pretest guard)",
+      "impact": "Task 01's acceptance criterion 'npm test завершается успешно' is satisfiable only with an out-of-band PATH override that no artifact records. Waves 2–9 each gate on vitest; any executor or reviewer that starts from a clean shell gets a red suite and an ERR_REQUIRE_ESM stack that names vite internals, not the Node version — a failure mode that reads as a code defect and invites misattribution or a workaround (the exact workarounds Decision 8 forbids). With no CI, the pin is never enforced anywhere automatically.",
+      "recommendation": "Cheapest sufficient fix: record the runtime requirement and the environment quirk where executors will read it — a short 'Prerequisites: Node ^22.12.0 || >=24.0.0; on this machine the apt node 18.19.1 shadows the snap node, use export PATH=/snap/bin:$PATH' note in CLAUDE.md's Useful Commands or README Development section. Stronger option, if the owner wants a real gate rather than a note: a `pretest` script that checks process.versions.node against engines and exits with a readable message — it converts an opaque ERR_REQUIRE_ESM into 'Node 18.19.1 found, ^22.12.0 || >=24.0.0 required'. Note this is an addition beyond the task's declared path set; raise it rather than doing it silently. Fixing the PATH precedence itself (removing the apt nodejs package) is a developer-machine action, outside this repo."
+    },
+    {
+      "severity": "major",
+      "category": "pre-commit",
+      "title": "No pre-commit hooks and no gitleaks anywhere in the project",
+      "description": ".git/hooks/ contains only the stock *.sample files. There is no husky, lefthook, or .pre-commit-config.yaml, and no gitleaks configuration. The infrastructure-setup skill (Phase 5) names gitleaks the required secret-scanning hook with a sub-10-second budget, and the global CLAUDE.md lists it as mandatory. Pre-existing — not introduced by af15166, and outside Task 01's declared scope — but it falls squarely in this reviewer's profile and no other task in feature 0011 owns it.",
+      "location": ".git/hooks/ (samples only); no hook manager config in repo root",
+      "impact": "Nothing prevents a secret from reaching a commit. The skill's checkpoint (committing a file containing AKIA1234567890EXAMPLE must be blocked) cannot pass. Risk is moderate rather than acute for this project — an Obsidian plugin with no runtime credentials — but the guard is absent, not merely weak.",
+      "recommendation": "Out of scope for Task 01 — do not expand this task. Track it as project infrastructure debt and address it in the separate CI/testing feature already proposed in the user-spec (the same place Decision 11 parks svelte-check). Minimal setup: gitleaks protect --staged in a pre-commit hook, roughly 2–5s."
+    },
+    {
+      "severity": "major",
+      "category": "gitignore",
+      "title": ".gitignore carries none of the mandated security patterns",
+      "description": "Verified with git check-ignore: `.env`, `secret.key`, and `credentials.json` are all NOT ignored. .gitignore covers only build and test artifacts (node_modules/, /main.js, /styles.css, dist/, *.js.map, test-results/, playwright-report/, tests/harness/*). Missing per the skill's Phase 4: .env, .env.*, !.env.example, *.key, *.pem, credentials.json, secrets/. No .env.example exists — correctly so, since the project consumes no environment variables. Pre-existing and outside Task 01's scope.",
+      "location": ".gitignore",
+      "impact": "A stray .env, key or credentials file dropped into the working tree is staged by a bare `git add .` with no warning. Combined with the absent gitleaks hook (previous finding), there is no defence in depth at all — one accident commits a secret. Mitigating context: the plugin has no server, no API keys and no env config, so the realistic exposure is a developer's unrelated scratch file, not project credentials.",
+      "recommendation": "Append the six standard patterns to .gitignore. This is a 6-line, zero-risk change, but it belongs with the pre-commit work above rather than inside Task 01 — the task's acceptance criteria explicitly say to leave .gitignore alone (the leading-slash convention for /main.js and /styles.css must be preserved exactly). Skip .env.example; the project has no environment variables to document."
+    },
+    {
+      "severity": "minor",
+      "category": "testing",
+      "title": "Moved test file leaves tsc scope — the whole tests/ tree now has zero static type coverage",
+      "description": "Confirmed empirically: `npx tsc --noEmit --listFilesOnly` includes 0 files under tests/. tsconfig.json's include is ['src/**/*.ts', 'src/**/*.svelte'], there is no tsconfig under tests/, and vitest.config.ts declares no `typecheck` block, so vitest does not type-check either. Before the move, boardLayoutUtils.test.ts sat in src/ui/ and was the one test file tsc saw; after the move it joins the other three in an unchecked directory. The task anticipated this and asked for it to be recorded — recording it here as intended.",
+      "location": "tsconfig.json (include), vitest.config.ts (no typecheck), tests/unit/",
+      "impact": "Small and clearly outweighed by the gain: the file traded static checking it alone had for runtime execution it never had (5 tests went from never-collected to passing). The residual exposure is that a type error in any unit test now surfaces only as a runtime failure, and a test asserting against a stale type signature can compile-pass silently. It also means the project has no type gate on test code at all, which will matter more as waves 3–5 add groupOrderUtils, groupTitle and dataStore tests.",
+      "recommendation": "Accept as-is for this task — normalizing the location was the right call and matches the three pre-existing files. Log it as debt. If a gate is wanted later, `test: { typecheck: { enabled: true, include: ['tests/**/*.test.ts'] } }` in vitest.config.ts is the low-friction option; it belongs with the separate CI/testing feature, not here."
+    },
+    {
+      "severity": "minor",
+      "category": "testing",
+      "title": ".nvmrc pins an exact version with nothing keeping it consistent with engines",
+      "description": ".nvmrc holds 22.23.1 and package.json holds ^22.12.0 || >=24.0.0. Today they agree (verified). Nothing enforces that they continue to: the two values live in different files, in different formats, with no check tying them together, and the natural maintenance action on either one (bumping .nvmrc to a newer 22.x, or widening/narrowing engines) touches only one side.",
+      "location": ".nvmrc, package.json (engines)",
+      "impact": "Low, and slow-acting. A future edit can leave .nvmrc pointing outside engines; the result is a developer whose `nvm use` succeeds while npm emits EBADENGINE, or the reverse — the same class of silent drift the pin was introduced to end. Further reduced here by the fact that no nvm is installed on the current machine, so .nvmrc is documentation rather than an active mechanism.",
+      "recommendation": "No action required now — the values are correct and the task specified this exact shape (range in engines, concrete version in .nvmrc). If the pretest guard from the second finding is ever added, have it validate .nvmrc against engines in the same check; that makes the consistency structural instead of conventional."
+    }
+  ],
+  "scope_note": "Findings 3 and 4 (pre-commit/gitleaks, .gitignore security patterns) are pre-existing project-wide gaps in this reviewer's profile, not defects introduced by af15166, and both fall outside Task 01's declared path set. They are reported for tracking, not as grounds to reopen this task. Finding 1 is the only one whose contradiction was newly created by this commit.",
+  "tech_debt_assessment": "Net debt reduction. The change removes two standing defects — a test file that had never executed since 7ee9459, and an unstated runtime requirement — and adds no new abstraction, dependency, config file, or indirection. The zero-diff decision on vitest.config.ts is the right instinct: the existing glob already covered the destination, and touching the config to 'make it explicit' would have added a maintenance surface for nothing. Using git mv over delete+create keeps the file's provenance reviewable. The debt actually introduced is thin and named above: one documentation contradiction (README), one unenforced cross-file invariant (.nvmrc vs engines), and one small loss of static type coverage that was consciously accepted and traded for execution coverage. Nothing here will be expensive to unwind later."
+}

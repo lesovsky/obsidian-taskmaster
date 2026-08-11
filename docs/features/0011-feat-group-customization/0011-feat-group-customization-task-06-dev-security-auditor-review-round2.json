@@ -1,0 +1,70 @@
+{
+  "status": "changes_required",
+  "round": 2,
+  "auditTarget": {
+    "commitAudited": "b272b83 (fix) on top of 8dfff69 (round-1 implementation)",
+    "branch": "feature/group-customization",
+    "workingTreeMatchesCommit": false,
+    "note": "Five of the six touched files match b272b83 exactly. src/ui/GroupSettingsPopup.svelte does not — see finding 1. Both variants were audited."
+  },
+  "summary": {
+    "totalFindings": 3,
+    "critical": 1,
+    "major": 0,
+    "minor": 2
+  },
+  "findings": [
+    {
+      "severity": "critical",
+      "category": "A08: Software and Data Integrity Failures",
+      "title": "Working tree diverges from the audited commit: an uncommitted revert of the resolver in the settings-popup heading falsifies the reported gates",
+      "description": "The severity here reflects blocking-ness and artifact integrity, not exploitability — there is no vulnerability in this finding, and it must not be read as one. The audited commit b272b83 is clean and genuinely green. The working tree is not the audited commit. src/ui/GroupSettingsPopup.svelte carries an uncommitted modification (mtime 2026-08-10 16:49:18, i.e. three minutes AFTER the 16:46:01 fix commit) that replaces line 11 `$: title = resolveGroupTitle(group.title ?? '', $groupLabels[groupId]);` with `$: title = group.title ?? '';`. That is character-for-character the mutant dev-test-reviewer describes in its finding 1 ('rendering the raw stored title ... in the .tm-popup__title group heading'), applied to prove the new assertion 8.1 kills it, and then never reverted. I confirmed the divergence is the sole cause of the failure, and I confirmed it non-destructively — I did not touch the user's tree, because another agent is demonstrably active in it (an untracked tests/e2e/zz-tmp-debug.spec.ts appeared at 16:51 mid-audit, logging the popup HTML and a localStorage dump, and was removed again by 16:54; the mutant was NOT removed with it, so the debug scaffolding got cleaned up and the code change did not). Evidence: (a) `npx playwright test -g 8.1` against the tree fails deterministically with `Received string: \"Settings: \"` against `Expected substring: \"In Progress\"`; (b) a full suite run in a throwaway git worktree checked out at b272b83 gives 84 passed / 0 failed in 33.8s; (c) full suite runs against the user's tree gave 4 failed / 81 passed and, on a second run, a different count — the run-to-run variance is explained by the tree being edited underneath the runner, which is itself a reason not to trust any gate figure measured against it. So the reported gate 'npx playwright test 84/84 green' is true of b272b83 and false of the tree as it stands. Functionally, the stray line makes the group-settings popup render 'Settings: ' with no group name for every group that has not been renamed — the exact regression Task 06 exists to prevent, and the one the new 8.1 assertion was added to catch. Note the vitest gate could not be re-verified in this shell at all: package.json declares `engines.node ^22.12.0 || >=24.0.0`, this shell has Node v18.19.1, and `npx vitest run` dies with ERR_REQUIRE_ESM before collecting a single test. That is an environment limitation on my side, not a code defect; I take the 84/84 vitest figure from the orchestrator on trust and flag that I did not reproduce it.",
+      "location": "src/ui/GroupSettingsPopup.svelte:11 (uncommitted working-tree modification, not present in b272b83)",
+      "impact": "The artifact that was reviewed and gated is not the artifact in the deliverable tree. Any build, commit or release cut from this tree right now ships a display regression that no review covered and that the suite is now specifically instrumented to reject. Downstream, the pipeline is positioned to close Task 06 on a gate claim that does not hold for the code actually on disk.",
+      "recommendation": "Revert the stray change so the tree matches the audited commit: `git checkout -- src/ui/GroupSettingsPopup.svelte`, then re-run `npx playwright test` and confirm 84/84 (verified achievable — a clean checkout of b272b83 gives exactly that). Also confirm tests/e2e/zz-tmp-debug.spec.ts has not reappeared; it was untracked debris that inflated the suite to 85 tests and printed a localStorage dump to stdout, and it must not be committed. Process point worth recording: mutation testing that edits source in place needs an explicit revert step in the same breath as the mutation, and any gate figure quoted in a review report should name the commit it was measured against.",
+      "cwe": "CWE-494"
+    },
+    {
+      "severity": "minor",
+      "category": "best-practice",
+      "title": "Task 06 introduced a new Svelte build warning — correction to a round-1 clean claim",
+      "description": "This corrects an error in my round-1 report, which asserted under verifiedClean that 'npm run build succeeds; the only warnings are the pre-existing a11y notices on the popup overlay divs, unchanged by this commit.' That is wrong. `npm run build` at HEAD emits three warnings, not two: the two pre-existing a11y notices plus `GroupHeader has unused export property 'groupId'. If it is for external reference only, please consider using 'export const groupId'` at src/ui/GroupHeader.svelte:6. I verified the attribution empirically rather than by inspection — `npm run build` in a throwaway worktree at dc34591 (the commit before Task 06) emits exactly 2 warnings, and the same command at HEAD emits 3. The cause is the round-1 change itself: before 8dfff69 the template read `{$groupLabels[groupId]}` directly, so the prop was template-referenced; now `groupId` is read only inside the reactive declaration at line 15, and Svelte 4's unused-export-let heuristic no longer counts it. Introduced by 8dfff69, not by the b272b83 fix commit.",
+      "location": "src/ui/GroupHeader.svelte:6",
+      "impact": "None functional, and no security impact. `groupId` is genuinely consumed at line 15 and reactivity is intact — the e2e assertion added in b272b83 (test 3.4, normal header renders 'In Progress') passes on a clean checkout, and groupId never changes for a mounted GroupHeader anyway. The cost is build-output noise that makes the next real warning easier to miss, plus the fact that a reviewer previously certified this output as clean.",
+      "recommendation": "Either silence it at the declaration (`export const groupId` is not usable here since the value is a normal prop consumed in a reactive statement — prefer a `<!-- svelte-ignore unused-export-let -->` comment above line 6), or leave it and record it, but do not leave the round-1 'only pre-existing warnings' claim standing uncorrected. This is code-hygiene territory and properly belongs to dev-code-reviewer, not to this audit; it is reported here only because I was the one who certified it clean.",
+      "cwe": null
+    },
+    {
+      "severity": "minor",
+      "category": "A03: Injection (UI misrepresentation, non-HTML)",
+      "title": "Carried over and accepted: sanitizeGroupTitle still does not strip Unicode Cc/Cf code points",
+      "description": "Restated for the record on the final state, not re-litigated. src/data/migration.ts:45 still reads `value.trim().slice(0, GROUP_TITLE_MAX_LENGTH).replace(/[\\uD800-\\uDBFF]$/, '')`, and String.prototype.trim() removes ECMAScript WhiteSpace/LineTerminator only, not category Cc/Cf. A bidi override (U+202E) in a stored group title can therefore reorder the header line around the name, and a title composed only of zero-width characters (U+200B, U+FEFF) survives trim() and so reads as 'renamed' to both resolveGroupTitle() and the EmptyState hint check while rendering visually blank. migration.ts is untouched by both Task 06 commits (last modified at 8d76086, Task 03). The orchestrator's disposition is correct and I concur: the fix belongs in the load-side sanitizer, which is outside Task 06's file list, and it is now recorded in the decisions log as inherited tech debt with a named owner in Task 08.",
+      "location": "src/data/migration.ts:45 (sanitizeGroupTitle); surfaced at src/ui/GroupHeader.svelte:19, src/ui/CollapsibleGroup.svelte:42, src/ui/GroupSettingsPopup.svelte:30",
+      "impact": "Visual misrepresentation of board chrome only. No script execution, no data access, no privilege change. Requires a hand-edited or externally supplied data.json (plausible via Obsidian Sync or a git-backed vault, which is why it is recorded rather than dismissed).",
+      "recommendation": "No action in Task 06 — this finding requires no change to any file this task owns and must not block it. In Task 08, strip before trimming so a zero-width-only title collapses to '' and falls back to the localized default: `return value.replace(/[\\p{Cc}\\p{Cf}]/gu, '').trim().slice(0, GROUP_TITLE_MAX_LENGTH).replace(/[\\uD800-\\uDBFF]$/, '');`",
+      "cwe": "CWE-451"
+    }
+  ],
+  "roundOneFindingsResolved": [
+    {
+      "roundOneFinding": "EmptyState dereferences the new groupTitle prop without a default (minor, CWE-476)",
+      "status": "fixed",
+      "verification": "src/ui/EmptyState.svelte:8 now reads `export let groupTitle = '';`. Confirmed there is no escaping consequence of any kind: groupTitle is never rendered by EmptyState. It is consumed at line 11 solely to choose between the literal key 'emptyState.renamed' and the template key `emptyState.${groupId}`, where groupId is a GroupId union member; the only value that reaches the DOM is `{$t(key)}`, a translator lookup over a fixed key set. The default changes exactly one thing — an omitted prop now degrades to the per-group localized hint instead of throwing a TypeError during render and aborting the whole board tree. Both call sites still pass explicitly (TaskGroup.svelte:37, CollapsibleGroup.svelte:75), and the single trim()-based renamed check remains in one place, so the task's grep-for-trim() verification step is unaffected."
+    },
+    {
+      "roundOneFinding": ".tm-popup__title got none of the length hardening (minor)",
+      "status": "fixed",
+      "verification": "src/styles.css:670 adds `overflow-wrap: anywhere;` to .tm-popup__title, with a comment naming the reason. Confirmed zero security surface: the declaration is a static literal in styles.css with no interpolation of any kind into the stylesheet, and overflow-wrap is a line-breaking property that cannot influence HTML parsing, output encoding, or which DOM sink a value reaches. Checked the one behavioural side effect worth checking — the selector is shared with BoardSettingsPopup.svelte:32, whose heading is a pure i18n string, so wrapping there is inert. Also confirmed the wrapping cannot push the popup's action row out of a centred, non-scrolling overlay: sanitizeGroupTitle caps the name at 40 UTF-16 units, which at 1rem in a 278px content box is bounded at two or three lines. The team measured rather than assumed (357px of content in a 278px box at a 320px viewport, 278/278 after), which is the right way to have settled it."
+    }
+  ],
+  "verifiedClean": [
+    "XSS posture re-confirmed on the final state of all six touched files. No {@html}, innerHTML, outerHTML, insertAdjacentHTML, document.write, eval or new Function anywhere in src/ — the sole grep hit is the prose warning in the groupTitle.ts docblock. Every site that renders the group name is a Svelte {} text interpolation, which the compiler escapes: GroupHeader.svelte:19, CollapsibleGroup.svelte:42, GroupSettingsPopup.svelte:30.",
+    "The stray uncommitted mutant in finding 1 does not itself open any injection hole — it renders the raw stored title through the same escaped {} interpolation, so it renders strictly less, not less safely. Finding 1 is an integrity and correctness problem exclusively.",
+    "Traced every consumer of the value (grep for group.title / groupTitle / storedTitle / resolveGroupTitle across src/): five components plus the resolver and the sanitizer, and not one of them routes the name into an attribute, style binding, tooltip, URL or data-* value. Every title= attribute in the touched components carries an i18n key ($t('groupHeader.settings'), $t('groupHeader.addTask')); style bindings are numeric only (--tm-card-columns: {columns}); data-group-id={groupId} is a fixed union member.",
+    "The b272b83 additions introduce no new sink, no new data path and no new trust boundary. TaskGroup.svelte:24 `$: storedTitle = group.title ?? ''` is a pure extraction of the expression that was previously inline at the call site — identical value, identical destination, now mirroring CollapsibleGroup.svelte:31.",
+    "src/ui/groupTitle.ts is untouched by both commits and still exports exactly one function, per Task 05's constraint.",
+    "The tests/e2e/core.spec.ts changes are assertion-only and touch no production code, no harness and no fixture. The 3.4 change refactors an existing locator into a shared `header` variable and adds a toHaveText('In Progress') on the title; 8.1 adds a toContainText('In Progress') on the popup heading. No credentials, no secrets, no network endpoints, no new dependency.",
+    "No hardcoded secrets, tokens, keys or credentials in the diff. No new dependencies, no network calls, no deserialization of untrusted input introduced by either commit.",
+    "Gate re-verification performed independently where the environment allowed: `npm run build` succeeds (3 warnings, see finding 2), and a clean git worktree at b272b83 runs the full Playwright suite at 84 passed / 0 failed in 33.8s. The vitest gate could not be reproduced in this shell — Node v18.19.1 against a declared engines requirement of ^22.12.0 || >=24.0.0 — and is taken on trust rather than confirmed."
+  ]
+}

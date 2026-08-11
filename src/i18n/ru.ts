@@ -58,6 +58,9 @@ export const ru: Translations = {
   'boardSettings.fullWidth': 'Полная ширина',
   'boardSettings.fullWidthTooltip': 'Группа занимает всю ширину доски',
   'boardSettings.notes': 'Заметки',
+  'boardSettings.groupName': 'Группа',
+  'boardSettings.moveUp': 'Переместить вверх',
+  'boardSettings.moveDown': 'Переместить вниз',
 
   'groupSettings.heading': 'Настройки:',
   'groupSettings.wipLimit': 'WIP-лимит',
@@ -92,6 +95,7 @@ export const ru: Translations = {
   'emptyState.orgIntentions': 'Что запланировано на эту неделю? Разместите здесь цели, которые хотите закрыть до конца недели',
   'emptyState.delegated': 'Что вы поручили другим? Добавьте задачи, переданные коллегам, чтобы не забыть проверить их статус',
   'emptyState.completed': 'Пока пусто — завершённые задачи будут появляться здесь',
+  'emptyState.renamed': 'Пока пусто — перетащите сюда задачи',
 
   'toast.deleted': 'Удалено:',
   'toast.completed': 'Завершена:',

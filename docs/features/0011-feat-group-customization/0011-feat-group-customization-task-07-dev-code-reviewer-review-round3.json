@@ -1,0 +1,60 @@
+{
+  "reviewer": "dev-code-reviewer",
+  "round": 3,
+  "scope": "focused confirmation of the single round-2 major finding (ES2022 Object.hasOwn under a declared ES2021 floor), fixed in dd0f8d0. Not a full re-review.",
+  "status": "approved",
+  "summary": "My round-2 major is CLOSED. The fix is exactly the one-line drop-in I proposed as option (b), and I confirm all three points: the ES2022 API is gone from src/ and from a bundle I built myself at dd0f8d0 (0 hits, plus a broad ES2022+ scan that is also clean); the prototype-chain hardening is fully preserved with spec-identical behaviour on every input, not merely every reachable one; and nothing else regressed — build, 87 unit tests and 84 Playwright tests all re-measured by me at dd0f8d0, the last on an isolated port so the shared-tree harness could not contaminate the result. Zero critical, zero major, zero new findings in the code. One correction to the round-3 brief, not to the code: the test-reviewer's round-2 report carries TWO minors, and only the second is the ES2022 issue, so 'closed for all three' holds for the ES2022 finding but leaves their first minor (the missing-key branch has no test) open and untouched by this fix.",
+  "criticalIssues": [],
+  "suggestions": [
+    {
+      "file": "docs/features/0011-feat-group-customization/0011-feat-group-customization-task-07-dev-test-reviewer-review-round2.json",
+      "line": null,
+      "severity": "minor",
+      "category": "testing",
+      "suggestion": "Bookkeeping correction, no code change requested. The brief states the other two reviewers each reported '0 major / 1 minor' and that their single minor was this same ES2022 issue. That is exact for the security auditor (status approved, one minor, and it is the ES2022 one). It is not exact for the test reviewer: their round-2 report (status passed) contains two minors. The second is the ES2022 issue and is now closed. The first is a different one — carried forward from their round-1 finding 2 — that the branch 'id is present in board.groupOrder but board.groups has no such key, so skip it' is reached by no test, and that the round-2 rewrite left its reachability unchanged. Nothing in dd0f8d0 touches that: the fix swaps the guard's implementation, not its coverage, and I re-confirmed at dd0f8d0 that no unit test loads BoardLayout.svelte and no e2e test seeds a groupOrder with a missing group. So after this round the honest tally is: ES2022 closed for all three reviewers; one test-coverage minor still open, owned by the same place my own round-1 minor 3 was scoped to. Recommend the orchestrator record it as carried forward rather than as closed, so Task 10 inherits it explicitly.",
+      "benefit": "The task's exit state matches what the three reports actually say, so a genuinely open coverage gap is not marked resolved by association with an unrelated fix.",
+      "optional": true
+    }
+  ],
+  "round2FindingDisposition": [
+    {
+      "finding": "R2 major — Object.hasOwn is ES2022 while the project declares ES2021 twice and is not desktop-only",
+      "verdict": "CLOSED",
+      "evidence": "The diff fc0b9e5..dd0f8d0 touches exactly one file and one line of code: BoardLayout.svelte:37 is now `.filter(id => !hidden.has(id) && Object.prototype.hasOwnProperty.call(board.groups, id))`, plus two comment lines (34-35) recording that Object.hasOwn was rejected for being ES2022 and naming the absence of a gate. That is option (b) verbatim. I agree with the decision to reject option (a): raising tsconfig lib and the esbuild target is a project-wide change to the declared browser floor, manifest.json still sets isDesktopOnly:false, and a feature task is the wrong place to make it unilaterally. The comment is the right artefact — it stops a future reader from 'simplifying' the line back to Object.hasOwn without knowing why it is written the long way."
+    }
+  ],
+  "confirmationOfThreePoints": [
+    {
+      "point": "1. The ES2022 API is gone from src/ and from the built main.js",
+      "verdict": "CONFIRMED",
+      "evidence": "In src/ at dd0f8d0, a scan for ES2022+ runtime builtins (Object.hasOwn, .at(, structuredClone, .replaceAll(, .findLast(, .findLastIndex(, .toSorted(, .toReversed(, .toSpliced(, Array.fromAsync, .groupBy, RegExp.escape, WeakRef, FinalizationRegistry, AggregateError, error cause) returns exactly one hit: BoardLayout.svelte:34, and it is inside the Russian comment explaining the rejection, not code. For the bundle I did not trust the root main.js already present in the shared tree — its mtime (17:45) predates the commit (17:46), so I could not attribute it to dd0f8d0. I built my own in a throwaway worktree checked out at dd0f8d0: `npm run build` exit 0 with exactly 2 warnings, both the pre-existing 'A11y: Non-interactive element <div> should not be assigned mouse or keyboard event listeners' (GroupSettingsPopup.svelte:29 and BoardSettingsPopup.svelte:31), matching the round-2 baseline. Against that bundle: `grep -c 'Object.hasOwn' main.js` -> 0; the same broad ES2022+ scan over main.js -> no matches at all, so the fix did not merely relocate the problem into a dependency; and `grep -o 'Object.prototype.hasOwnProperty.call([^)]*)' main.js` -> `Object.prototype.hasOwnProperty.call(d.groups,I)`, i.e. the guard survives minification intact and is emitted as the ES1 form. I also re-ran the round-2 tsc probe in an updated shape: a plain src/__probe_r3.ts asserting both forms into a `const b: boolean`. Baseline without the probe exit 0; with the probe the ONLY error is on the Object.hasOwn line — `TS2550: Property 'hasOwn' does not exist on type 'ObjectConstructor'` — while `Object.prototype.hasOwnProperty.call(o, k)` typechecks clean and does type as boolean under the declared ES2021 lib. The probe file was deleted and the worktree destroyed. That is a statement about the lib level, not a check of .svelte (Decision 11)."
+    },
+    {
+      "point": "2. The prototype-chain hardening is fully preserved, behaviour identical on every reachable input",
+      "verdict": "CONFIRMED, and stronger than asked — identical on every input, not only every reachable one",
+      "evidence": "Object.hasOwn(O, P) is specified as ToObject(O) followed by HasOwnProperty(O, P); Object.prototype.hasOwnProperty.call(O, P) is the same two steps with O arriving as the this-value. Same algorithm, same result, same TypeError on null/undefined. So there is no input class — reachable or not — on which the two differ, which means the semantic-narrowing analysis I did in round 2 (hasOwn accepting a present-but-null value where the old truthiness test rejected it, unreachable because cleanup.ts:23-24 dereferences group.taskIds on every load first) carries over unchanged and needs no redoing. On the security property specifically: SEC-03 stays fixed. The `.call` form reads hasOwnProperty off Object.prototype directly, so a board.groups carrying its own poisoned 'hasOwnProperty' key cannot hijack the check — which is exactly why the `.call` spelling matters here and why `board.groups.hasOwnProperty(id)` would have been the wrong fix. A groupOrder entry of 'constructor', 'toString' or '__proto__' still fails the filter, still takes no slot and still shifts nobody's order. Two smaller things I checked rather than assumed: (a) no narrowing was lost — TS gives Object.hasOwn a type-predicate overload that hasOwnProperty lacks, but nothing here depends on it, because Board.groups is typed Record<GroupId, Group> (types.ts:36) so the very next line's board.groups[id].fullWidth types as Group.fullWidth with or without a guard; (b) the round-1 lint-survivability property is unchanged — this is still a boolean-returning function call, not a condition whose truthiness @typescript-eslint/no-unnecessary-condition can decide from the types, so the guard still cannot be pruned by a tooling pass. The harness observations quoted in the brief are consistent with all of this, in particular the poisoned-groupOrder case still yielding 6 wrappers with dense order 1..6."
+    },
+    {
+      "point": "3. Nothing else regressed",
+      "verdict": "CONFIRMED",
+      "evidence": "`git diff fc0b9e5..dd0f8d0` is one file, +5/-3, of which the only code line is the filter predicate; no test file, no styles.css, no boardLayoutUtils.ts, no docs. `git diff --stat 347ed31..dd0f8d0 -- src/ tests/` is identical to the round-2 whole-task stat except BoardLayout.svelte moving from +59/-19 to +61/-19, so computeGroupClasses, the notes order:100 rule, the six data-group-container attributes, the literal DOM order of the wrappers and the renderedGroups Set are all byte-identical to what I approved in rounds 1 and 2. All twelve Acceptance Criteria remain satisfied. Gates re-measured by me at dd0f8d0 in the worktree, not taken on report: build exit 0 with the same 2 a11y warnings; `npm test` 87 passed / 6 files; `npx playwright test` 84 passed in 25.5s, exit 0. The shared tree was never written to and is clean at dd0f8d0 apart from the pre-existing untracked logs/ and the three round-2 report files."
+    }
+  ],
+  "metrics": {
+    "filesReviewed": 1,
+    "criticalIssuesCount": 0,
+    "majorIssuesCount": 0,
+    "minorIssuesCount": 1,
+    "testCoverageAssessment": "insufficient"
+  },
+  "verificationNotes": {
+    "measuredAt": "dd0f8d0, in a throwaway git worktree under the session scratchpad; the shared tree was never written to",
+    "npmRunBuild": "exit 0, 2 warnings, both the pre-existing a11y ones (GroupSettingsPopup.svelte:29, BoardSettingsPopup.svelte:31) — re-measured by this reviewer, matches the orchestrator",
+    "npmTest": "87 passed / 6 files, exit 0 — re-measured by this reviewer",
+    "playwright": "84 passed, exit 0, 25.5s — re-run by this reviewer, unlike round 2. Port 5173 was still held by another esbuild harness serving the shared tree (ss confirmed pid 1923959), and playwright.config.ts sets reuseExistingServer: !CI against that hardcoded port, so a naive run would have silently exercised someone else's bundle. I sed'd 5173 -> 5199 in the worktree's own esbuild.harness.mjs and playwright.config.ts only, so Playwright started its own harness compiled from dd0f8d0 sources. The shared tree's copies of those two files were not touched.",
+    "bundleProvenance": "The root main.js already in the shared tree has mtime 17:45 against a commit time of 17:46, so it could not be honestly attributed to dd0f8d0. Every main.js number reported here comes from my own build inside the worktree.",
+    "tscNote": "npx tsc --noEmit is NOT cited as a gate for BoardLayout.svelte (Decision 11). It was run only against a plain src/__probe_r3.ts to establish the lib level and to prove the replacement form typechecks and types as boolean under ES2021. Baseline clean (exit 0); with the probe the sole error is TS2550 on the Object.hasOwn line. Probe deleted.",
+    "mutationTesting": "None, deliberately, and for the same reason as round 2: the changed line has zero automated coverage (no unit test imports a .svelte file; no e2e test seeds a groupOrder with a missing or poisoned group), so any mutant would come back green and prove nothing. The manual harness run remains the only behavioural evidence for this line. That is precisely the gap the test reviewer's still-open first minor names.",
+    "hygiene": "Worktree removed with git worktree remove --force plus prune. Post-cleanup: git status --porcelain shows only the pre-existing untracked logs/ and the three round-2 report files; HEAD dd0f8d0. src/, tests/ and docs/ were not modified by this reviewer other than writing this report file."
+  }
+}

@@ -4,6 +4,7 @@
   import { toggleGroupCollapsed, dataStore } from '../stores/dataStore';
   import { useSortable } from './useSortable';
   import EmptyState from './EmptyState.svelte';
+  import { resolveGroupTitle } from './groupTitle';
   import TaskCard from './TaskCard.svelte';
 
   export let groupId: GroupId;
@@ -27,6 +28,8 @@
   $: cardLayout = $dataStore.settings.cardLayout;
   $: isMulti = cardLayout === 'multi';
   $: columns = isMulti ? (group.fullWidth ? 4 : 2) : 1;
+  $: storedTitle = group.title ?? '';
+  $: title = resolveGroupTitle(storedTitle, $groupLabels[groupId]);
 
   function toggle() {
     toggleGroupCollapsed(boardId, groupId);
@@ -36,7 +39,7 @@
 <div class="tm-collapsible-group">
   <button class="tm-collapsible-group__header" class:tm-collapsible-group__header--over={overLimit} on:click={toggle}>
     <span class="tm-collapsible-group__arrow" class:tm-collapsible-group__arrow--open={!collapsed}>&#9654;</span>
-    <span class="tm-collapsible-group__title">{$groupLabels[groupId]}</span>
+    <span class="tm-collapsible-group__title">{title}</span>
     <span class="tm-collapsible-group__count" class:tm-collapsible-group__count--over={overLimit}>({counterText})</span>
     <div class="tm-collapsible-group__spacer"></div>
     {#if onSettings}
@@ -69,7 +72,7 @@
       style="--tm-card-columns: {columns}"
     >
       {#if groupTasks.length === 0}
-        <EmptyState {groupId} />
+        <EmptyState {groupId} groupTitle={storedTitle} />
       {:else}
         {#each groupTasks as task (task.id)}
           <TaskCard

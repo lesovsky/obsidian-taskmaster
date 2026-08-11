@@ -1,0 +1,78 @@
+{
+  "reviewer": "dev-test-reviewer",
+  "status": "needs_improvement",
+  "summary": "Every case named in the task's TDD Anchor is present, and the exact-array assertions demanded for the order sanitizer (unknown id dropped, duplicate collapsed, missing ids appended) are genuinely exact rather than length checks. Mutation testing confirms the suite is strong where it matters most: moving sanitization inside the `version < 8` branch fails 5 tests, swapping trim/cap order fails 2, handing out the GROUP_IDS reference from createDefaultBoard fails 1, and dropping the fresh-array copy from the two early returns fails 2. Two real gaps survive mutation, both in the unconditional sanitization block: it is only ever exercised on a single-board file (restricting the loop to boards[0] leaves all 32 tests green), and the block's deliberate `Object.values(board.groups)` iteration — the code comments it as the guard against a board with a missing group throwing on every load — has no test at all (replacing it with a GROUP_IDS loop also leaves all 32 green). A third mutation shows the `version < 8` block's field assignments are unobservable: stripping them keeps the suite green because the sanitization block supersedes them. Remaining findings are assertion-strength and helper-contract hygiene.",
+  "findings": [
+    {
+      "severity": "major",
+      "category": "missing_coverage",
+      "location": "tests/unit/migration.test.ts:243-263 (`groupOrder is sanitized on already-migrated v8 data`, `two boards get independent groupOrder arrays`)",
+      "issue": "The unconditional sanitization block loops over `result.boards`, but no test ever feeds a damaged field on any board other than boards[0]. Verified by mutation: changing `for (const board of result.boards)` to `for (const board of [result.boards[0]])` in src/data/migration.ts:152 leaves all 32 tests passing. The existing `two boards get independent groupOrder arrays` test does not catch it because its input is v7, so boards[1] gets its `groupOrder` from the `version < 8` migration block rather than from sanitization. A user with several boards — the normal case for this plugin — would load with a damaged second board unrepaired: an unknown id in `groupOrder` makes `board.groups[id]` undefined at render time, which is exactly the failure this task exists to prevent.",
+      "recommendation": "Add a test with a two-board v8 input where the damage is on the SECOND board, so the assertion can only pass if the loop covers every board. Verified to pass on current code and to fail on the boards[0]-only mutant:\n\nit('damaged fields on the second board are repaired too', () => {\n  const b2 = { ...makeV8Data().boards[0], id: 'b2', groupOrder: ['completed', 'completed', 'archive'] } as any;\n  b2.groups = fullWidthGroups() as any;\n  b2.groups.focus.title = '  ' + 'z'.repeat(45) + '  ';\n  const data = makeV8Data();\n  data.boards = [data.boards[0], b2];\n  const result = migrateData(data);\n  expect(result.boards[1].groupOrder).toEqual(['completed', 'backlog', 'focus', 'inProgress', 'orgIntentions', 'delegated']);\n  expect(result.boards[1].groups.focus.title).toBe('z'.repeat(40));\n});\n\nNo mock changes — this is a pure function on plain data.",
+      "litmusTestFailed": true
+    },
+    {
+      "severity": "major",
+      "category": "missing_coverage",
+      "location": "src/data/migration.ts:149-157 (sanitization block) — no corresponding test in tests/unit/migration.test.ts",
+      "issue": "The sanitization block iterates `Object.values(board.groups)` and the code comments this as a deliberate choice: \"Iterating the groups that exist (rather than GROUP_IDS) keeps a board with a missing group from throwing on every load.\" That claim is untested. Verified by mutation: replacing the loop with `for (const id of GROUP_IDS) { board.groups[id].title = sanitizeGroupTitle(board.groups[id].title); }` leaves all 32 tests passing, yet a hand-edited data.json whose board is missing one group key would then throw a TypeError inside migrateData — which main.ts calls in loadPluginData() before the view is created, so the plugin fails to load and the user sees no board at all. The task's acceptance criteria require \"no throw\" on damaged data, and the whole task framing rests on this. A defensive decision documented only in a comment is a decision one refactor away from being reverted silently.",
+      "recommendation": "Add a test that feeds a v8 board with a deleted group key and asserts both no-throw and successful repair. Verified to pass on current code and to fail on the GROUP_IDS-loop mutant:\n\nit('a board missing a group does not throw and is still repaired', () => {\n  const groups = fullWidthGroups() as any;\n  delete groups.orgIntentions;\n  const data = makeV8Data({ groups, groupOrder: ['completed'] });\n  expect(() => migrateData(data)).not.toThrow();\n  expect(migrateData(data).boards[0].groupOrder).toEqual(['completed', 'backlog', 'focus', 'inProgress', 'orgIntentions', 'delegated']);\n});\n\nUse a v8 input specifically: a v<5 input would throw in the pre-existing `version < 5` block, which is out of this task's scope. No mock changes.",
+      "litmusTestFailed": true
+    },
+    {
+      "severity": "minor",
+      "category": "missing_coverage",
+      "location": "src/data/migration.ts:135-147 (`version < 8` block) / tests/unit/migration.test.ts:147-160",
+      "issue": "The two field assignments inside the `version < 8` block are unobservable through any test, because the unconditional sanitization block that follows overwrites both `board.groupOrder` and every `group.title` on every call. Verified by mutation: reducing the block to `if (version < 8) { result.version = 8; }` leaves all 32 tests passing. This is not fixable by adding a test — no observable behaviour distinguishes the two versions — so it should be resolved in code rather than in the suite. The same masking makes one assertion vacuous: `expect(result.boards[0].groupOrder).not.toBe(GROUP_IDS)` at line 159 can never fail, since sanitizeGroupOrder always allocates a fresh array before the value is ever returned.",
+      "recommendation": "Not a test change — flag to the code reviewer. Either delete the two `=== undefined` assignments from the `version < 8` block, keeping only `result.version = 8` (the sanitizers already produce both defaults, and the task's step 6 makes that the contract), or record in the decisions log that they are kept deliberately as documentation of the version step despite being redundant. If they are kept, drop the vacuous `not.toBe(GROUP_IDS)` at line 159 so the suite does not imply coverage it does not have; the real instance-sharing guards are the `createDefaultBoard` test (line 288) and the two early-return tests (lines 269, 278), all of which do fail under mutation.",
+      "litmusTestFailed": true
+    },
+    {
+      "severity": "minor",
+      "category": "anti_pattern",
+      "location": "tests/unit/migration.test.ts:64, 76, 97, 115, 130, 144, 157",
+      "issue": "The file opens by defining `DEFAULT_ORDER` as a literal with an explicit rationale (lines 7-9: \"asserting against GROUP_IDS alone would still pass if a bug mutated the exported constant itself\"), then asserts the default order against `GROUP_IDS` in seven places instead. The concern is not hypothetical in this file: line 261 calls `result.boards[0].groupOrder.reverse()`, so under an array-sharing regression the exported constant could be reversed mid-run, after which every `toEqual(GROUP_IDS)` assertion would still pass while `toEqual(DEFAULT_ORDER)` would fail. The task's TDD Anchor phrases the case as \"deep-equals GROUP_IDS\", so the tests are anchor-compliant — but the file's own stated convention is stricter and is the right one.",
+      "recommendation": "Replace `expect(result.boards[0].groupOrder).toEqual(GROUP_IDS)` with `expect(result.boards[0].groupOrder).toEqual(DEFAULT_ORDER)` at lines 64, 76, 97, 115, 130, 144 and 157, so every default-order assertion is pinned to a literal the implementation cannot influence. Leave the `GROUP_IDS` loops over group ids (lines 30, 53, 61, 91, 109, 150) as they are — those iterate the id set rather than asserting an order.",
+      "litmusTestFailed": false
+    },
+    {
+      "severity": "minor",
+      "category": "anti_pattern",
+      "location": "tests/unit/migration.test.ts:236-241 (`groupOrder already valid and non-default → preserved as is`)",
+      "issue": "The first assertion, `expect(sanitizeGroupOrder(custom)).toEqual(custom)`, compares the result against the very array instance that was passed in. An implementation that normalised its input in place and returned it would satisfy this assertion by self-comparison. The practical impact is low — mutation testing confirms an in-place-mutating sanitizer is caught elsewhere in the suite (10 failures) — but the assertion itself establishes nothing about this call, and the second half of the same test (line 239, which passes a copy through migrateData) is doing all the work.",
+      "recommendation": "Assert against an independent literal so the expectation cannot track the input:\n\nconst custom = ['completed', 'delegated', 'orgIntentions', 'inProgress', 'focus', 'backlog'];\nexpect(sanitizeGroupOrder([...custom])).toEqual(custom);\n\nThis also removes the `[...DEFAULT_ORDER].reverse()` indirection, which currently makes the expected value depend on another constant in the file.",
+      "litmusTestFailed": false
+    },
+    {
+      "severity": "minor",
+      "category": "anti_pattern",
+      "location": "tests/unit/migration.test.ts:347-362 (`makeV7Data`, `makeV8Data`)",
+      "issue": "Two helpers with visually identical signatures apply their argument at different levels: `makeV7Data(overrides)` spreads at the top level of the data object (used as `makeV7Data({ tasks })` at line 171), while `makeV8Data(boardOverrides)` spreads into `boards[0]` (used as `makeV8Data({ groupOrder: null })` at line 197). Nothing at the call site signals the difference, and both parameters are typed `object`, so TypeScript cannot catch a mix-up. `makeV8Data({ tasks: {...} })` would silently attach a `tasks` key to the board and the intended data would never reach the assertion — a test that passes while testing nothing.",
+      "recommendation": "Make the asymmetry explicit in the signatures, e.g. `makeV7Data(dataOverrides: object = {})` and `makeV8Data(boardOverrides: object = {}, dataOverrides: object = {})`, and add a one-line comment above each stating which level it patches. Alternatively give `makeV8Data` the same top-level contract as `makeV7Data` plus a separate `withBoard()` helper, so the two cannot be confused.",
+      "litmusTestFailed": false
+    },
+    {
+      "severity": "minor",
+      "category": "missing_coverage",
+      "location": "tests/unit/migration.test.ts:303-313 (title length cap)",
+      "issue": "Every length-cap assertion uses single-byte ASCII fillers ('a', 'b', 'c', 'z'). The plugin ships English and Russian locales and group titles will very often be Cyrillic, where a byte-based cap and a code-unit-based cap diverge by a factor of two. An implementation that capped on `Buffer.byteLength` or a byte slice would pass every assertion in this suite while truncating a legitimate 25-character Russian group name.",
+      "recommendation": "Add one non-ASCII boundary case to the existing cap test:\n\nexpect(sanitizeGroupTitle('я'.repeat(41))).toBe('я'.repeat(40));\nexpect(sanitizeGroupTitle('я'.repeat(40))).toBe('я'.repeat(40));\n\nThis pins the cap to characters rather than bytes and matches the `maxlength=\"40\"` the input field will use in Task 8, which also counts code units.",
+      "litmusTestFailed": false
+    }
+  ],
+  "metrics": {
+    "filesReviewed": 5,
+    "litmusTest": {
+      "checked": 32,
+      "passed": 30,
+      "failed": 2
+    },
+    "coverageAssessment": "adequate",
+    "pyramidBalance": {
+      "unit": 32,
+      "integration": 0,
+      "e2e": 0,
+      "assessment": "healthy"
+    }
+  }
+}

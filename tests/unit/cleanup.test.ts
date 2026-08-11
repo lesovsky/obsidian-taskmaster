@@ -16,6 +16,7 @@ function makeGroup(overrides: Partial<Group> = {}): Group {
     collapsed: false,
     completedRetentionDays: null,
     fullWidth: true,
+    title: '',
     ...overrides,
   };
 }
@@ -34,6 +35,7 @@ function makeBoard(completedTaskIds: string[] = [], retentionDays: number | null
     notesHidden: false,
     hiddenGroups: [],
     groups,
+    groupOrder: [...GROUP_IDS],
   };
 }
 

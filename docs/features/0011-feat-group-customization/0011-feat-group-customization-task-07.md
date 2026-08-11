@@ -1,5 +1,5 @@
 ---
-status: planned                    # planned -> in_progress -> done
+status: done                       # planned -> in_progress -> done
 depends_on: ["01", "03", "06"]     # ID задач-зависимостей (строки: ["01", "02"])
 wave: 4                            # волна параллельного выполнения
 skills: [code-writing]             # МАССИВ скиллов для загрузки
@@ -108,29 +108,45 @@ drag & drop across reordered groups) belongs to Task 10 — do not create
 `tests/e2e/0011-group-customization.spec.ts` here. Until Task 10 lands, the manual harness check
 below is the only end-to-end evidence that the wiring works; do not skip it.
 
+## Уточнение по итогам волны 2
+
+Санитайзер порядка групп гарантирует, что порядок — валидная перестановка известных
+идентификаторов. Он НЕ гарантирует, что соответствующий объект группы существует: доску с
+руками удалённым ключом группы миграция не восстанавливает, воссоздание группы было
+сознательно отвергнуто как незапрошенное упрочнение. Значит обращение к группе по
+идентификатору из порядка теоретически может дать пустое значение.
+
+Решение принять здесь: либо отрисовывать только те идентификаторы порядка, для которых объект
+группы фактически есть, либо сознательно принять падение на таком файле и записать это
+решение. Первое дешевле и согласуется с принципом «доска обязана открыться», ради которого
+писался санитайзер.
+
+Также учесть: после загрузки сохранённое название группы всегда строка, обрезанная по краям и
+ограниченная по длине — отдельная проверка типа в компоненте не нужна.
+
 ## Acceptance Criteria
 
-- [ ] `BoardLayout.svelte` derives its group sequence from `board.groupOrder`, filtered by
+- [x] `BoardLayout.svelte` derives its group sequence from `board.groupOrder`, filtered by
       `board.hiddenGroups`; the hardcoded `GROUP_ORDER` constant no longer drives rendering
-- [ ] The six literal `{#if}` blocks are still present and literal — no `{#each}` over groups,
+- [x] The six literal `{#if}` blocks are still present and literal — no `{#each}` over groups,
       DOM order of the wrappers unchanged
-- [ ] Every rendered wrapper carries an inline `order` value matching its position in the
+- [x] Every rendered wrapper carries an inline `order` value matching its position in the
       configured visible sequence; no wrapper ever renders with an empty or `undefined` order
-- [ ] Every rendered wrapper carries `data-group-container` with its group id
-- [ ] Within `src/`, `data-group-container` appears **only** on the six wrappers in
+- [x] Every rendered wrapper carries `data-group-container` with its group id
+- [x] Within `src/`, `data-group-container` appears **only** on the six wrappers in
       `BoardLayout.svelte` — `grep -rn "data-group-container" src/` returns nothing else.
       (The criterion is deliberately scoped to `src/`: Task 9 will start using this attribute in
       `tests/e2e/`, so a codebase-wide "used nowhere else" check would be unsatisfiable later.)
-- [ ] `data-group-id` still exists on exactly one element per group (the group body):
+- [x] `data-group-id` still exists on exactly one element per group (the group body):
       `page.locator('[data-group-id="X"]')` resolves to a single element
-- [ ] `.tm-board-layout__notes` has an explicit `order` greater than any group's; the notes
+- [x] `.tm-board-layout__notes` has an explicit `order` greater than any group's; the notes
       block renders below all groups
-- [ ] `computeGroupClasses` body is unchanged; only its stale header comment is removed
-- [ ] `tests/unit/boardLayoutUtils.test.ts` covers an arbitrary group order; `npm test` green
-- [ ] `npm run build` succeeds
-- [ ] `npx playwright test tests/e2e/0007-dynamic-layout.spec.ts` passes with the spec file
+- [x] `computeGroupClasses` body is unchanged; only its stale header comment is removed
+- [x] `tests/unit/boardLayoutUtils.test.ts` covers an arbitrary group order; `npm test` green
+- [x] `npm run build` succeeds
+- [x] `npx playwright test tests/e2e/0007-dynamic-layout.spec.ts` passes with the spec file
       **unmodified** (locator migration is Task 9)
-- [ ] With a non-default `groupOrder` seeded into the store, a task can be dragged between two
+- [x] With a non-default `groupOrder` seeded into the store, a task can be dragged between two
       reordered groups in both directions without reloading
 
 ## Context Files
@@ -288,6 +304,6 @@ below is the only end-to-end evidence that the wiring works; do not skip it.
 
 ## Post-completion
 
-- [ ] Записать краткий отчёт в [0011-feat-group-customization-decisions.md](docs/features/0011-feat-group-customization/0011-feat-group-customization-decisions.md) (Summary: 1-3 предложения, ревью со ссылками на JSON, без таблиц файндингов и дампов)
-- [ ] Если отклонились от спека — описать отклонение и причину
-- [ ] Обновить user-spec/tech-spec если что-то изменилось
+- [x] Записать краткий отчёт в [0011-feat-group-customization-decisions.md](docs/features/0011-feat-group-customization/0011-feat-group-customization-decisions.md) (Summary: 1-3 предложения, ревью со ссылками на JSON, без таблиц файндингов и дампов)
+- [x] Если отклонились от спека — описать отклонение и причину
+- [x] Обновить user-spec/tech-spec если что-то изменилось

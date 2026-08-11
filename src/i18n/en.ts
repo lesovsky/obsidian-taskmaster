@@ -58,6 +58,9 @@ export const en: Translations = {
   'boardSettings.fullWidth': 'Full width',
   'boardSettings.fullWidthTooltip': 'Group spans full board width',
   'boardSettings.notes': 'Notes',
+  'boardSettings.groupName': 'Group',
+  'boardSettings.moveUp': 'Move up',
+  'boardSettings.moveDown': 'Move down',
 
   'groupSettings.heading': 'Settings:',
   'groupSettings.wipLimit': 'WIP limit',
@@ -92,6 +95,7 @@ export const en: Translations = {
   'emptyState.orgIntentions': 'What\'s planned for this week? Place goals here you want to close by end of week',
   'emptyState.delegated': 'What have you assigned to others? Add delegated tasks to track their status',
   'emptyState.completed': 'Nothing here yet — completed tasks will appear here',
+  'emptyState.renamed': 'Nothing here yet — drag tasks in',
 
   'toast.deleted': 'Deleted:',
   'toast.completed': 'Completed:',

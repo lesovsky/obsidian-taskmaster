@@ -1,0 +1,33 @@
+{
+  "reviewer": "dev-code-reviewer",
+  "status": "approved",
+  "summary": "Both round-2 findings are closed by a single, better solution: `moveGroupWithinPresent` moves over the rendered rows and writes back into the present slots, and the arrow predicate now receives the identical `presentGroups`/`hiddenGroups` arguments the move uses internally, so the enabled state and the move cannot disagree. I verified this by brute force rather than by reading: exhaustively over the canonical order x all 64 present-subsets x all 64 hidden-subsets x every id x both directions, plus all 720 order permutations with sampled subsets — the result is always a permutation of the input, absent ids keep their absolute index, exactly zero or two absolute positions change and those two are a mutual swap, `canMoveGroup(presentGroups, ...)` is true iff a change occurs, and with everything present the output is byte-identical to `moveGroup` and to the pre-0edc923 component logic. ES2021 floor holds (Set/spread/includes only; no Object.hasOwn, .at, structuredClone or logical-assignment anywhere in src/). Gate reproduced: tsc clean, 111 unit tests pass, production build exits 0, core.spec.ts 35/35. Nothing here must be fixed before shipping.",
+  "criticalIssues": [],
+  "suggestions": [
+    {
+      "file": "src/ui/groupOrderUtils.ts",
+      "line": 132,
+      "severity": "minor",
+      "category": "maintainability",
+      "suggestion": "`moveGroupWithinPresent` carries an unstated precondition: `presentGroups` must be a subsequence of `order` (same ids, same relative order). The write-back loop pairs the k-th present slot of `order` with `moved[i++]`, so a caller passing an id that is not in `order` — or the same ids in a different relative order — silently drops and duplicates entries rather than failing. Probed: `moveGroupWithinPresent(['backlog','focus','inProgress'], ['backlog','focus','inProgress','completed'], 'completed', 'up', [])` returns `['backlog','focus','completed']` — `inProgress` is gone. The single caller (BoardSettingsPopup.svelte:39, `groupOrder.filter(...)`) always satisfies the precondition, and the doc comment implies it, so this is unreachable today. Worth one explicit sentence in the JSDoc naming `presentGroups` as a subsequence of `order`, or a cheap `i === moved.length` post-check that returns the untouched copy instead of a corrupted one.",
+      "benefit": "Keeps a future second caller from silently losing a group id; makes the coupling between the two array arguments explicit rather than inferred from the current caller.",
+      "optional": true
+    },
+    {
+      "file": "tests/unit/dataStore.test.ts",
+      "line": 190,
+      "severity": "minor",
+      "category": "testing",
+      "suggestion": "The new case `survives a board whose group value was nulled by hand` documents a guard that production can never reach. `migrateData` runs `for (const group of Object.values(board.groups)) group.title = sanitizeGroupTitle(group.title)` unconditionally on every load (src/data/migration.ts:156-157, introduced in Task 03), so a `\"delegated\": null` in data.json throws a TypeError at load, long before `updateBoard` is called. The `if (!group) continue` guard itself is correct and free — keep it — but the test asserts a scenario whose real failure point is one layer up. If the nulled-group case is meant to be survivable end to end, migration.ts is where it has to be handled; that is outside Task 08's scope, so the alternative is a comment on the test noting it pins a defence-in-depth guard, not a reachable user path.",
+      "benefit": "Prevents the test from being read as proof that a hand-nulled group value is survivable, which would mask the real crash site in migration.ts.",
+      "optional": true
+    }
+  ],
+  "metrics": {
+    "filesReviewed": 4,
+    "criticalIssuesCount": 0,
+    "majorIssuesCount": 0,
+    "minorIssuesCount": 2,
+    "testCoverageAssessment": "excellent"
+  }
+}

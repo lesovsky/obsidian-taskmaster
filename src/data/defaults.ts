@@ -17,6 +17,7 @@ export function createDefaultGroup(groupId: GroupId): Group {
     collapsed: false,
     completedRetentionDays: null,
     fullWidth: DEFAULT_FULL_WIDTH[groupId],
+    title: '',
   };
 }
 
@@ -38,6 +39,7 @@ export function createDefaultBoard(title = 'New board'): Board {
     notesCollapsed: true,
     notesHidden: false,
     hiddenGroups: [],
+    groupOrder: [...GROUP_IDS], // fresh array per board: a shared reference would let one board reorder another
   };
 }
 
@@ -49,7 +51,7 @@ export const DEFAULT_SETTINGS: Settings = {
 };
 
 export const DEFAULT_DATA: PluginData = {
-  version: 7,
+  version: 8,
   settings: { ...DEFAULT_SETTINGS },
   boards: [createDefaultBoard('My Project')],
   tasks: {},

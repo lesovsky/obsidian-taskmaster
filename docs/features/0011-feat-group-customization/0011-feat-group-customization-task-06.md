@@ -1,5 +1,5 @@
 ---
-status: planned                    # planned -> in_progress -> done
+status: done                       # planned -> in_progress -> done
 depends_on: ["02", "03", "05"]     # ID задач-зависимостей (строки: ["01", "02"])
 wave: 3                            # волна параллельного выполнения
 skills: [code-writing]             # МАССИВ скиллов для загрузки
@@ -174,6 +174,12 @@ The regression anchor for this task is the pre-existing suite, used in the TDD s
   their names, and the only name it matches is the collapsed backlog header. A broken fallback in
   the ordinary group header or in the group settings popup would leave this suite green. Real
   coverage of the names arrives with Task 10; here the suite only proves nothing else regressed.
+  > **Post-execution correction (Task 06, see the decisions log).** The paragraph above was true
+  > when this task was written and is no longer true of the suite as it stands: review found the gap
+  > empirically, so `core.spec.ts` now asserts the *default* name in all three display sites
+  > (scenarios 3.4, 8.1, 7.1) and a broken fallback in any of them turns it red. Still uncovered by
+  > anything: the empty-state hint key, i.e. `emptyState.renamed` vs `emptyState.{groupId}`.
+  > Task 10 owns it, and should not re-add default-path scenarios that 3.4 / 8.1 / 7.1 already cover.
 
 ## Verification Steps
 

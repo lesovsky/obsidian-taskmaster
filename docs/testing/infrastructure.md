@@ -2,10 +2,24 @@
 
 Плагин Obsidian TaskMaster тестируется двумя инструментами:
 
-- **Vitest** — unit-тесты (25 тестов, среда Node.js, ~200 мс)
-- **Playwright** — E2E-тесты (84 теста, реальный браузер)
+- **Vitest** — unit-тесты (111 тестов в 7 файлах, среда Node.js, ~300 мс)
+- **Playwright** — E2E-тесты (102 теста в 5 файлах, реальный браузер)
 
-Итого: 109 тестов.
+Итого: 213 тестов.
+
+## Требуемая версия Node
+
+`package.json` объявляет `engines: ^22.12.0 || >=24.0.0` (линия 23.x исключена — её не поддерживает vitest), `.nvmrc` содержит версию, на которой набор проверен: 22.23.1.
+
+Проверка версии сознательно не форсируется (`engine-strict` не включён, CI нет), поэтому запись в `package.json` остаётся декларативной — на несовместимом рантайме тесты не откажутся стартовать, а упадут стеком по внутренностям сборщика. Такой прогон читается как дефект кода, хотя дело в версии Node — при красном прогоне первым делом проверяйте `node -v`.
+
+**На машине разработчика** нужная версия установлена через snap, а системный пакет Node перехватывает её в `PATH`. Поэтому команды тестов запускаются с явной подстановкой пути:
+
+```bash
+export PATH=/snap/bin:$PATH
+node -v          # ожидается версия из .nvmrc
+npm test
+```
 
 ## Структура тестов
 
@@ -15,17 +29,23 @@ tests/
 │   ├── obsidian-mock.ts    — Мок Obsidian API (Plugin, Modal, App, WorkspaceLeaf, Setting)
 │   ├── main.ts             — Инициализация харнесса + window.__test API
 │   ├── index.html          — HTML-обёртка для харнесса
-│   └── obsidian-vars.css   — Obsidian CSS-переменные (фон, текст, акценты)
+│   ├── obsidian-vars.css   — Obsidian CSS-переменные (фон, текст, акценты)
+│   └── styles.css          — копия src/styles.css, которую отдаёт стенд (обновляется при сборке харнесса)
 ├── e2e/
 │   ├── helpers.ts                      — Shared Playwright helpers
 │   ├── core.spec.ts                    — Основные сценарии (создание, DnD, доски)
 │   ├── 0006-group-visibility.spec.ts
 │   ├── 0007-dynamic-layout.spec.ts
-│   └── 0008-card-columns.spec.ts
+│   ├── 0008-card-columns.spec.ts
+│   └── 0011-group-customization.spec.ts
 └── unit/
     ├── statusTransitions.test.ts
     ├── migration.test.ts
-    └── cleanup.test.ts
+    ├── cleanup.test.ts
+    ├── dataStore.test.ts
+    ├── boardLayoutUtils.test.ts
+    ├── groupOrderUtils.test.ts
+    └── groupTitle.test.ts
 
 esbuild.harness.mjs   — Сборка и dev-сервер харнесса
 playwright.config.ts
@@ -35,8 +55,8 @@ vitest.config.ts
 ## Команды запуска
 
 ```bash
-npm run test:unit          # vitest — unit-тесты (25 тестов, ~200 мс)
-npm run test:e2e           # playwright — E2E тесты (84 теста)
+npm run test:unit          # vitest — unit-тесты (111 тестов, ~300 мс)
+npm run test:e2e           # playwright — E2E тесты (102 теста)
 npm run test:e2e:ui        # playwright --ui — интерактивный режим
 npm run test:all           # unit + E2E
 npm run test:harness       # собрать харнесс без запуска тестов
@@ -143,8 +163,14 @@ test('перемещение задачи в completed меняет статус
 | Файл | Что тестирует |
 |------|---------------|
 | `statusTransitions.test.ts` | 8 тестов: правила смены статуса при перемещении задачи между группами |
-| `migration.test.ts` | 9 тестов: миграция с каждой версии (0→7), идемпотентность v7→v7, null и пустой объект |
+| `migration.test.ts` | 36 тестов: миграция с каждой версии (0→8), идемпотентность v8→v8, null и пустой объект, санация `groupOrder` и `title` на повреждённых данных |
 | `cleanup.test.ts` | 8 тестов: `cleanupCompletedTasks` (retention), `cleanupOrphanedTasks` |
+| `dataStore.test.ts` | 15 тестов: `updateBoard` — запись названий, порядка, ширин и видимости, нормализация названия, устойчивость к повреждённой доске |
+| `boardLayoutUtils.test.ts` | 8 тестов: `computeGroupClasses` — пары half, одинокая half, произвольный порядок групп |
+| `groupOrderUtils.test.ts` | 31 тест: перемещение стрелками (видимая и скрытая строка), состояние стрелок, согласованность `canMoveGroup` и `moveGroup`, `sanitizeHiddenGroups`, `moveGroupWithinPresent` |
+| `groupTitle.test.ts` | 5 тестов: `resolveGroupTitle` — пустое и пробельное название → дефолтная подпись |
+
+`tests/unit/` не входит в область `npx tsc --noEmit`: `tsconfig.json` включает только `src/**`. Ошибки типов в тестах ловит только сам прогон vitest.
 
 ## E2E spec-файлы
 
@@ -154,6 +180,7 @@ test('перемещение задачи в completed меняет статус
 | `0006-group-visibility.spec.ts` | 17 | Скрытие/показ групп, защита последней группы, per-board настройки, миграция v3→v4 |
 | `0007-dynamic-layout.spec.ts` | 16 | `fullWidth` настройки, алгоритм pairing (half/full/half-alone), миграция v4→v5 |
 | `0008-card-columns.spec.ts` | 16 | single/multi `cardLayout`, CSS vars, DnD в multi-режиме, миграция v5→v6 |
+| `0011-group-customization.spec.ts` | 18 | Переименование групп, порядок групп на доске (вычисленный `order` + геометрия), стрелки в попапе, выживание DOM-узлов и DnD сразу после перестановки, прокрутка попапа, независимость настроек досок, одинаковые названия у двух групп, приглушение строки до сохранения, длинное название в поле попапа |
 
 ## Особенности и паттерны
 
@@ -186,11 +213,13 @@ await page.clock.fastForward(8000); // вместо реального ожид�
 
 ### Collapsible-группы (backlog, completed)
 
-Атрибут `[data-group-id]` находится на `.tm-collapsible-group__body`, которое отсутствует в DOM пока группа свёрнута. Для локейтинга свёрнутых групп используется текст заголовка:
+Атрибут `[data-group-id]` находится на `.tm-collapsible-group__body`, которое отсутствует в DOM пока группа свёрнута. Свёрнутая группа локейтится через `[data-group-container]` на обёртке — она присутствует в обоих состояниях:
 
 ```typescript
-await page.locator('.tm-collapsible-group__header').filter({ hasText: 'Backlog' }).click();
+await page.locator('[data-group-container="backlog"] .tm-collapsible-group__header').click();
 ```
+
+По тексту заголовка группы локейтить нельзя: название редактируется пользователем. Какой из трёх служебных атрибутов брать — `data-group-id`, `data-group-container` или `data-settings-group` — описано в `docs/technical.md`, раздел «Порядок групп на доске».
 
 ### DOM-обновления Svelte
 

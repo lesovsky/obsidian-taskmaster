@@ -1,0 +1,42 @@
+{
+  "reviewer": "dev-code-reviewer",
+  "status": "approved_with_suggestions",
+  "summary": "Task 06 is implemented exactly as specified: all three display sites now render resolveGroupTitle(group.title ?? '', $groupLabels[groupId]) reactively, EmptyState owns the single trim()-based renamed check and both render sites pass the stored-title string (not a boolean), and all eight styles.css selectors carry the truncation/flex-shrink treatment. src/ui/groupTitle.ts is byte-identical to Task 05 (git diff empty, still one export), no {@html}, no scoped <style>, every class keeps the tm- prefix, and no behavioural code outside the task's file list was touched. Verified independently: npm run build succeeds (2 pre-existing a11y warnings only) and npx playwright test tests/e2e/core.spec.ts passes 35/35, so the empty-title fallback path is unchanged. Findings are three minors only; none blocks the wave.",
+  "criticalIssues": [],
+  "suggestions": [
+    {
+      "file": "src/ui/EmptyState.svelte",
+      "line": 8,
+      "severity": "minor",
+      "category": "maintainability",
+      "suggestion": "`export let groupTitle: string;` is a required prop with no default, and line 11 dereferences it immediately (`groupTitle.trim()`). Svelte does not enforce required props at runtime — it only dev-warns — so a future third render site that forgets the prop throws a TypeError during component init and blanks the group body instead of degrading to the semantic hint. `export let groupTitle = '';` is a one-token guard whose default is exactly the semantics both current call sites already produce with their own `?? ''`. Both existing call sites do pass the prop, so nothing is broken today.",
+      "benefit": "A missing prop at a future call site degrades to today's semantic hint instead of crashing the render, matching the defensive `?? ''` posture the parents already adopt.",
+      "optional": true
+    },
+    {
+      "file": "src/ui/TaskGroup.svelte",
+      "line": 36,
+      "severity": "minor",
+      "category": "readability",
+      "suggestion": "The same defensive read `group.title ?? ''` is now written in three shapes across four components: extracted into a reactive `$: storedTitle` and reused twice (CollapsibleGroup.svelte:31-32,75), inlined in a reactive statement (GroupHeader.svelte:15, GroupSettingsPopup.svelte:11), and inlined in markup (TaskGroup.svelte:36). Only the last one puts the guard in the template. Mirroring CollapsibleGroup's `$: storedTitle = group.title ?? '';` in TaskGroup would make the two EmptyState parents read identically and keep the guard out of markup. Purely cosmetic — behaviour is the same and the task's implementation hint (resolve reactively, not inline) is satisfied everywhere the *title* is resolved.",
+      "benefit": "The two EmptyState render sites read the same way, which is what Task 10's E2E will be reasoning about.",
+      "optional": true
+    },
+    {
+      "file": "docs/features/0011-feat-group-customization/0011-feat-group-customization-decisions.md",
+      "line": 0,
+      "severity": "minor",
+      "category": "maintainability",
+      "suggestion": "Commit 8dfff69 touches only the six source files; the task's Post-completion checklist requires an entry in the decisions log recording the new EmptyState prop name and its shape (`groupTitle`, a string carrying `group.title`, deliberately not a boolean). Task 10 writes E2E against this behaviour and the earlier tasks (03, 04) each left such an entry, so the omission is visible against the file's own convention.",
+      "benefit": "Task 10 gets the prop contract from the decisions log rather than by re-reading the components, and the wave's audit trail stays consistent with Tasks 03-05.",
+      "optional": true
+    }
+  ],
+  "metrics": {
+    "filesReviewed": 6,
+    "criticalIssuesCount": 0,
+    "majorIssuesCount": 0,
+    "minorIssuesCount": 3,
+    "testCoverageAssessment": "adequate"
+  }
+}

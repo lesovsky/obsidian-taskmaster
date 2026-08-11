@@ -1,0 +1,65 @@
+{
+  "reviewer": "dev-code-reviewer",
+  "status": "approved_with_suggestions",
+  "summary": "Task 04 delivers exactly what it promised: a 69-line pure module (src/ui/groupOrderUtils.ts) with a single shared target-lookup helper backing both canMoveGroup and moveGroup, so the predicate and the move cannot diverge by construction. All 11 acceptance criteria hold under inspection — purity (only `import type { GroupId }`), swap-not-splice semantics, no input mutation, fresh array on every return, no throw on unknown ids — and both verification commands are green (18/18 tests, `npx tsc --noEmit` clean). Findings are three minor polish items only; nothing blocking.",
+  "criticalIssues": [],
+  "suggestions": [
+    {
+      "file": "src/ui/groupOrderUtils.ts",
+      "line": 63,
+      "severity": "minor",
+      "category": "maintainability",
+      "suggestion": "`order.indexOf(groupId)` is computed twice for the same call — once inside `findSwapIndex` (line 18) and again in `moveGroup` (line 63). The helper already knows both endpoints of the swap; returning the pair (e.g. `{ from, to } | null`) instead of just `to` would remove the second lookup and, more importantly, remove the possibility of the two lookups ever disagreeing if the helper's notion of `from` changes later (for example if duplicate-id handling were ever added). The current code is correct — `indexOf` is deterministic and both calls use the same array — so this is a structural tidy-up, not a defect.",
+      "benefit": "One source of truth for the source index, matching the module's own stated design principle that the predicate and the move must not be able to diverge.",
+      "optional": true
+    },
+    {
+      "file": "tests/unit/groupOrderUtils.test.ts",
+      "line": 66,
+      "severity": "minor",
+      "category": "best-practices",
+      "suggestion": "The test `moving a hidden group past a visible neighbour keeps the relative order of visible groups` asserts only that the visible ids, filtered out of the result, are unchanged. That invariant also holds for a no-op implementation, so the test cannot fail if `moveGroup` stops moving hidden rows at all. Adding a concrete assertion on the whole result (`expect(result).toEqual(['backlog', 'inProgress', 'focus', 'delegated'])`) alongside the filter assertion would pin the actual movement as well as the invariant. Note the invariant assertion itself is required verbatim by the TDD anchor, so it should stay — this is an addition, not a replacement.",
+      "benefit": "The test then fails for both possible regressions (wrong swap and no swap) instead of only one.",
+      "optional": true
+    },
+    {
+      "file": "tests/unit/groupOrderUtils.test.ts",
+      "line": 35,
+      "severity": "minor",
+      "category": "best-practices",
+      "suggestion": "`visible group steps over several consecutive hidden groups` exercises the multi-hidden scan in the 'up' direction only. The 'down' scan over several consecutive hidden groups is covered only indirectly (single hidden neighbour, line 21). Since the two directions are the same loop with `step` inverted, the risk is low, but a mirrored 'down' case would close the last asymmetry in the branch coverage of `findSwapIndex`.",
+      "benefit": "Symmetric coverage of the only loop in the module; a sign-handling regression in the descending scan would be caught directly.",
+      "optional": true
+    }
+  ],
+  "metrics": {
+    "filesReviewed": 2,
+    "criticalIssuesCount": 0,
+    "majorIssuesCount": 0,
+    "minorIssuesCount": 3,
+    "testCoverageAssessment": "excellent"
+  },
+  "verificationRun": {
+    "npx vitest run tests/unit/groupOrderUtils.test.ts": "18 passed / 18 (1 file)",
+    "npx tsc --noEmit": "clean, no output"
+  },
+  "acceptanceCriteriaCheck": [
+    { "criterion": "Module exists, exports predicate + move, both pure (no stores/components/i18n)", "verdict": "pass", "evidence": "Only import in the file is `import type { GroupId } from '../data/types'` (line 1); no module-level mutable state; both functions derive everything from arguments." },
+    { "criterion": "Visible group swaps with nearest visible neighbour; hidden groups in between keep their positions", "verdict": "pass", "evidence": "findSwapIndex lines 33-36 scan for the first non-hidden index; moveGroup lines 66-67 swap two positions and touch nothing between them." },
+    { "criterion": "Hidden group swaps with its immediate list neighbour, visible or hidden", "verdict": "pass", "evidence": "findSwapIndex lines 26-29 return from+step with a bounds check, no visibility filtering." },
+    { "criterion": "Predicate returns false exactly when there is no target", "verdict": "pass", "evidence": "canMoveGroup is a direct `!== -1` over the same helper the move uses." },
+    { "criterion": "Single visible group reports both arrows disabled", "verdict": "pass", "evidence": "Scan finds no non-hidden index in either direction; covered by test at line 103." },
+    { "criterion": "Move never mutates input, always returns a new array", "verdict": "pass", "evidence": "`const next = [...order]` (line 59) is created before the early return, so even the impossible-move path returns a fresh array; tests at lines 142 and 155." },
+    { "criterion": "Predicate false implies move returns order equal to input", "verdict": "pass", "evidence": "Structurally guaranteed by the shared helper; asserted per row type at line 128." },
+    { "criterion": "Neither function throws on unknown group id or on hidden ids absent from order", "verdict": "pass", "evidence": "indexOf -1 short-circuits (line 19); includes on absent ids is simply false. Tests at lines 119 and 162." },
+    { "criterion": "Tests cover all TDD anchors and pass", "verdict": "pass", "evidence": "All 15 anchors present with matching titles, plus 3 extra edge-case tests (empty/single-element order, hidden ids absent from order, fresh array on impossible move) drawn from the task's Edge cases section." },
+    { "criterion": "npx tsc --noEmit clean", "verdict": "pass", "evidence": "No output." },
+    { "criterion": "No import of Board or Group — no dependency on Task 3", "verdict": "pass", "evidence": "grep over imports confirms GroupId only; no reference to board.groupOrder or Group.title anywhere in the module or its tests." }
+  ],
+  "notes": [
+    "Scope discipline respected: no UI wiring, no styles.css changes, no i18n keys — Task 8 territory left untouched. No name collisions: `canMoveGroup` / `moveGroup` / `groupOrderUtils` appear nowhere else in src or tests.",
+    "Signature fit for Task 8 verified against the future consumer: BoardSettingsPopup.svelte:14 already holds `let hiddenGroups: GroupId[] = [...board.hiddenGroups]` as local unsaved state, which the fourth parameter accepts directly with no conversion — this is what makes the 'toggle visibility then immediately press an arrow' scenario work without a save.",
+    "Russian doc comments and Russian describe-block titles match existing project style (boardLayoutUtils.ts, statusTransitions.ts, boardLayoutUtils.test.ts), not a deviation.",
+    "Full `npm test` was deliberately not run, per the task's Verification Steps — Tasks 3 and 5 are mid-flight in the same wave. The two suites this wave does not touch were left alone as well."
+  ]
+}

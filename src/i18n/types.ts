@@ -24,6 +24,8 @@ export type TranslationKey =
   | 'boardSettings.groupVisibility' | 'boardSettings.groupVisibilityDesc'
   | 'boardSettings.cannotHideLastGroup'
   | 'boardSettings.fullWidth' | 'boardSettings.fullWidthTooltip'
+  | 'boardSettings.notes'
+  | 'boardSettings.groupName' | 'boardSettings.moveUp' | 'boardSettings.moveDown'
   | 'groupSettings.heading' | 'groupSettings.wipLimit' | 'groupSettings.wipPlaceholder'
   | 'groupSettings.retentionLabel' | 'groupSettings.cancel' | 'groupSettings.save'
   | 'groupHeader.settings' | 'groupHeader.addTask'
@@ -36,6 +38,7 @@ export type TranslationKey =
   | 'form.delete' | 'form.save'
   | 'emptyState.backlog' | 'emptyState.focus' | 'emptyState.inProgress'
   | 'emptyState.orgIntentions' | 'emptyState.delegated' | 'emptyState.completed'
+  | 'emptyState.renamed'
   | 'toast.deleted' | 'toast.completed' | 'toast.seconds' | 'toast.undo'
   | 'fallback.task'
   | 'notes.title' | 'notes.placeholder';

@@ -90,7 +90,7 @@ Once registered in the Obsidian community plugin registry, install directly from
 
 ### Prerequisites
 
-- [Node.js](https://nodejs.org) 18+
+- [Node.js](https://nodejs.org) `^22.12.0 || >=24.0.0` — the 23.x line is excluded (unsupported by vitest). The exact version the project is verified on is pinned in `.nvmrc`
 - npm
 
 ### Setup

@@ -1,0 +1,41 @@
+{
+  "status": "approved",
+  "summary": {
+    "totalFindings": 3,
+    "critical": 0,
+    "major": 0,
+    "minor": 3
+  },
+  "findings": [
+    {
+      "severity": "minor",
+      "category": "A03: Injection (XSS) — defense-in-depth",
+      "title": "Trust boundary now documented; residual obligation moves to task 06's display sites",
+      "description": "Round-1 finding 1 is APPLIED as recommended. Commit 7a770c4 adds a two-line header comment to src/ui/groupTitle.ts recording that the return value is raw user input and must be rendered via {} interpolation, never {@html}. Verified: the diff touches nothing but the comment block (no change to the expression on line 6), tsc --noEmit is clean, and all 5 groupTitle tests plus 32 migration tests pass. Comments are stripped by esbuild, so there is zero runtime delta — the control is documentary, which is the right kind of control for a context-free pure function. A repo-wide scan for {@html}, innerHTML, outerHTML and insertAdjacentHTML across src/ returns exactly one hit: the new comment itself. The function still has no consumers outside its own test, so there is no live sink at this commit. What remains is forward-looking and is now correctly parked where it can be enforced: task 06 must wire the three display sites with {resolveGroupTitle(...)} interpolation.",
+      "location": "src/ui/groupTitle.ts:3-4",
+      "impact": "None at this commit — no consumers, no HTML sink anywhere in src/. If task 06 renders the returned string as HTML, a title crafted in data.json (hand edit or vault sync) would execute script inside the Obsidian plugin context, which can reach the vault and the plugin's data.json.",
+      "recommendation": "No further change in this module. Carry the obligation into task 06's review: assert that each of the three group-header display sites uses {} interpolation, and re-run the repo-wide {@html}/innerHTML scan at that point. The comment is now the artifact that makes this checkable.",
+      "cwe": "CWE-79"
+    },
+    {
+      "severity": "minor",
+      "category": "best-practice",
+      "title": "Control-character / bidi filtering: deferral confirmed correct — recommend ACCEPT, do not escalate",
+      "description": "Round-1 finding 2 was NOT applied here, deliberately. That call is correct, and stated plainly: the resolver must not filter. Decision 7 puts normalization at the loader and updateBoard; adding a second normalization site inside a pure resolver would create two places for one rule to drift, and the task explicitly forbids it. On whether to escalate to tasks 03 and 08: my recommendation is to ACCEPT the gap rather than escalate. Reasons: (a) task 03 has already landed as 095aa6e with its normalization complete and tested — reopening a closed task for this would trade a real regression risk against a cosmetic one; (b) the impact is UI misrepresentation only, with no code execution and no data exfiltration path; (c) it requires the user to control data.json, which in a single-user Obsidian plugin means self-inflicted damage or a sync conflict, and the damage is visible and reversible by editing the title in the UI; (d) the character class needed to do this correctly (C0/C1, zero-width, bidi isolates and overrides) is easy to get subtly wrong and would need its own test matrix. If the team nonetheless wants the hardening, task 08 is the single right place — it is still open and owns updateBoard, and a one-line addition there covers every title that enters through the UI. Do not add it to the resolver in either case.",
+      "location": "src/ui/groupTitle.ts:6 (surfaces the value); normalization boundary owned by src/data/migration.ts (task 03, landed) and updateBoard (task 08, open)",
+      "impact": "UI misrepresentation only. A title such as \"Done\\u202Eegrem\" renders reversed in the group header; zero-width characters can make a title look blank. Bounded to the local vault, no privilege or data boundary crossed.",
+      "recommendation": "Accept. Task 05 stays as-is. If the team elects to harden anyway, do it once in task 08's updateBoard normalization, never in the resolver: `raw.replace(/[\\u0000-\\u001F\\u007F-\\u009F\\u200B-\\u200F\\u2028\\u2029\\u202A-\\u202E\\u2066-\\u2069\\uFEFF]/g, '').trim().slice(0, 40)`. Note that migration.ts's sanitizeGroupTitle would then need the same class to stay consistent, which is a second reason to treat this as optional rather than required.",
+      "cwe": "CWE-451"
+    },
+    {
+      "severity": "minor",
+      "category": "A04: Insecure Design",
+      "title": "Upstream normalization VERIFIED present — round-1 finding 3 is closed; one adjacent pre-existing assumption noted",
+      "description": "Round-1 finding 3 is RESOLVED. Task 03 (095aa6e) ships exactly the control this module's missing type guard depends on. Verified by reading the code, not the commit message: sanitizeGroupTitle(value: unknown) at src/data/migration.ts:38-44 returns '' for any non-string and otherwise trims before applying a 40-character cap (GROUP_TITLE_MAX_LENGTH, migration.ts:7) — trim-then-slice, so padding cannot eat real characters. It is applied at migration.ts:152-157 in a loop placed deliberately OUTSIDE every `version <` branch, so data damaged after a migration already ran is repaired on every subsequent load, not only on upgrade; that loop iterates the groups that actually exist rather than GROUP_IDS, so a board missing a group does not throw. migrateData is called on the real load path at src/main.ts:52. Test coverage matches the round-1 requirement: tests/unit/migration.test.ts:315-322 asserts undefined, null, 42, an object and an array all yield '' and that undefined does not throw, plus trim, 40-cap, exactly-40, and sanitization of already-migrated v8 data. 37 tests pass. This is a genuine control, unconditionally applied — task 05's decision to omit a runtime guard is now justified by something in the tree. One adjacent observation, reported only as required and NOT a defect of task 03: the sanitization loop assumes result.boards is iterable and each board.groups is an object, so a hand-edited file like {\"version\": 8} with boards missing still throws during migrateData before render. This assumption is pre-existing — the version<3, version<4 and version<5 branches (migration.ts:90-117) have carried it since long before this feature, and version<5 additionally indexes board.groups[id] unguarded. Task 03 inherited it rather than introduced it.",
+      "location": "src/ui/groupTitle.ts:6 (dependent); src/data/migration.ts:38-44 and 152-157 (the control); src/main.ts:52 (call site); tests/unit/migration.test.ts:293-322 (coverage)",
+      "impact": "The availability concern raised in round 1 is closed for the title path: a non-string title in data.json is coerced to '' on load and the resolver receives a string, so the board renders with default group names instead of throwing. The residual pre-existing case (boards or groups structurally absent) fails the load for reasons unrelated to this feature and unrelated to group titles.",
+      "recommendation": "No action in task 05 — do not add a runtime guard to resolveGroupTitle. No action requested in task 03: its files were not modified and the noted assumption is pre-existing, so any hardening of migrateData against a structurally malformed boards array belongs in a separate backlog item, not in this feature.",
+      "cwe": "CWE-703"
+    }
+  ]
+}

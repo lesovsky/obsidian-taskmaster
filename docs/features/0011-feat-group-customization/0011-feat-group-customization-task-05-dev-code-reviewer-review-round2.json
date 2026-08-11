@@ -1,0 +1,48 @@
+{
+  "reviewer": "dev-code-reviewer",
+  "round": 2,
+  "status": "approved",
+  "summary": "The only change since round 1 is commit 7a770c4 — two comment lines in src/ui/groupTitle.ts recording the trust boundary of the resolved title. Zero executable code changed: the diff is comment-only (git diff 6c55562..7a770c4 -- src/ui/groupTitle.ts tests/unit/groupTitle.test.ts = 1 file, +2 lines, both comments; the test file is byte-identical to round 1). The note is factually correct — grep -rn '@html' src/ returns only this comment itself, so no consumer violates the stated constraint today — and it is consistent with the normalization contract documented at src/data/migration.ts:37. Task 05 verification gates re-run: npx vitest run tests/unit/groupTitle.test.ts → 5/5 green; groupTitle.ts contributes zero tsc diagnostics. Both round-1 minor notes are closed with acceptable dispositions (see roundOneDisposition). No new findings of critical or major severity; one optional minor about the comment's delivery mechanism.",
+  "criticalIssues": [],
+  "suggestions": [
+    {
+      "file": "src/ui/groupTitle.ts",
+      "line": 3,
+      "severity": "minor",
+      "category": "maintainability",
+      "suggestion": "Optional: convert the header block from `//` line comments to a JSDoc block (`/** ... */`) directly above `resolveGroupTitle`. The stated purpose of 7a770c4 is to 'carry that assumption to task 06's display sites', but a `//` comment above the function is only visible to someone who opens groupTitle.ts — exactly the reader who does not need the warning. A JSDoc block is surfaced by the editor on hover and autocomplete at every call site in TaskGroup/GroupHeader, which is where the {@html} decision is actually made. This also aligns the file with its two sibling modules from this same feature: src/data/migration.ts (lines 12, 37) and src/ui/groupOrderUtils.ts (lines 3, 6, 9, 43, 53) both document exported symbols with JSDoc, while groupTitle.ts is the odd one out. If converted, keep the wording and the Russian language unchanged — only the delimiter changes.",
+      "benefit": "Delivers the security note to the consumers it was written for, and removes a documentation-style inconsistency inside the same feature branch.",
+      "optional": true
+    }
+  ],
+  "roundOneDisposition": [
+    {
+      "note": "Add a test for resolveGroupTitle('', '')",
+      "outcome": "Not implemented — accepted. dev-test-reviewer independently rejected the same case on mutation-value grounds (kills no unique mutant, shares a branch with the existing empty-title test) and the task text states the degenerate case gets no separate branch. Test-domain authority is the correct tiebreaker here; the note was explicitly optional and is withdrawn, not carried forward."
+    },
+    {
+      "note": "Russian header comment vs the global English-comments rule",
+      "outcome": "Kept as is — accepted, and this was the recommendation in round 1. Commit 7a770c4 correctly extended the block in Russian rather than mixing languages inside one comment block. Consistent with boardLayoutUtils.ts, statusTransitions.ts, dateFormat.ts, and with the two new sibling modules migration.ts and groupOrderUtils.ts."
+    }
+  ],
+  "outOfScopeObservation": {
+    "note": "Not a task 05 finding, flagged only because the handoff stated 'npx tsc --noEmit → clean'. As of this review the repo-wide type check is NOT clean: six errors in src/ui/groupOrderUtils.ts (TS2322 at 32:43, 32:48, 38:43, 40:3 — 'number' not assignable to 'Swap'; TS2304 at 50:10 and 64:14 — 'Cannot find name findSwapIndex'). These come from uncommitted working-tree edits to task 04's file (git status shows ' M src/ui/groupOrderUtils.ts'), not from HEAD and not from anything in task 05's two files. groupTitle.ts and groupTitle.test.ts produce zero diagnostics. Whoever owns task 04 should be told the working tree is currently mid-edit and does not compile.",
+    "severity": "informational",
+    "attributedTo": "task 04 (src/ui/groupOrderUtils.ts), uncommitted"
+  },
+  "metrics": {
+    "filesReviewed": 2,
+    "linesChangedSinceRound1": 2,
+    "criticalIssuesCount": 0,
+    "majorIssuesCount": 0,
+    "minorIssuesCount": 1,
+    "testCoverageAssessment": "adequate",
+    "dimensionNotes": {
+      "scopeOfChange": "Comment-only. resolveGroupTitle's body, signature, exports and imports are byte-identical to the round-1 approved commit 6c55562. Every dimension assessed in round 1 (architecture, separation of concerns, error handling, type safety, dependencies, performance) is unaffected by construction and is not re-litigated here.",
+      "readability": "The added sentence explains a 'why' constraint, not a 'what' — it states an invariant the code cannot enforce itself, which is the correct use of a comment. Minor imprecision, below the threshold for a finding: the return value is user-controlled only on the storedTitle branch; on the fallback branch it is an i18n label. The advice ('render via {} only') holds for both branches, so the imprecision cannot mislead a consumer into an unsafe choice.",
+      "security": "The claim in the comment is verified, not assumed: grep -rn '@html' across src/ matches nothing but the comment text itself, so no current consumer renders a group title as raw HTML. The comment documents an assumption rather than enforcing it — acceptable for a pure string helper, since the enforcement point is the Svelte template in task 06 and CLAUDE.md already bans {@html} project-wide. This is defense in depth, correctly placed at minor severity by dev-security-auditor.",
+      "testing": "Unchanged and still adequate: 5 it blocks covering all TDD Anchor cases (empty, whitespace-only across space/tab/newline/mixed, non-empty wins, surrounding whitespace preserved verbatim, default label returned unmodified). A comment change requires no test change; adding one would be noise.",
+      "crossFileConsistency": "Still no consumers — task 06 wires them. The comment's contract agrees with the producer side: src/data/migration.ts:37 documents that normalization caps the stored title at GROUP_TITLE_MAX_LENGTH and that '' means 'use the default name', which is precisely the input contract resolveGroupTitle relies on. Task 03's commit 095aa6e landed in between and did not touch either file under review."
+    }
+  }
+}

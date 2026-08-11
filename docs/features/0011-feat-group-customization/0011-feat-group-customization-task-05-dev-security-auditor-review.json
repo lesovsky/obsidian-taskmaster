@@ -1,0 +1,41 @@
+{
+  "status": "approved",
+  "summary": {
+    "totalFindings": 3,
+    "critical": 0,
+    "major": 0,
+    "minor": 3
+  },
+  "findings": [
+    {
+      "severity": "minor",
+      "category": "A03: Injection (XSS) — defense-in-depth",
+      "title": "Safety of returning raw user input rests entirely on the consumer's rendering mode",
+      "description": "resolveGroupTitle() returns the stored, user-controlled title verbatim with no escaping or encoding. This is correct for this module — encoding is an output-context concern and the module is context-free — and it is safe today: task 06 renders the result through Svelte `{}` interpolation, which HTML-escapes, and a repo-wide scan confirms zero occurrences of `{@html}`, `innerHTML`, `outerHTML` or `insertAdjacentHTML` anywhere in src/. At commit 6c55562 the function has no consumers at all (only its own test imports it), so there is no live sink. The residual risk is purely forward-looking: the module carries no marker that its return value is untrusted, so a future display site that reaches for `{@html}` (e.g. to bold part of a header) or sets a DOM property directly would turn a stored group title into stored XSS inside the Obsidian renderer.",
+      "location": "src/ui/groupTitle.ts:3-5",
+      "impact": "None at this commit. If a later consumer renders the returned string as HTML, a title crafted in data.json (or arriving through vault sync) executes script in the Obsidian plugin context, which has access to the vault and the plugin's data.json.",
+      "recommendation": "No code change in this module. Keep the CLAUDE.md rule enforced when task 06 wires the three display sites: `<span>{resolveGroupTitle(group.title, $groupLabels[id])}</span>`, never `{@html ...}`. Optionally record the assumption in the existing header comment, e.g. `// Возвращаемое значение — пользовательский ввод как есть; выводить только через {} интерполяцию, не через {@html}.`",
+      "cwe": "CWE-79"
+    },
+    {
+      "severity": "minor",
+      "category": "best-practice",
+      "title": "No control-character or bidi-override filtering anywhere in the title pipeline",
+      "description": "Decision 7 assigns normalization of stored titles to the store (updateBoard) and the loader, and defines it as trim + 40-character cap. Neither that normalization nor this resolver removes C0/C1 control characters, zero-width characters (U+200B/U+200E/U+FEFF) or bidirectional overrides (U+202E, U+2066-U+2069). Because trim() only strips edge whitespace and the resolver returns the stored value unmodified (a deliberate and correct choice per the task's implementation hints), such characters survive to the group header. This is not a defect of this module — it is a gap in the pipeline that this module makes visible.",
+      "location": "src/ui/groupTitle.ts:4 (surfaces the value); normalization boundary owned by Task 03 (loader) and Task 08 (updateBoard)",
+      "impact": "UI misrepresentation only: a group title such as \"Done\\u202Eegrem\" renders reversed, and embedded newlines or zero-width characters can distort or blank the board header. Requires the attacker to control data.json — a hand edit, a sync conflict, or a shared/synced vault. No code execution, no data exfiltration. Self-inflicted in a single-user plugin.",
+      "recommendation": "Accept as-is, or — if the risk is judged real for synced vaults — strip the characters once, at the normalization boundary defined by Decision 7, never here (duplicating normalization in the resolver is explicitly forbidden by the task and would create a second place for the rule to drift). Sketch for the store/loader helper: `raw.replace(/[\\u0000-\\u001F\\u007F-\\u009F\\u200B-\\u200F\\u2028\\u2029\\u202A-\\u202E\\u2066-\\u2069\\uFEFF]/g, '').trim().slice(0, 40)`.",
+      "cwe": "CWE-451"
+    },
+    {
+      "severity": "minor",
+      "category": "A04: Insecure Design",
+      "title": "Availability of the board depends on a single upstream normalization control that is not in the tree yet",
+      "description": "The module calls storedTitle.trim() with no type guard. This is intentional and endorsed by the task (strict TS plus load-time normalization), and duplicating the guard here would be speculative. The design is sound only as long as the Decision 7 loader — which must accept `unknown` and coerce any non-string to '' — actually exists. At commit 6c55562 it does not: `grep -n title src/data/migration.ts` returns nothing, because task 03 runs in parallel and has not landed. The same single control is also the only enforcement of the 40-character cap for hand-edited data (the input's maxlength protects fresh typing only). So one missing or regressed function upstream converts a hand-edited `\"title\": null` into a TypeError during migration — before first render — producing exactly the blank board that Decisions 6 and 7 exist to prevent.",
+      "location": "src/ui/groupTitle.ts:4",
+      "impact": "No exposure at this commit (no consumers). Once task 06 wires the display sites, a malformed data.json that reaches the resolver un-normalized throws on load and the board fails to open — availability loss requiring manual repair of data.json. Bounded to the local vault; not remotely triggerable.",
+      "recommendation": "Do not add a runtime guard here. Instead, before task 06 wires up consumers, confirm task 03 shipped loader normalization that takes `unknown` and yields a trimmed, 40-char-capped string ('' for non-strings), and that its unit tests cover null, undefined, number and object inputs. That test is the control that keeps this module's missing guard safe.",
+      "cwe": "CWE-703"
+    }
+  ]
+}

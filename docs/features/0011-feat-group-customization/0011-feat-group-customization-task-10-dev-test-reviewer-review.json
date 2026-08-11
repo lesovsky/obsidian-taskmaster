@@ -1,0 +1,118 @@
+{
+  "reviewer": "dev-test-reviewer",
+  "status": "needs_improvement",
+  "summary": "Strong acceptance suite. All fourteen scenarios from the task spec are present and each carries real, discriminating assertions; the five invariants the orchestrator asked me to verify explicitly all hold (board order asserted only via computed `order`/geometry, never DOM index; Сц.5 drags with real mouse input through SortableJS with no reload/resetData/goto between the reorder and the drag; default titles asserted only via `placeholder`; groups and popup rows addressed only by `data-group-container`/`data-settings-group`; persistence checked via a localStorage snapshot fed back through `resetData`). No empty, mock-only or tautologically-green scenario found, and I could not construct a false-green for any of the fourteen assertions. Findings are about reach, not about validity: one user-spec acceptance criterion (arrow on a *hidden* row, then un-hide, group lands at the configured board position) has zero E2E coverage anywhere in the repo, and Сц.6 does not compensate for it; the rest are per-assertion hardening — two reload assertions that stay green if the reload call is deleted, a vacuous freshness poll in `readSavedSnapshot`, a geometric settle proxy plus fixed 250 ms sleeps in the drag helper against a `retries: 0` config, and a handful of assertions whose scope is narrower than their scenario name.",
+  "findings": [
+    {
+      "severity": "major",
+      "category": "missing_coverage",
+      "location": "tests/e2e/0011-group-customization.spec.ts — no scenario; user-spec criterion \"Стрелка у скрытой группы меняет её местами с соседом по списку; после возврата в видимые группа появляется на доске на заданной позиции\"",
+      "issue": "No scenario ever presses a move arrow on a *hidden* row. Сц.4, Сц.6 and Сц.11 all hide `inProgress` and then move a *visible* group. `grep -rn \"group-move-btn|moveUp|moveDown\" tests/` confirms 0011 is the only suite that touches the arrows at all, so the hidden branch of `findSwap` (groupOrderUtils.ts:58-62 — hidden rows step by literal list neighbour) and its wiring through `disabled={!canMoveGroup(presentGroups, groupId, direction, hiddenGroups)}` / `handleMove` in BoardSettingsPopup.svelte reach the browser untested. Сц.6 does not compensate: with `delegated` moved up over `orgIntentions`, the expected row sequence ['backlog','focus','inProgress','delegated','orgIntentions','completed'] is byte-identical to what the product produces if `inProgress` had never been hidden — the hide step is load-bearing only against the single failure mode \"hidden rows sink to the end of the list\". Litmus: remove the hidden-row branch from findSwap and every one of the fourteen scenarios stays green.",
+      "recommendation": "Add Сц.15 (or extend Сц.6): open board settings, hide `orgIntentions`, save. Reopen, press the *hidden* row's up arrow twice so it lands above `focus`, save, reopen and assert `settingsRowOrder(page)` equals ['backlog','orgIntentions','focus','inProgress','delegated','completed'] — a sequence in which the hidden row is NOT at its default index, so \"hidden rows pinned to their default slot\" and \"hidden rows keep the configured slot\" become distinguishable. Then reopen, re-check the visibility toggle for `orgIntentions`, save, and assert on the board `ranks['orgIntentions'] < ranks['focus']` via the existing `groupRanks` helper. Negative control: skip the two arrow presses — the row-order assertion and the board-rank assertion must both go red.",
+      "litmusTestFailed": true
+    },
+    {
+      "severity": "minor",
+      "category": "anti_pattern",
+      "location": "tests/e2e/0011-group-customization.spec.ts:249-253 (Сц.1) and :467-478 (Сц.9)",
+      "issue": "The reload half of both scenarios is not proven load-bearing. Delete the `await reloadFromSnapshot(page, snapshot)` line and the following assertions still pass: the board already displays those titles, and nothing forces the assertion to read re-rendered state rather than untouched DOM. The scenarios do catch \"title never persisted\" (resetData would restore an empty title), but the executor's perturbation for Сц.1 was \"skip rename\", which exercises the pre-reload half only. The persistence claim in both scenario names therefore rests on an inference no perturbation confirmed.",
+      "recommendation": "Assert the snapshot content directly before feeding it back, so the claim is stated rather than inferred: `expect((snapshot as any).boards[0].groups.focus.title).toBe('Sprint focus')` and `...groups.backlog.title).toBe('Someday maybe')` in Сц.1; in Сц.9 assert both boards in the snapshot carry their own `groups.focus.title` ('A focus' / 'B focus') and their own `groupOrder`. Add a perturbation that strips `groups.focus.title` from the snapshot object before `reloadFromSnapshot` — the post-reload assertions must go red.",
+      "litmusTestFailed": false
+    },
+    {
+      "severity": "minor",
+      "category": "anti_pattern",
+      "location": "tests/e2e/0011-group-customization.spec.ts:128-134 (`readSavedSnapshot`)",
+      "issue": "The poll condition is `localStorage.getItem('tm-test-data') !== null`, but the comment claims it guards against reading before the async `persist()` → `saveData()` lands. It only guards the very first persist of a test. In Сц.9 the key already exists (board creation persisted long before), so the poll returns on the first tick and the helper can hand back a snapshot that predates the save under test. The consequence is a false red, not a false green, but the guard does not do what its comment says.",
+      "recommendation": "Give the helper an expected-content predicate: `async function readSavedSnapshot(page, isFresh: (s: any) => boolean)`, polling `page.evaluate(() => localStorage.getItem('tm-test-data')).then(raw => raw !== null && isFresh(JSON.parse(raw)))`. Сц.1 passes `s => s.boards[0].groups.focus.title === 'Sprint focus'`; Сц.9 passes `s => s.boards.some(b => b.groups.focus.title === 'B focus')`.",
+      "litmusTestFailed": false
+    },
+    {
+      "severity": "minor",
+      "category": "anti_pattern",
+      "location": "tests/e2e/0011-group-customization.spec.ts:169, :196-213 (`dragCardToGroup`)",
+      "issue": "Flakiness risk concentrated in the suite's most valuable scenario. The exit condition is a geometric proxy — \"the point I last moved to is still inside the target's bounding box after the board reflowed\" — which is not the same as \"SortableJS has placed the item into the target list\". Around it sit two fixed `waitForTimeout(SORTABLE_SETTLE_MS)` per iteration, up to 5 iterations, i.e. up to ~2.5 s per drag and ~5 s for the two drags in Сц.5, on a config with `workers: 1` and no `retries` (playwright.config.ts defines none, so retries = 0). A slow reflow makes the helper `throw` and the run go red with no retry budget. It cannot produce a false green — `mouse.up()` on the wrong list makes `toHaveCount` fail — so this is a false-red / runtime cost issue, not a correctness one.",
+      "recommendation": "Replace the geometric proxy with the DOM state the drag is actually trying to reach. During a drag SortableJS moves the real node into the receiving list, so poll for it before releasing: `await expect.poll(() => page.locator(`[data-group-id=\"${toGroupId}\"] [data-task-id=\"${taskId}\"]`).count(), { timeout: 3000, intervals: [50,50,100] }).toBe(1)`, re-aiming at the target's current centre between polls, then `mouse.up()`. Drop `SORTABLE_SETTLE_MS` and both `waitForTimeout` calls. Keep the explicit `throw` on timeout so a failure to grab the card is still distinguishable from a wrong drop.",
+      "litmusTestFailed": false
+    },
+    {
+      "severity": "minor",
+      "category": "missing_coverage",
+      "location": "tests/e2e/0011-group-customization.spec.ts:340-352 (Сц.6), line 348",
+      "issue": "`page.locator('[data-settings-group=\"inProgress\"] .tm-popup__group-toggle').first()` picks the visibility checkbox purely by DOM position — BoardSettingsPopup.svelte renders two checkboxes with that same class per row (visibility at :121, fullWidth at :134). Сц.4 and Сц.11 guard the choice with `expect(ranks['inProgress']).toBeUndefined()`; Сц.6 has no such guard, and as noted in the major finding its expected row sequence is identical whether or not the group is actually hidden. So in Сц.6 the click could be landing on the fullWidth toggle and the scenario would still be green.",
+      "recommendation": "Introduce a local helper `visibilityToggle(page, groupId)` returning `page.locator(`[data-settings-group=\"${groupId}\"] input.tm-popup__group-toggle`).first()` and, right after the click, assert the row reflects the hidden state — `await expect(page.locator('[data-settings-group=\"inProgress\"]')).toHaveClass(/tm-popup__group-row--hidden/)`. That class is toggled by `class:tm-popup__group-row--hidden={!isVisible}` (BoardSettingsPopup.svelte:86) and is independent of the checkbox's position in the row.",
+      "litmusTestFailed": false
+    },
+    {
+      "severity": "minor",
+      "category": "missing_coverage",
+      "location": "tests/e2e/0011-group-customization.spec.ts:321-338 (Сц.4), line 337",
+      "issue": "The scenario name claims a visible group \"jumps over a hidden one on the first click\", but the only post-condition is `after['orgIntentions'] < after['focus']` — a relative rank of two groups. A product that moved `focus` two or three slots down (past `delegated`, to the end) would satisfy it identically. The executor's perturbation (\"no arrow click\") proves the click matters but not that the jump is exactly one visible position.",
+      "recommendation": "Assert the whole visible sequence instead: build it from `groupRanks` and compare — `const seq = Object.entries(after).sort((a,b) => a[1]-b[1]).map(([id]) => id); expect(seq).toEqual(['backlog','orgIntentions','focus','delegated','completed'])`. Add a perturbation that presses the arrow twice — the sequence assertion must go red (focus would land past `delegated`).",
+      "litmusTestFailed": false
+    },
+    {
+      "severity": "minor",
+      "category": "missing_coverage",
+      "location": "tests/e2e/0011-group-customization.spec.ts:485-521 (Сц.10)",
+      "issue": "Two of the three post-conditions have no negative control and one has no baseline. The executor's perturbation (5-character title) reds `after.scrollWidth > after.clientWidth` only. `expect(after.height).toBeCloseTo(before.height, 1)` — the \"does not break the header line\" claim, i.e. the `white-space: nowrap` guard at styles.css:145 — is never shown capable of failing, and `expect(after.titleRight).toBeLessThanOrEqual(after.containerRight + 1)` likewise. The `before` measurement is also never asserted to be *un*truncated, so the truncation check has no established baseline: if the default 'Focus' title were already overflowing, the scenario would prove nothing about the 40-character one.",
+      "recommendation": "Add `expect(before.scrollWidth).toBeLessThanOrEqual(before.clientWidth)` right after the first `measure()` — it pins the baseline. For the no-wrap claim add a perturbation that removes `white-space: nowrap` from `.tm-group-header__title` via `page.addStyleTag({ content: '.tm-group-header__title { white-space: normal }' })` before the second measure and confirm `toBeCloseTo` goes red; then delete the style tag from the final code and record the observation.",
+      "litmusTestFailed": false
+    },
+    {
+      "severity": "minor",
+      "category": "anti_pattern",
+      "location": "tests/e2e/0011-group-customization.spec.ts:555-566 (Сц.12)",
+      "issue": "`expect(scrollable!.scrollHeight).toBeGreaterThan(scrollable!.clientHeight)` restates the predicate the element was selected by (`candidates.find(c => c.scrollHeight > c.clientHeight + 1)`) — it cannot fail once `scrollable` is non-null, so it is a tautology sitting next to the two assertions that do work (`scrollable !== null` and `endTop > startTop`). Separately, the in-viewport half (`box.y >= 0`, `box.y + box.height <= viewport.height + 1`) has no negative control: the executor's \"tall viewport\" perturbation reds the scroll half while the in-viewport half passes in both worlds.",
+      "recommendation": "Delete the restated inequality. For the in-viewport half, add a perturbation that removes the popup's height cap (`page.addStyleTag({ content: '.tm-popup { max-height: none }' })` before `openBoardSettings`) and confirm `box.y + box.height <= viewport.height + 1` goes red; revert afterwards. Record the observation in the report.",
+      "litmusTestFailed": false
+    },
+    {
+      "severity": "minor",
+      "category": "missing_coverage",
+      "location": "tests/e2e/0011-group-customization.spec.ts — no scenario; user-spec criterion \"Стрелка неактивна в двух случаях: у видимой группы — когда в её направлении не осталось видимых групп, у скрытой — когда она уже крайняя в списке\"",
+      "issue": "No scenario asserts a disabled arrow. `canMoveGroup` is well unit-tested (tests/unit/groupOrderUtils.test.ts, 31 cases), but its wiring into `disabled={!canMoveGroup(presentGroups, groupId, direction, hiddenGroups)}` (BoardSettingsPopup.svelte:96, :104) is not. Сц.3/4/11 exercise the enabled path only, so an inverted predicate would be caught but a predicate fed the wrong argument list at the boundary rows would not.",
+      "recommendation": "Extend Сц.3 with two cheap assertions taken while the popup is open on the default order: `await expect(page.locator('[data-settings-group=\"backlog\"] .tm-popup__group-move-btn[aria-label=\"' + en['boardSettings.moveUp'] + '\"]')).toBeDisabled()` and the mirror for `completed` + `moveDown`. Negative control: assert `toBeEnabled()` instead — must go red.",
+      "litmusTestFailed": false
+    },
+    {
+      "severity": "minor",
+      "category": "missing_coverage",
+      "location": "tests/e2e/0011-group-customization.spec.ts:256-281 (Сц.2); user-spec criterion \"пробелы по краям обрезаются; строка из пробелов равна пустой\"",
+      "issue": "Сц.2 covers empty-string clearing but never a whitespace-only or padded title. Group titles are NOT trimmed in the popup — `handleSave` (BoardSettingsPopup.svelte:52) trims only `title` and `subtitle` and passes `groupTitles` through raw; the trim happens at the store boundary in `sanitizeGroupTitle` (dataStore.ts:223, Decision 7). That popup→store→board→reopened-field round trip is therefore only unit-tested, and it is exactly the path where a missing sanitize call would leave a spaces-only title stored, the field showing spaces on reopen, and the empty-state hint disagreeing with the header.",
+      "recommendation": "Add a fourth step to Сц.2: `await setGroupTitle(page, 'delegated', '   ')`, save, then assert `await expect(groupTitleOnBoard(page, 'delegated')).toHaveText(en['group.delegated'])`, reopen and assert `toHaveValue('')` plus `toHaveAttribute('placeholder', en['group.delegated'])`. Also add a padded variant — fill `'  Handed over  '`, save, assert the header reads exactly `'Handed over'` and the reopened field's `value` is `'Handed over'`. Negative control: expect `'   '` in `value` — must go red.",
+      "litmusTestFailed": false
+    },
+    {
+      "severity": "minor",
+      "category": "missing_coverage",
+      "location": "tests/e2e/0011-group-customization.spec.ts:358-391 (Сц.5); user-spec criterion \"задача переносится в обе стороны как между обычными группами, так и с участием сворачиваемых\"",
+      "issue": "The scenario drags `focus` ↔ `backlog` only — plain ↔ collapsible. The user-spec criterion names both pair kinds (\"как между обычными группами, так и с участием сворачиваемых\"), and the plain ↔ plain drag immediately after a reorder is not covered by 0011 nor by core.spec.ts (which drags but never reorders first). Noting for completeness: the task spec deliberately constrained the executor to the focus/backlog pair, so this is a gap in the task spec rather than a deviation by the executor.",
+      "recommendation": "After the two existing drags, add a third and fourth on plain groups in the same session and without any reload: `await dragCardToGroup(page, focusTaskId, 'inProgress'); await expect(cardsIn(page, 'inProgress')).toHaveCount(1); await expect(cardsIn(page, 'focus')).toHaveCount(0);` then back. Reuse the existing helper; no new fixtures needed.",
+      "litmusTestFailed": false
+    },
+    {
+      "severity": "minor",
+      "category": "anti_pattern",
+      "location": "tests/e2e/0011-group-customization.spec.ts:596-598 (Сц.14)",
+      "issue": "`const board = data.boards[0]` addresses the board by array position with a comment asserting there is only one. True today after `standardBeforeEach`, but the scenario's claim is about the *active* board, and the assertion would silently move to the wrong board if the scenario ever grows a second one — the same hazard the task spec calls out for `resetData` in Сц.9.",
+      "recommendation": "Read the active board explicitly: `const activeId = await page.locator('.tm-board-header__select').inputValue(); const board = data.boards.find((b: any) => b.id === activeId); expect(board, 'active board present in store').toBeDefined();` then iterate `GROUP_IDS` against `board.groups`.",
+      "litmusTestFailed": false
+    }
+  ],
+  "metrics": {
+    "filesReviewed": 14,
+    "litmusTest": {
+      "checked": 14,
+      "passed": 13,
+      "failed": 1
+    },
+    "coverageAssessment": "adequate",
+    "pyramidBalance": {
+      "unit": 111,
+      "integration": 0,
+      "e2e": 98,
+      "assessment": "healthy"
+    }
+  }
+}

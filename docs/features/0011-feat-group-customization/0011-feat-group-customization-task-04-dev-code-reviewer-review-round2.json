@@ -1,0 +1,100 @@
+{
+  "reviewer": "dev-code-reviewer",
+  "round": 2,
+  "commitReviewed": "d60e30c",
+  "status": "approved_with_suggestions",
+  "summary": "All three round-1 findings are fixed correctly and completely, and the security auditor's guard was applied verbatim including the moveGroup copy step. The refactor of findSwapIndex → findSwap is behaviour-neutral (verified: reintroducing the second indexOf is the only mutant of 12 that survives the suite), so nothing regressed — 22/22 tests pass, tsc is clean, the two suites this wave does not touch are still green, and all 11 acceptance criteria plus all 15 TDD anchor titles still hold. Remaining findings are three minor observations about the new guard's edge semantics, none blocking; the one thing that genuinely needs routing is the security auditor's second finding (sanitizeHiddenGroups), which was correctly deferred out of this task but has not landed in Task 03 either.",
+  "criticalIssues": [],
+  "suggestions": [
+    {
+      "file": "src/ui/groupOrderUtils.ts",
+      "line": 68,
+      "severity": "minor",
+      "category": "maintainability",
+      "suggestion": "For a non-array `order`, `moveGroup` returns `[]` rather than something equal to its input, which is the one input class where the module's own stated pairing — 'predicate false ⇒ move returns an order equal to the input' (task step 5, acceptance criterion 7) — does not hold. There is no better option available (you cannot return a copy of a non-array), and the behaviour is deliberately pinned by the test at line 229, so this is not a defect. It is a hand-off note for Task 8: if the popup ever writes the result back unconditionally (`board.groupOrder = moveGroup(board.groupOrder, ...)`), that path converts a corrupt-but-inspectable groupOrder into a persisted empty array. Today it is unreachable — `canMoveGroup` returns false so the arrow is disabled, and `sanitizeGroupOrder` (src/data/migration.ts:155) runs unconditionally on every load — but the safe shape for Task 8 is to write only when the predicate is true, which the popup will be checking anyway to render the arrow's disabled state.",
+      "benefit": "Removes the only path by which the reorder logic could narrow data rather than leave it alone, and keeps Task 8's write site aligned with the arrow's own enabled state.",
+      "optional": true
+    },
+    {
+      "file": "src/ui/groupOrderUtils.ts",
+      "line": 25,
+      "severity": "minor",
+      "category": "maintainability",
+      "suggestion": "The guard treats a non-array `hiddenGroups` as fail-closed: `findSwap` returns null for every group, so every arrow in the popup goes disabled at once with no message. That is a defensible choice over throwing, and it is what the security auditor asked for. The alternative worth a moment's thought is degrading to `[]` (treat 'unreadable visibility set' as 'nothing hidden'), which keeps reordering usable and matches how the rest of the codebase already tolerates the same corruption — `BoardLayout.svelte:21` does `new Set(board.hiddenGroups)`, and `new Set(null)` legally yields an empty set. Either way the decision deserves one line in the doc comment saying which was chosen and why, since 'all arrows silently dead' is a support-report-shaped symptom that is hard to trace back to data.json.",
+      "benefit": "Makes an intentional degradation strategy explicit rather than incidental, and stops a corrupted visibility set from presenting as a fully broken reorder UI.",
+      "optional": true
+    },
+    {
+      "file": "tests/unit/groupOrderUtils.test.ts",
+      "line": 169,
+      "severity": "minor",
+      "category": "readability",
+      "suggestion": "The fixture `{ o: [], h: [] }` in the exhaustive agreement test contributes zero assertions — the body is `for (const id of o)`, which does not execute for an empty order. It reads as coverage of the empty-order case but provides none; the real empty-order coverage lives at lines 136-142 and is adequate. Either drop the fixture or, if the intent is to assert the agreement invariant for an id that is not in the order, iterate a fixed id list instead of `o` (which would also fold in the 'absent id' case currently tested separately at line 238).",
+      "benefit": "The fixture list stops overstating what it checks; iterating a fixed id list would additionally extend the agreement invariant to absent ids, which is currently asserted only for one hand-written case.",
+      "optional": true
+    }
+  ],
+  "fixVerification": [
+    {
+      "source": "dev-code-reviewer round 1, finding 1",
+      "request": "findSwapIndex should return the {from, to} pair so moveGroup stops re-running indexOf",
+      "verdict": "fixed",
+      "evidence": "findSwap now returns `Swap | null` (src/ui/groupOrderUtils.ts:16-46); moveGroup consumes `swap.from` / `swap.to` (lines 74-75) and the second `order.indexOf(groupId)` is gone. The `Swap` type stays module-private. The doc comment (lines 12-14) records the rationale — a second lookup would be a second source of truth. Confirmed behaviour-neutral: reintroducing the second indexOf (mutant M8) is the only one of 12 mutants that the suite does not kill, which is exactly what a structural-only fix should look like."
+    },
+    {
+      "source": "dev-code-reviewer round 1, finding 2",
+      "request": "Pin the actual result in the hidden-group relative-order test, not just the filter invariant",
+      "verdict": "fixed",
+      "evidence": "tests/unit/groupOrderUtils.test.ts:89 adds `expect(result).toEqual(['backlog', 'inProgress', 'focus', 'delegated'])` alongside the original filter assertion at line 87, which was kept as required by the TDD anchor. Both are labelled with comments explaining why each is needed. Verified: mutant M4 (swap turned into a no-op) is now killed."
+    },
+    {
+      "source": "dev-code-reviewer round 1, finding 3",
+      "request": "Mirror the multi-hidden step-over test in the 'down' direction",
+      "verdict": "fixed",
+      "evidence": "tests/unit/groupOrderUtils.test.ts:46-54 adds 'visible group steps over several consecutive hidden groups downwards', a structural mirror of the 'up' case at 36-44 including the three per-hidden-id index assertions. Verified: mutant M10 (step sign inverted) and M6 (visible row stops at the first hidden group) are both killed."
+    },
+    {
+      "source": "dev-security-auditor, finding 1",
+      "request": "Array.isArray guards on order and hiddenGroups; moveGroup to tolerate a non-array order in its copy step",
+      "verdict": "fixed",
+      "evidence": "Applied verbatim as recommended: `if (!Array.isArray(order) || !Array.isArray(hiddenGroups)) return null;` at src/ui/groupOrderUtils.ts:25, and `const next = Array.isArray(order) ? [...order] : [];` at line 68. Both halves of the guard and the moveGroup copy step are independently pinned by the suite — mutants M1 (drop the guard), M2 (guard `order` only, restoring the string-hiddenGroups substring bug) and M3 (drop the moveGroup copy guard) are all killed by the new test at line 221. The agreement invariant is preserved: canMoveGroup reports false for every non-array input."
+    },
+    {
+      "source": "dev-security-auditor, finding 2",
+      "request": "sanitizeHiddenGroups in migration.ts, explicitly filed against Task 03 rather than Task 04",
+      "verdict": "correctly-deferred-but-still-open",
+      "evidence": "Not fixed here, which is right — the auditor scoped it to the migration layer. But it has not landed in Task 03 either: `grep sanitizeHiddenGroups src/data/migration.ts` is empty, the only hiddenGroups handling is the `=== undefined` check in the version<4 branch (migration.ts:103-105), and the in-flight uncommitted migration.ts work does not add it. Task 03 is already committed (095aa6e) and marked done. Consequence: BoardSettingsPopup.svelte:14 `[...board.hiddenGroups]` still throws for a null or object hiddenGroups, before groupOrderUtils is ever reached — so this module's hiddenGroups guard is genuine defence in depth that the UI cannot currently exercise. Not a Task 04 defect; needs routing to Task 03 or Task 08 so it is not lost."
+    },
+    {
+      "source": "dev-test-reviewer",
+      "request": "Exhaustive predicate/move agreement test; discriminating hidden-row fixture; moveGroup exercised for empty/single/only-visible",
+      "verdict": "fixed",
+      "evidence": "Agreement test at lines 155-185 derives the expectation from moveGroup over 9 fixtures x every id x both directions, so the two functions cannot diverge unnoticed — verified by mutant M7 (canMoveGroup reimplemented so the visible-row rule is applied to hidden rows), which the round-1 suite would not have caught and this one kills. The discriminating fixture (a hidden group with only hidden groups above it, the exact input where the two rules disagree) appears both as a standalone test at 72-79 and inside the fixture list at 167. moveGroup assertions added for only-visible (131-132), empty and single-element (142-143)."
+    }
+  ],
+  "regressionChecks": [
+    { "check": "All 15 TDD anchor `it` titles still present after the describe-block renames", "verdict": "pass", "evidence": "Anchor titles live on `it`, not `describe`; all 15 verified present. Only the four `describe` titles changed (Russian qualifier → English)." },
+    { "check": "Acceptance criteria still hold after the guard was added", "verdict": "pass", "evidence": "All 11 re-checked. Purity unchanged (single `import type { GroupId }`), swap-not-splice unchanged, no input mutation, fresh array on every return including the impossible-move and non-array paths. Criterion 7 ('predicate false ⇒ order equal to input') holds for every array input; the non-array case is the sole exception, covered in suggestion 1." },
+    { "check": "Describe-block rename is not a style regression", "verdict": "pass", "evidence": "Every other suite in tests/unit uses plain English describe titles (`computeGroupClasses`, `applyStatusTransition`, `sanitizeGroupOrder`, `resolveGroupTitle`). The rename moves this file toward that convention and toward the global rule that code is written in English; my round-1 note calling the Russian titles project-consistent was the less accurate reading. Russian explanatory comments are retained, matching boardLayoutUtils.ts and statusTransitions.ts." },
+    { "check": "No scope creep into Task 8 territory", "verdict": "pass", "evidence": "Diff touches only the two files in scope. No consumers of canMoveGroup/moveGroup exist anywhere in src or tests yet; no styles.css, i18n or .svelte changes." },
+    { "check": "Suites untouched by this wave still green", "verdict": "pass", "evidence": "npx vitest run tests/unit/statusTransitions.test.ts tests/unit/boardLayoutUtils.test.ts → 13/13 passed." }
+  ],
+  "verificationRun": {
+    "npx vitest run tests/unit/groupOrderUtils.test.ts": "22 passed / 22 (1 file); was 18 in round 1",
+    "npx tsc --noEmit": "clean, exit 0",
+    "npx vitest run tests/unit/statusTransitions.test.ts tests/unit/boardLayoutUtils.test.ts": "13 passed / 13 (2 files)",
+    "mutationTesting": "12 mutants applied to src/ui/groupOrderUtils.ts and reverted. Killed: drop isArray guard; guard order only; drop moveGroup copy guard; swap made a no-op; hidden-row branch dropped; visible row stops at first hidden; canMoveGroup reimplemented with the visible rule for hidden rows; hidden-row bounds check dropped; step sign inverted; impossible move returns the input array; unknown-id short-circuit dropped. Survived: reintroducing the second indexOf — expected, and the point of round-1 finding 1 being structural rather than behavioural. Source restored, `git diff src/ui/groupOrderUtils.ts` clean."
+  },
+  "metrics": {
+    "filesReviewed": 2,
+    "criticalIssuesCount": 0,
+    "majorIssuesCount": 0,
+    "minorIssuesCount": 3,
+    "testCoverageAssessment": "excellent"
+  },
+  "notes": [
+    "Round-1 findings resolved: 3 of 3. No finding was answered with a partial or cosmetic fix, and each is now pinned by a test that fails if the fix is reverted.",
+    "The uncommitted changes visible in src/data/migration.ts, tests/unit/migration.test.ts and tests/unit/cleanup.test.ts belong to another in-flight task in this wave and were not touched by this review.",
+    "Routing needed outside this task: sanitizeHiddenGroups (security auditor finding 2) is still absent from migration.ts although Task 03 is committed and marked done. BoardSettingsPopup.svelte:14 remains the first throw site for a corrupted hiddenGroups. Recommend attaching it to Task 08 if Task 03 will not be reopened."
+  ]
+}

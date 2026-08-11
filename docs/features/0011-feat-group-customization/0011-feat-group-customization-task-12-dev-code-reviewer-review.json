@@ -1,0 +1,99 @@
+{
+  "reviewer": "dev-code-reviewer",
+  "status": "approved_with_suggestions",
+  "summary": "Documentation-only commit 47a2163 was verified claim-by-claim against the code at that commit: field names and types (Group.title, Board.groupOrder), schema version 8, the 40-character title cap, DEFAULT_FULL_WIDTH values in the data.json example, CSS values (order: 100, max-height: 80vh, overflow-y: auto, opacity: 0.5, ellipsis rules), all three test attributes and their host elements, the illustrative resolveGroupTitle/BoardLayout listings, Node engines vs README, and every test count in docs/testing/infrastructure.md (unit 111 in 7 files — reproduced locally in 304 ms; e2e 99 in 5 files; per-file counts all exact). Two issues stand out: one absolute claim in the sanitization section is contradicted by migration.ts, and the task's Post-completion decisions-log entry (including the drift findings the task explicitly asks to record) has not been written. Style fit is good — Russian prose, bold sub-headings, `---` separators, one-mechanism-one-place with a cross-reference from the popup section to the layout section.",
+  "criticalIssues": [],
+  "suggestions": [
+    {
+      "file": "docs/technical.md",
+      "line": 464,
+      "severity": "major",
+      "category": "factual-accuracy",
+      "suggestion": "The sentence «Названия групп и порядок групп — единственные поля, которые проверяются при каждой загрузке, а не один раз в версионной ветке» is wrong as an absolute. src/data/migration.ts:84-87 contains a second unconditional per-load fixup outside every version branch: `if (result.settings.cardView === undefined) { result.settings.cardView = DEFAULT_SETTINGS.cardView; }`. The rest of the section (why sanitization sits outside the version branch, what invariants it holds) is accurate and matches migration.ts:151-159 line by line — only the superlative is false. Drop «единственные» (e.g. «проверяются при каждой загрузке, а не один раз в версионной ветке» / «единственные поля, которые санируются при каждой загрузке»), or name the cardView backfill as the other unconditional check.",
+      "benefit": "The section's whole point is that this differs from every other migration in the file; a reader who later finds the cardView line concludes the document is unreliable exactly where it claims to be precise.",
+      "optional": false
+    },
+    {
+      "file": "docs/features/0011-feat-group-customization/0011-feat-group-customization-decisions.md",
+      "severity": "major",
+      "category": "acceptance-criteria",
+      "suggestion": "The Post-completion block of task 12 is not done: the decisions log ends with the Task 11 entry (the only uncommitted addition to that file is Task 11's report), there is no Task 12 entry. The task requires: a short report, plus a separate item listing the documentation drift found but deliberately not fixed, plus the CHANGELOG gap for schema version 6 (settings.cardLayout / multi-column card layout is absent from both CHANGELOG.md and CHANGELOG.ru.md), plus the finding that tests/unit/ is outside `npx tsc --noEmit` scope (that one is already written into docs/testing/infrastructure.md but still owed to the log). Concrete drift found during this review and worth recording: docs/technical.md:111 still declares `type Status = 'new' | 'inProgress' | 'waiting' | 'completed'` while src/data/types.ts:4 also has `'meeting'` — this is inside the same TypeScript code fence that the task edited; docs/technical.md:365-386 keeps the pre-existing simplified migrateData listing that omits the `< 2`, `< 3`, `< 5` branches (the task explicitly sanctioned adding only `< 8`, so leaving it is correct, but it is drift).",
+      "benefit": "Closes the acceptance criterion «всякое расхождение реализации со спекой описано в decisions log» and hands the next feature the list of known documentation gaps instead of making it rediscover them.",
+      "optional": false
+    },
+    {
+      "file": "docs/technical.md",
+      "line": 596,
+      "severity": "minor",
+      "category": "factual-accuracy",
+      "suggestion": "«Строки идут в порядке доски (`board.groupOrder`)» is a half-truth: BoardSettingsPopup.svelte:41-43 renders `presentGroups` — `groupOrder` filtered by `hasOwnProperty` + truthiness of the group object — and the arrows operate on that filtered list too (`handleMove` → `moveGroupWithinPresent(groupOrder, presentGroups, ...)`, line 47). The document already explains the missing-group case at line 475 («Такие идентификаторы BoardLayout и BoardSettingsPopup просто не рисуют»), so one clause («…в порядке доски, за вычетом идентификаторов без объекта группы — см. «Санация полей на каждой загрузке»») closes the gap without duplicating the mechanism.",
+      "benefit": "Keeps the popup description consistent with the sanitization section that the same file already carries.",
+      "optional": true
+    },
+    {
+      "file": "docs/technical.md",
+      "line": 599,
+      "severity": "minor",
+      "category": "factual-accuracy",
+      "suggestion": "The consistency guarantee is attributed to «`canMoveGroup` и `moveGroup` в `src/ui/groupOrderUtils.ts`», but the popup never calls `moveGroup`: it calls `moveGroupWithinPresent` (groupOrderUtils.ts:124), which itself is built on `canMoveGroup`/`moveGroup` over `presentGroups`. The claim is therefore true but names the wrong pair for this call site. Either name `moveGroupWithinPresent` or phrase it as «предикат и перестановка построены на общем помощнике `findSwap`».",
+      "benefit": "A reader following the reference into groupOrderUtils.ts finds the function the popup actually uses instead of concluding the doc is out of date.",
+      "optional": true
+    },
+    {
+      "file": "CHANGELOG.md",
+      "line": 11,
+      "severity": "minor",
+      "category": "factual-accuracy",
+      "suggestion": "«Arrows move a group up or down, stepping over hidden ones» / «Стрелки перемещают группу вверх или вниз, перешагивая скрытые» describes only the visible-row case. groupOrderUtils.ts:58-61 moves a hidden row literally, to the adjacent slot regardless of the neighbour's visibility — which is precisely why the next clause about hidden groups keeping their positions works. Both languages carry the identical simplification, so the two entries stay in sync; if you tighten one, tighten the other. Otherwise the entries match sentence for sentence in content and detail — no action strictly required for a changelog.",
+      "benefit": "Removes the only place where the changelog states a rule the code applies to one of two row kinds.",
+      "optional": true
+    },
+    {
+      "file": "docs/technical.md",
+      "line": 925,
+      "severity": "minor",
+      "category": "completeness",
+      "suggestion": "The project-structure block adds `docs/specs/`, `docs/plans/`, `docs/testing/` but omits `docs/features/` — the directory this feature's own artifacts (user-spec, tech-spec, tasks, decisions log) live in, and the one a reader is most likely to look for. `docs/screenshots/` is also absent, which matters less.",
+      "benefit": "The structure block is the one place a newcomer scans for «where do feature documents live»; the answer is currently missing.",
+      "optional": true
+    },
+    {
+      "file": "docs/technical.md",
+      "line": 454,
+      "severity": "minor",
+      "category": "readability",
+      "suggestion": "The illustrative `migrateV7toV8()` follows the file's existing convention (migrateV3toV4, migrateV5toV6, migrateV6toV7 do not exist as functions either — migration.ts inlines every branch in `migrateData`). The listing's body is faithful to migration.ts:137-149, so this is acceptable, but if the file is ever touched again it is worth a one-line note that the vN→vM functions are a presentation device, not real symbols.",
+      "benefit": "Prevents a future reader from grepping for a function name that has never existed in src/.",
+      "optional": true
+    }
+  ],
+  "metrics": {
+    "filesReviewed": 6,
+    "criticalIssuesCount": 0,
+    "majorIssuesCount": 2,
+    "minorIssuesCount": 5,
+    "testCoverageAssessment": "adequate",
+    "verifiedClaims": [
+      "Group.title / Board.groupOrder names, types and comments match src/data/types.ts:29,41",
+      "schema version 8 matches DEFAULT_DATA.version in src/data/defaults.ts:54",
+      "40-character cap matches GROUP_TITLE_MAX_LENGTH in migration.ts:7 and maxlength in BoardSettingsPopup.svelte:16,114",
+      "trim-then-slice order matches sanitizeGroupTitle (migration.ts:45)",
+      "sanitizeGroupOrder invariants (drop unknown, collapse duplicates onto first position, append missing in GROUP_IDS order, non-array → default) match migration.ts:16-35",
+      "sanitizeGroupTitle is reused by updateBoard at the store boundary (dataStore.ts:5,223) and groupOrder is written verbatim (dataStore.ts:211)",
+      "data.json example fullWidth values match DEFAULT_FULL_WIDTH (defaults.ts:4-11); notes/notesCollapsed defaults match createDefaultBoard",
+      "cleanupCompletedTasks reads board.groups.completed.completedRetentionDays by fixed path (cleanup.ts:4) — the documented crash mode is real",
+      "BoardLayout listing (orderedGroups / computeGroupClasses / groupStyles `order: i + 1`) matches BoardLayout.svelte:36-55 including the falsy-0 rationale",
+      "resolveGroupTitle listing is byte-identical to src/ui/groupTitle.ts:9-11; the four display sites in the table match the four resolveGroupTitle call sites",
+      "EmptyState emptiness check matches resolveGroupTitle; emptyState.renamed exists in both i18n/en.ts:98 and i18n/ru.ts:98",
+      "order: 100 on .tm-board-layout__notes (styles.css:90), max-height: 80vh + overflow-y: auto on .tm-popup (668-669), .tm-popup__group-row--hidden opacity 0.5 (746-747), group-title-input ellipsis (780), group header title overflow/ellipsis/nowrap/min-width:0 (138-146)",
+      "four-column popup row grid (styles.css:741) and five controls per row match the described layout",
+      "data-group-id on .tm-task-group__body / .tm-collapsible-group__body, data-group-container on the six BoardLayout wrappers, data-settings-group on the popup row — all present, no fourth attribute",
+      "README.md/README.ru.md Node requirement equals package.json engines `^22.12.0 || >=24.0.0`; .nvmrc is 22.23.1; vitest engines `^20 || ^22 || >=24` confirm the 23.x exclusion; no .npmrc and no CI directory confirm «engine-strict не включён, CI нет»",
+      "unit counts: boardLayoutUtils 8, cleanup 8, dataStore 15, groupOrderUtils 31, groupTitle 5, migration 36, statusTransitions 8 = 111 in 7 files (npm test locally: 111 passed, 304 ms — the documented ~300 ms holds)",
+      "e2e counts at 47a2163: core 35, 0006 17, 0007 16, 0008 16, 0011 15 = 99 in 5 files; the 0011 scenario summary (rename, order + geometry, arrows, node survival + DnD without reload, popup scrolling, per-board independence) matches the actual test titles",
+      "helpers.ts:98 really locates collapsed groups via [data-group-container=\"…\"] .tm-collapsible-group__header, as documented",
+      "tsconfig include is src/**/*.ts + src/**/*.svelte — tests/unit/ is indeed outside tsc --noEmit",
+      "CHANGELOG.md and CHANGELOG.ru.md entries correspond sentence for sentence and sit first in [Unreleased] ### Added, following the v7 precedent of naming the schema version inside the Added entry"
+    ]
+  }
+}

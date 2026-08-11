@@ -85,6 +85,9 @@
 }
 .tm-board-layout__notes {
   grid-column: 1 / -1;
+  /* Группы получают order 1…6 инлайном. Без явного значения здесь order вычислился бы в 0,
+     и блок заметок всплыл бы над всеми группами. Любое число больше шести годится. */
+  order: 100;
 }
 @media (max-width: 600px) {
   .tm-board-layout__group--half,
@@ -136,10 +139,15 @@
   font-weight: 600;
   font-size: 0.9rem;
   color: var(--text-normal);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .tm-group-header__counter {
   font-size: 0.8rem;
   color: var(--text-muted);
+  flex-shrink: 0;
 }
 .tm-group-header__counter--over {
   color: var(--text-error);
@@ -150,6 +158,7 @@
 }
 .tm-group-header__settings {
   font-size: 0.85rem;
+  flex-shrink: 0;
   width: 1.5rem;
   height: 1.5rem;
   display: flex;
@@ -167,6 +176,7 @@
 }
 .tm-group-header__add {
   font-size: 1rem;
+  flex-shrink: 0;
   width: 1.5rem;
   height: 1.5rem;
   display: flex;
@@ -218,10 +228,15 @@
 }
 .tm-collapsible-group__title {
   font-weight: 600;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .tm-collapsible-group__count {
   color: var(--text-muted);
   font-size: 0.8rem;
+  flex-shrink: 0;
 }
 .tm-collapsible-group__count--over {
   color: var(--text-error);
@@ -233,6 +248,7 @@
 .tm-collapsible-group__settings {
   font-size: 0.85rem;
   color: var(--text-muted);
+  flex-shrink: 0;
   padding: 0 0.25rem;
   border-radius: 4px;
 }
@@ -243,6 +259,7 @@
 .tm-collapsible-group__add {
   font-size: 1rem;
   color: var(--text-muted);
+  flex-shrink: 0;
   padding: 0 0.25rem;
   border-radius: 4px;
 }
@@ -645,12 +662,20 @@
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+  /* Шесть строк групп по пять контролов не помещаются на невысоком экране: попап остаётся
+     внутри вьюпорта и прокручивается сам. Общий класс с GroupSettingsPopup — там строк мало,
+     ограничение просто не срабатывает. */
+  max-height: 80vh;
+  overflow-y: auto;
 }
 .tm-popup__title {
   margin: 0;
   font-size: 1rem;
   font-weight: 600;
   color: var(--text-normal);
+  /* В заголовок попапа попадает пользовательское название группы: длинное слово без пробелов
+     иначе распирает попап по ширине на узкой панели. */
+  overflow-wrap: anywhere;
 }
 .tm-popup__field {
   display: flex;
@@ -691,9 +716,10 @@
   color: var(--text-muted);
   margin-bottom: 0.5rem;
 }
+/* Сетка заголовка и сетка строки обязаны меняться вместе, иначе колонки разъедутся. */
 .tm-popup__group-header {
   display: grid;
-  grid-template-columns: 1fr 4rem 4rem;
+  grid-template-columns: 2.5rem minmax(0, 1fr) 4rem 4rem;
   align-items: end;
   padding: 0.25rem 0;
   margin-bottom: 0.25rem;
@@ -712,10 +738,13 @@
 }
 .tm-popup__group-row {
   display: grid;
-  grid-template-columns: 1fr 4rem 4rem;
+  grid-template-columns: 2.5rem minmax(0, 1fr) 4rem 4rem;
   align-items: center;
   padding: 0.35rem 0;
   border-bottom: 1px solid var(--background-modifier-border);
+}
+.tm-popup__group-row--hidden {
+  opacity: 0.5;
 }
 .tm-popup__group-row:last-child {
   border-bottom: none;
@@ -731,6 +760,50 @@
 .tm-popup__group-name {
   font-size: 0.9rem;
   color: var(--text-normal);
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  /* min-width: 0 в паре с minmax(0, 1fr) на колонке: иначе поле ввода распирало бы сетку. */
+  min-width: 0;
+}
+.tm-popup__group-title-input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.25rem 0.35rem;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  background: var(--background-primary);
+  color: var(--text-normal);
+  font-size: 0.9rem;
+  font-family: inherit;
+  /* Длинное название прокручивается внутри поля, а не переносится и не растит строку. */
+  text-overflow: ellipsis;
+}
+.tm-popup__group-move {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+}
+.tm-popup__group-move-btn {
+  padding: 0;
+  width: 1.1rem;
+  height: 1.1rem;
+  line-height: 1;
+  font-size: 0.6rem;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  box-shadow: none;
+}
+.tm-popup__group-move-btn:hover:not(:disabled) {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+}
+.tm-popup__group-move-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
 }
 .tm-popup__group-count {
   color: var(--text-muted);

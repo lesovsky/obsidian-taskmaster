@@ -1,0 +1,70 @@
+{
+  "reviewer": "dev-test-reviewer",
+  "status": "needs_improvement",
+  "summary": "All 15 TDD anchors from the task file are present by name, all 18 tests pass, and the suite genuinely covers the visible-row branch, purity, the fresh-array guarantee and the robustness edge cases. Two real weaknesses were confirmed empirically by mutating src/ui/groupOrderUtils.ts and re-running the suite. (1) The predicate/move agreement — the design goal the task calls out in step 5 and the reason both functions share findSwapIndex — is not pinned: rewriting canMoveGroup so it applies the visible-skipping rule to hidden rows too (a full divergence from moveGroup: arrow rendered disabled for a move that is legal) leaves all 18 tests green. (2) 'moving a hidden group past a visible neighbour keeps the relative order of visible groups' asserts only a filtered projection, so it passes when moveGroup is turned into a no-op — it proves nothing about the move it is named after. Secondary: deleting the whole hidden-row branch reddens exactly one test, so the asymmetric hidden-row rule (the feature's central decision, user-spec Сценарий 4) rests on a single assertion. The implementation itself is correct; these findings are about what the suite would catch after Task 8 or a later refactor touches this module.",
+  "findings": [
+    {
+      "severity": "major",
+      "category": "missing_coverage",
+      "location": "tests/unit/groupOrderUtils.test.ts:128 (describe 'groupOrderUtils — согласованность и устойчивость')",
+      "issue": "The invariant 'предикат и перенос не могут разойтись' (task What-to-do §5, AC 'The predicate returns false exactly when there is no target') is asserted only for two hand-picked disabled fixtures, and never in the enabled direction. Verified by mutation: replacing the body of canMoveGroup with an independent implementation that applies the visible-skipping rule to hidden rows as well — so that canMoveGroup(['inProgress','focus','backlog'], 'focus', 'up', ['inProgress','focus']) returns false while moveGroup on the same arguments returns ['focus','inProgress','backlog'] — leaves all 18 tests passing. That divergence is exactly the user-visible bug 'arrow looks disabled but the move is legal' (and its mirror, a live arrow that does nothing). The current implementation is safe only because both functions share findSwapIndex; nothing in the suite defends that structure.",
+      "recommendation": "Add one exhaustive agreement test that derives the expected relationship instead of hardcoding it: for each of several fixtures — e.g. hidden sets [], ['inProgress'], ['inProgress','orgIntentions'], ['focus'], ['focus','inProgress'], and all-but-one hidden — loop over every id in the order and over both directions, and assert `expect(canMoveGroup(o, id, d, h)).toBe(!arraysEqual(moveGroup(o, id, d, h), o))`, i.e. the predicate is true exactly when the move actually changes the order. Include at least one fixture where a hidden group sits below/above only hidden groups (order ['inProgress','focus','backlog'], hidden ['inProgress','focus'], id 'focus', direction 'up') — that is the case that discriminates the shared-helper design from two independent implementations. No mocks are involved; both functions are pure.",
+      "litmusTestFailed": true
+    },
+    {
+      "severity": "major",
+      "category": "anti_pattern",
+      "location": "tests/unit/groupOrderUtils.test.ts:61 ('moving a hidden group past a visible neighbour keeps the relative order of visible groups')",
+      "issue": "The only assertion is `expect(result.filter(id => !hidden.includes(id))).toEqual(visibleBefore)` — a projection that discards the moved element itself. Filtering the hidden id out of an unchanged input yields visibleBefore trivially, so the test passes when moveGroup performs no move at all. Verified by mutation: making moveGroup return the copied order without swapping reddens 7 of 18 tests, and this one stays green. The test is named after the hidden-past-visible move but asserts nothing about that move happening; it verifies an invariant that is vacuously true for the no-op.",
+      "recommendation": "Keep the invariant assertion (it documents the user-spec claim 'доска визуально не дёргается') but anchor it to a real move first. Add, before the filter assertion: `expect(result).toEqual(['backlog', 'inProgress', 'focus', 'delegated'])`. Optionally strengthen the invariant by also asserting the moved id changed index: `expect(result.indexOf('focus')).toBe(2)`. With both, the no-op mutation reddens this test.",
+      "litmusTestFailed": true
+    },
+    {
+      "severity": "minor",
+      "category": "redundant_testing",
+      "location": "tests/unit/groupOrderUtils.test.ts:47, :85, :96 (hidden-row fixtures)",
+      "issue": "The hidden-row rule — the feature's distinguishing decision (user-spec Сценарий 4, шаг 5) — is pinned by a single assertion. Verified by mutation: disabling the `if (hiddenGroups.includes(groupId))` branch in findSwapIndex, so hidden rows follow the visible-skipping rule, reddens only 'hidden group swaps with its immediate hidden neighbour'. Three tests meant to cover it survive because their fixtures do not discriminate the two rules: line 47 uses the same input array, hidden-irrelevant position and expected output as line 29's visible test ('backlog','focus','inProgress' → ['focus','backlog','inProgress']); lines 85 and 96 place the hidden group at an array edge, where 'no list neighbour' and 'no visible neighbour' coincide.",
+      "recommendation": "Change the fixtures so the two rules disagree. Line 47: put a hidden group between the mover and the visible target so literal adjacency is observable — order ['backlog','inProgress','focus'], hidden ['focus'] is not enough; use order ['backlog','inProgress','focus'] with hidden ['inProgress','focus'] and move 'focus' up, expecting ['backlog','focus','inProgress'] (visible rule would step over 'inProgress' to 'backlog'). Line 85: add a case where the hidden group sits at index 1 with only hidden ids above — order ['inProgress','focus','backlog'], hidden ['inProgress','focus'] — and assert canMoveGroup(..., 'focus', 'up') is true (the visible rule would say false). Line 96: mirror it — order ['backlog','focus','inProgress'], hidden ['focus','inProgress'], assert down is true.",
+      "litmusTestFailed": true
+    },
+    {
+      "severity": "minor",
+      "category": "missing_coverage",
+      "location": "tests/unit/groupOrderUtils.test.ts:12 and :21 ('visible group moves up/down …')",
+      "issue": "The 'down' test is the algebraic mirror of the 'up' test: identical input array, identical hidden array, identical expected result (moving 'focus' up and 'backlog' down over the same hidden 'inProgress' are the same swap). It does exercise the step=+1 loop, but only across a single hidden group. The multi-hidden step-over (line 35) is tested for 'up' only, so no test crosses two or more hidden groups downwards — the direction in which an off-by-one in the loop bound (`i < order.length`) would surface.",
+      "recommendation": "Give the 'down' test a fixture that is not the inverse of the 'up' one, e.g. order ['focus','inProgress','orgIntentions','backlog'] with hidden ['inProgress','orgIntentions'], move 'focus' down, expect ['backlog','inProgress','orgIntentions','focus'] plus indexOf('inProgress') === 1 and indexOf('orgIntentions') === 2. That covers multi-hidden step-over downwards and the loop's upper bound in one case.",
+      "litmusTestFailed": false
+    },
+    {
+      "severity": "minor",
+      "category": "missing_coverage",
+      "location": "tests/unit/groupOrderUtils.test.ts:103 and :110 (edge cases from task Details)",
+      "issue": "Two edge cases listed in the task's Details section are only half covered. 'Единственная видимая группа — обе стрелки неактивны, независимо от её позиции в массиве': the test checks one position (index 2) and only the predicate — it never asserts moveGroup leaves the order untouched for that group. 'Пустой массив порядка или массив из одного элемента': canMoveGroup is called with [], but moveGroup is never called with an empty order, so the AC 'never throws, always returns a new array' is unverified for that input.",
+      "recommendation": "In the 'only visible group' test add `expect(moveGroup(input, 'focus', 'up', hidden)).toEqual(input)` and `expect(moveGroup(input, 'focus', 'down', hidden)).toEqual(input)`, and repeat the predicate assertions with the lone visible group at index 0 and at the last index. In the empty/single-element test add `expect(moveGroup([], 'focus', 'up', [])).toEqual([])` and the 'down' counterpart.",
+      "litmusTestFailed": false
+    },
+    {
+      "severity": "minor",
+      "category": "anti_pattern",
+      "location": "tests/unit/groupOrderUtils.test.ts:11, :46, :70, :127 (describe titles)",
+      "issue": "Language is mixed within one file: describe titles are Russian ('moveGroup — видимая строка'), it titles are English. The two reference suites are internally consistent — boardLayoutUtils.test.ts is Russian throughout, statusTransitions.test.ts is English throughout. Also, the test at line 47 drops the possessive from the anchor name in the task file ('regardless of that neighbour's visibility' → 'regardless of that neighbour visibility'), which breaks an exact grep for the anchor.",
+      "recommendation": "Since the it titles are fixed by the TDD anchors and CLAUDE.md puts code in English, rename the describe blocks to English: 'moveGroup — visible row', 'moveGroup — hidden row', 'canMoveGroup — arrow enabled state', 'groupOrderUtils — consistency and robustness'. Restore the apostrophe in the line 47 title so it matches the anchor verbatim.",
+      "litmusTestFailed": false
+    }
+  ],
+  "metrics": {
+    "filesReviewed": 6,
+    "litmusTest": {
+      "checked": 18,
+      "passed": 16,
+      "failed": 2
+    },
+    "coverageAssessment": "adequate",
+    "pyramidBalance": {
+      "unit": 18,
+      "integration": 0,
+      "e2e": 0,
+      "assessment": "healthy"
+    }
+  }
+}

@@ -1,0 +1,114 @@
+{
+  "reviewer": "dev-test-reviewer",
+  "status": "passed",
+  "round": 2,
+  "summary": "All six round-1 findings are addressed, and each fix was re-verified independently by mutation rather than taken on trust. The suite grew from 18 to 22 tests; all 22 pass. I built 18 mutants of src/ui/groupOrderUtils.ts and ran the suite against each — all 18 are killed. Critically, the round-1 undetected case is now caught: reimplementing canMoveGroup so it applies the visible-skipping rule to hidden rows (arrow rendered disabled for a legal move) reddens two tests — the new exhaustive agreement test and the new discriminating hidden-row fixture. Its mirror (literal adjacency applied to visible rows — a live arrow that does nothing) reddens five. The formerly vacuous filtered-projection test now dies under the no-op mutant. The hidden-row rule is no longer pinned by a single assertion (dropping the branch now reddens two tests). The downward multi-hidden step-over closes the loop-bound gap: an off-by-one in `i < order.length` is now caught. The new Array.isArray guard is genuinely exercised — removing it reddens the robustness test. src/ui/groupOrderUtils.ts was restored after every mutant; `git diff` and the md5 of the file both confirm it is byte-identical to HEAD. Only one cosmetic carry-over remains: one it-title still drops the possessive from its TDD anchor.",
+  "findings": [
+    {
+      "severity": "minor",
+      "category": "anti_pattern",
+      "location": "tests/unit/groupOrderUtils.test.ts:58",
+      "issue": "Carry-over from the round-1 minor naming finding, only half addressed. The describe titles were correctly translated to English, but the it-title still reads 'hidden group swaps with its immediate neighbour regardless of that neighbour visibility' while the TDD anchor in the task file (line 93) reads '... regardless of that neighbour's visibility'. A programmatic check of the 15 anchors against the 22 it-titles matches 14 verbatim and misses this one. The behaviour itself is fully covered — this is a traceability nuisance, not a coverage gap: an exact grep for the anchor string returns nothing, so any later automated anchor audit will report a false miss.",
+      "recommendation": "Restore the apostrophe: rename the test to 'hidden group swaps with its immediate neighbour regardless of that neighbour\\'s visibility' (escape the apostrophe, or switch that one title to double quotes / a template literal). No assertion changes.",
+      "litmusTestFailed": false
+    }
+  ],
+  "roundOneFindingsVerification": [
+    {
+      "roundOneFinding": "major / missing_coverage — predicate/move agreement not pinned",
+      "fix": "Added 'the predicate is true exactly when the move changes the order': 9 fixtures x every id x both directions, expectation derived from moveGroup instead of hardcoded. Plus the discriminating hidden-row test at line 72.",
+      "verdict": "resolved",
+      "mutationEvidence": "Mutant M1 (canMoveGroup reimplemented independently, visible-skipping rule applied to hidden rows) — the exact round-1 survivor — is now KILLED, reddening 'hidden group swaps with its immediate neighbour even when only hidden groups lie that way' and 'the predicate is true exactly when the move changes the order'. Mutant M1b (mirror divergence: literal adjacency applied to visible rows) is KILLED with 5 failures. Mutant M17 (moveGroup silently drops hiddenGroups while the predicate keeps it) is KILLED with 8 failures."
+    },
+    {
+      "roundOneFinding": "major / anti_pattern — vacuous filtered-projection test",
+      "fix": "Added `expect(result).toEqual(['backlog','inProgress','focus','delegated'])` before the invariant assertion, keeping the invariant.",
+      "verdict": "resolved",
+      "mutationEvidence": "Mutant M2 (moveGroup returns the copied order without swapping) now reddens 11 tests including 'moving a hidden group past a visible neighbour keeps the relative order of visible groups' — in round 1 that test stayed green under the same mutant."
+    },
+    {
+      "roundOneFinding": "minor / redundant_testing — hidden-row rule pinned by a single assertion",
+      "fix": "Added 'hidden group swaps with its immediate neighbour even when only hidden groups lie that way' (order ['inProgress','focus','backlog'], hidden ['inProgress','focus']) — the fixture where the two rules disagree.",
+      "verdict": "resolved",
+      "mutationEvidence": "Mutant M3 (hidden-row branch deleted, hidden rows follow the visible-skipping rule) now reddens 2 tests instead of 1, both of them genuine hidden-row tests. Mutant M16 (hidden-row branch alone uses the opposite step) is KILLED with 7 failures. Mutant M13 (hiddenGroups ignored entirely) is KILLED with 8."
+    },
+    {
+      "roundOneFinding": "minor / missing_coverage — no downward multi-hidden mirror",
+      "fix": "Added 'visible group steps over several consecutive hidden groups downwards' with a fixture that is not the inverse of the upward one.",
+      "verdict": "resolved",
+      "mutationEvidence": "Mutant M9 (loop upper bound off by one: `i < order.length - 1`) — precisely the defect this finding named — is KILLED, and the new downward test is one of the two that redden."
+    },
+    {
+      "roundOneFinding": "minor / missing_coverage — moveGroup never exercised for empty order / only-visible case",
+      "fix": "Added moveGroup assertions to 'the only visible group has both arrows disabled' and to the empty/single-element test.",
+      "verdict": "resolved",
+      "mutationEvidence": "Mutant M15 (a disabled move returns a reversed copy instead of an unchanged one) is KILLED, and 'the only visible group has both arrows disabled' is among the failures — it could not have failed before, since it asserted only the predicate."
+    },
+    {
+      "roundOneFinding": "minor / anti_pattern — Russian describe titles vs English it titles",
+      "fix": "All four describe titles are now English.",
+      "verdict": "partially resolved",
+      "mutationEvidence": "n/a — cosmetic. The apostrophe in the line 58 it-title was not restored; see the single open finding."
+    }
+  ],
+  "implementationChangeReview": {
+    "change": "findSwapIndex -> findSwap returning {from,to}|null, plus an Array.isArray guard on order and hiddenGroups.",
+    "assessment": "Both changes are covered. The {from,to} shape removes the second indexOf in moveGroup, so the two positions can no longer disagree; mutants that break the swap itself (M2 no-op, M5 splice-instead-of-swap, M6 in-place mutation, M10 no-op returns the same reference) are all killed. The guard is covered by 'neither function throws when the order or the hidden set is not an array' — mutant M7 (guard removed) is killed by exactly that test, so the new defensive code is not untested dead weight."
+  },
+  "mutationRun": {
+    "tool": "hand-written harness, one mutant at a time, suite = npx vitest run tests/unit/groupOrderUtils.test.ts",
+    "total": 18,
+    "killed": 18,
+    "survived": 0,
+    "note": "The first harness pass reported two false survivors (M5, M10) caused by vitest's mtime-keyed transform cache not seeing same-second rewrites. Re-run with an fsync plus a 1.2s spacing and a unique marker comment per mutant: both are killed. Every result below is from the corrected run, and the two were additionally re-confirmed by hand.",
+    "mutants": [
+      { "id": "M1", "description": "canMoveGroup reimplemented independently, visible-skipping rule applied to hidden rows (ROUND-1 SURVIVOR)", "result": "killed", "failingTests": 2 },
+      { "id": "M1b", "description": "canMoveGroup applies literal adjacency to visible rows (live arrow, no move)", "result": "killed", "failingTests": 5 },
+      { "id": "M2", "description": "moveGroup performs no swap", "result": "killed", "failingTests": 11 },
+      { "id": "M3", "description": "hidden-row branch removed", "result": "killed", "failingTests": 2 },
+      { "id": "M4", "description": "visible-skipping removed (immediate neighbour instead)", "result": "killed", "failingTests": 8 },
+      { "id": "M5", "description": "splice-and-reinsert instead of two-position swap", "result": "killed", "failingTests": 4 },
+      { "id": "M6", "description": "moveGroup mutates the caller's array", "result": "killed", "failingTests": 13 },
+      { "id": "M7", "description": "Array.isArray guard removed", "result": "killed", "failingTests": 1 },
+      { "id": "M8", "description": "hidden-row bound off by one (to <= order.length)", "result": "killed", "failingTests": 2 },
+      { "id": "M9", "description": "skipping-loop upper bound off by one (i < order.length - 1)", "result": "killed", "failingTests": 2 },
+      { "id": "M10", "description": "disabled move returns the input reference", "result": "killed", "failingTests": 2 },
+      { "id": "M11", "description": "'up' and 'down' inverted", "result": "killed", "failingTests": 15 },
+      { "id": "M12", "description": "missing-id guard removed", "result": "killed", "failingTests": 1 },
+      { "id": "M13", "description": "hiddenGroups ignored entirely", "result": "killed", "failingTests": 8 },
+      { "id": "M14", "description": "hidden membership tested on the mover instead of the candidate neighbour", "result": "killed", "failingTests": 8 },
+      { "id": "M15", "description": "disabled move returns a reversed copy", "result": "killed", "failingTests": 5 },
+      { "id": "M16", "description": "hidden-row branch alone uses the opposite step", "result": "killed", "failingTests": 7 },
+      { "id": "M17", "description": "moveGroup drops hiddenGroups while the predicate keeps it", "result": "killed", "failingTests": 8 }
+    ]
+  },
+  "restoreVerification": {
+    "command": "git diff --stat src/ui/groupOrderUtils.ts tests/unit/groupOrderUtils.test.ts",
+    "result": "empty — no diff",
+    "md5": "f75f136524b742ea6e2f8e01a0a899af matches the pre-mutation backup",
+    "finalSuiteRun": "22 passed (22), 1 test file passed",
+    "note": "git status also lists src/data/migration.ts, tests/unit/cleanup.test.ts and tests/unit/migration.test.ts as modified. Those belong to Task 03, which is mid-flight in the same wave; this review neither touched nor ran them."
+  },
+  "anchorCoverage": {
+    "anchorsInTask": 15,
+    "matchedVerbatim": 14,
+    "matchedByBehaviourOnly": 1,
+    "additionalTests": 8,
+    "detail": "Only 'hidden group swaps with its immediate neighbour regardless of that neighbour's visibility' fails a verbatim match — the possessive is dropped in the it-title. The behaviour is covered."
+  },
+  "metrics": {
+    "filesReviewed": 4,
+    "litmusTest": {
+      "checked": 22,
+      "passed": 22,
+      "failed": 0
+    },
+    "coverageAssessment": "excellent",
+    "pyramidBalance": {
+      "unit": 22,
+      "integration": 0,
+      "e2e": 0,
+      "assessment": "healthy"
+    }
+  }
+}

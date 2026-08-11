@@ -1,7 +1,5 @@
 import type { GroupId } from '../data/types';
 
-// ВАЖНО: зависит от фиксированного порядка групп.
-// При появлении настраиваемого порядка — переработать.
 export function computeGroupClasses(groups: { id: GroupId; fullWidth: boolean }[]): Record<GroupId, string> {
   const classes: Record<GroupId, string> = {} as Record<GroupId, string>;
   let i = 0;

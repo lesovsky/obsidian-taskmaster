@@ -1,0 +1,33 @@
+{
+  "reviewer": "dev-code-reviewer",
+  "status": "approved_with_suggestions",
+  "summary": "Round 2 fixes both findings it set out to fix and breaks nothing. `arrowHidden` is provably behaviour-neutral on healthy data: exhaustively over all 120 five-id orders x all 32 hidden subsets (38 400 comparisons) and over the real six-id default order x all 64 hidden subsets (768 comparisons), `canMoveGroup` and `moveGroup` return byte-identical results whether fed `arrowHidden` or the old `hiddenGroups` — which follows structurally, since `findSwap` touches the hidden list only through `.includes()`, so element order and duplicates cannot matter and `arrowHidden ∩ order === hiddenGroups ∩ order` whenever every id in the order is present. The dead-arrow case is genuinely closed for visible rows, confirmed in the harness browser: with `groups.delegated` deleted by hand the `orgIntentions` down arrow now moves it past the unrendered slot and the rendered list actually changes, `delegated` keeps index 4 in the saved order, and a last visible row with only a missing group below it now has a disabled arrow. The ES2021 floor holds — tsconfig `target`/`lib` and esbuild `target` are all ES2021, the new code uses only Array.isArray/filter/includes, and the repo-wide grep for `Object.hasOwn|.at(|findLast|structuredClone` still returns nothing but the comment in BoardLayout.svelte explaining why. Gates re-run independently in a throwaway worktree at 9c0ee19: `npx tsc --noEmit` clean, `npm test` 104/104, `npm run build` produces main.js + styles.css with only the two known Svelte import warnings, `core.spec.ts` 35/35, and 0007 Сц.20 (the one E2E that touches the popup header) passes after the CSS removal. Two minor findings remain, both in the same hand-edited-data corner, neither blocking.",
+  "criticalIssues": [],
+  "suggestions": [
+    {
+      "file": "src/ui/groupOrderUtils.ts",
+      "line": 51,
+      "severity": "minor",
+      "category": "maintainability",
+      "suggestion": "The round-1 dead-arrow symptom survives for HIDDEN rows. `arrowHidden` is passed as the hidden list, but `findSwap` treats it two different ways: a VISIBLE row scans forward and skips every member of it (so it now steps over a missing group — fixed), while a HIDDEN row takes a literal single step to `from + step` without consulting it at all. So a dimmed row sitting next to a hand-deleted group still swaps with the unrendered slot. Verified in the harness browser, not just on paper: with `board.groups.delegated` deleted and `orgIntentions` hidden, the `orgIntentions` down arrow is enabled, the first click leaves the rendered row list byte-identical, and only the second click moves it below `completed`. The literal-step rule itself is right — a hidden row must be able to pick the slot it will reappear at — but a slot that renders no row is not a position a user can aim at. Closing it means telling `findSwap` which ids are missing as opposed to merely hidden, i.e. a fifth argument or, better, the extraction described in the next finding; the hidden branch would then step to the next index whose id is not missing. Left as minor because it is reachable only from a hand-edited data.json, the state self-repairs on the next load via `sanitizeGroupOrder`, and there is no data loss or exception.",
+      "benefit": "Removes the last variant of 'the arrow is enabled but nothing moves', so the fix covers dimmed rows as well as normal ones.",
+      "optional": true
+    },
+    {
+      "file": "src/ui/BoardSettingsPopup.svelte",
+      "line": 44,
+      "severity": "minor",
+      "category": "testing",
+      "suggestion": "The `arrowHidden` derivation is the only genuinely new behavioural logic in this commit, and it is the one piece that ends up untested. `sanitizeHiddenGroups` was moved into groupOrderUtils.ts with the explicit rationale 'живёт здесь, потому что в .svelte логика не покрывается unit-тестами (Decision 11)' — yet it is a four-line coercion whose failure mode is loud, while the derivation it sits next to encodes a real rule (missing behaves as hidden for arrows, but keeps its slot in the order) and its failure mode is silent. The same rationale argues harder for extracting the derivation: `export function deriveArrowHidden(order: GroupId[], hiddenGroups: GroupId[], isPresent: (id: GroupId) => boolean): GroupId[]` (or taking the present ids as a Set), leaving the component with one call. That also gives the previous finding a natural home and a place to pin it with a test. Existing coverage does not reach here: unit tests stop at groupOrderUtils, and no E2E constructs a board with a missing group object — I had to write throwaway specs to exercise it, and they are now removed.",
+      "benefit": "Puts the one new rule that regression tests cannot currently see under the same unit coverage as the rest of the ordering logic.",
+      "optional": true
+    }
+  ],
+  "metrics": {
+    "filesReviewed": 5,
+    "criticalIssuesCount": 0,
+    "majorIssuesCount": 0,
+    "minorIssuesCount": 2,
+    "testCoverageAssessment": "adequate"
+  }
+}

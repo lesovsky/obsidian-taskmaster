@@ -50,8 +50,10 @@ test.describe('Section 3 — Creating tasks', () => {
     await createTask(page, 'inProgress', { what: 'Task 1' });
     await createTask(page, 'inProgress', { what: 'Task 2' });
     await createTask(page, 'inProgress', { what: 'Task 3' });
-    const counter = page.locator('.tm-task-group:has([data-group-id="inProgress"]) .tm-group-header__counter');
-    await expect(counter).toHaveText('(3)');
+    const header = page.locator('.tm-task-group:has([data-group-id="inProgress"]) .tm-group-header');
+    await expect(header.locator('.tm-group-header__counter')).toHaveText('(3)');
+    // Группе не задано своё название → в шапке остаётся локализованное имя по умолчанию.
+    await expect(header.locator('.tm-group-header__title')).toHaveText('In Progress');
   });
 });
 
@@ -246,9 +248,14 @@ test.describe('Section 7 — Collapsing groups', () => {
 
     await expandGroup(page, 'backlog');
     await expect(page.locator('[data-group-id="backlog"]')).toBeVisible();
+    // Группе не задано своё название → в шапке остаётся локализованное имя по умолчанию.
+    // Проверка на классе, а не на тексте: она переживёт миграцию локаторов в задаче 09.
+    await expect(
+      page.locator('.tm-collapsible-group:has([data-group-id="backlog"]) .tm-collapsible-group__title'),
+    ).toHaveText('Backlog');
 
-    // Collapse again — now body is in DOM so filter by text works too
-    await page.locator('.tm-collapsible-group__header').filter({ hasText: 'Backlog' }).click();
+    // Collapse again — the wrapper attribute keeps the header reachable whichever state the group is in
+    await page.locator('[data-group-container="backlog"] .tm-collapsible-group__header').click();
     await expect(page.locator('[data-group-id="backlog"]')).not.toBeVisible();
   });
 });
@@ -261,6 +268,8 @@ test.describe('Section 8 — WIP limits', () => {
   test('8.1 set WIP=3 → counter shows (N/3)', async ({ page }) => {
     await createTask(page, 'inProgress', { what: 'Task 1' });
     await openGroupSettings(page, 'inProgress');
+    // Группе не задано своё название → в заголовке попапа остаётся имя по умолчанию.
+    await expect(page.locator('.tm-popup__title')).toContainText('In Progress');
     await page.fill('#tm-wip', '3');
     await saveGroupSettings(page);
 

@@ -15,25 +15,11 @@ test.beforeEach(async ({ page }) => {
 
 // ─── Layout helpers ────────────────────────────────────────────────────────────
 
-// backlog and completed are CollapsibleGroups — their [data-group-id] body
-// is absent from DOM when collapsed. Use header text to locate them instead.
-const COLLAPSIBLE_HEADER_TEXT: Partial<Record<GroupId, string>> = {
-  backlog: 'Backlog',
-  completed: 'Completed',
-};
-
 /** Get the CSS class on the wrapper div of the given group. */
 async function getGroupWrapperClass(page: Page, groupId: GroupId): Promise<string> {
-  const headerText = COLLAPSIBLE_HEADER_TEXT[groupId];
-  if (headerText) {
-    // header → .tm-collapsible-group → wrapper div
-    const header = page.locator('.tm-collapsible-group__header').filter({ hasText: headerText });
-    const wrapper = header.locator('..').locator('..');
-    return (await wrapper.getAttribute('class')) ?? '';
-  }
-  // TaskGroups always have [data-group-id] in DOM
-  const group = page.locator(`.tm-task-group:has([data-group-id="${groupId}"])`);
-  const wrapper = group.locator('..');
+  // [data-group-container] sits on the wrapper itself and is present for both TaskGroups
+  // and CollapsibleGroups, collapsed or not.
+  const wrapper = page.locator(`[data-group-container="${groupId}"]`);
   return (await wrapper.getAttribute('class')) ?? '';
 }
 
@@ -53,8 +39,8 @@ async function isFull(page: Page, groupId: GroupId) {
 }
 
 /** Set fullWidth for a group via board settings popup. Already open. */
-async function setFullWidth(page: Page, groupName: string, fullWidth: boolean) {
-  const row = page.locator('.tm-popup__group-row').filter({ hasText: groupName });
+async function setFullWidth(page: Page, groupId: GroupId, fullWidth: boolean) {
+  const row = page.locator(`[data-settings-group="${groupId}"]`);
   const fullWidthCheckbox = row.locator('.tm-popup__group-toggle').nth(1);
   const isChecked = await fullWidthCheckbox.isChecked();
   if (fullWidth && !isChecked) await fullWidthCheckbox.click();
@@ -76,7 +62,7 @@ test('Сц.1 default layout: focus+inProgress are half, others are full', async 
 
 test('Сц.2 set focus to full → inProgress becomes half-alone', async ({ page }) => {
   await openBoardSettings(page);
-  await setFullWidth(page, 'Focus', true);
+  await setFullWidth(page, 'focus', true);
   await saveBoardSettings(page);
 
   expect(await isFull(page, 'focus')).toBe(true);
@@ -85,8 +71,8 @@ test('Сц.2 set focus to full → inProgress becomes half-alone', async ({ page
 
 test('Сц.3 set orgIntentions and delegated to half → they pair up', async ({ page }) => {
   await openBoardSettings(page);
-  await setFullWidth(page, 'Org Intentions', false);
-  await setFullWidth(page, 'Delegated', false);
+  await setFullWidth(page, 'orgIntentions', false);
+  await setFullWidth(page, 'delegated', false);
   await saveBoardSettings(page);
 
   expect(await isHalf(page, 'orgIntentions')).toBe(true);
@@ -96,7 +82,7 @@ test('Сц.3 set orgIntentions and delegated to half → they pair up', async ({
 test('Сц.4 hide partner (inProgress) → focus becomes half-alone', async ({ page }) => {
   // focus=half, inProgress=half by default
   await openBoardSettings(page);
-  const inProgressRow = page.locator('.tm-popup__group-row').filter({ hasText: 'In Progress' });
+  const inProgressRow = page.locator('[data-settings-group="inProgress"]');
   await inProgressRow.locator('.tm-popup__group-toggle').first().click(); // hide inProgress
   await saveBoardSettings(page);
 
@@ -105,7 +91,7 @@ test('Сц.4 hide partner (inProgress) → focus becomes half-alone', async ({ p
 
 test('Сц.5 three half in a row → first pair + lone third', async ({ page }) => {
   await openBoardSettings(page);
-  await setFullWidth(page, 'Org Intentions', false); // focus, inProgress, orgIntentions all half
+  await setFullWidth(page, 'orgIntentions', false); // focus, inProgress, orgIntentions all half
   await saveBoardSettings(page);
 
   // focus + inProgress pair
@@ -117,7 +103,7 @@ test('Сц.5 three half in a row → first pair + lone third', async ({ page }) 
 
 test('Сц.6 settings persist after resetData (simulate reload)', async ({ page }) => {
   await openBoardSettings(page);
-  await setFullWidth(page, 'Focus', true);
+  await setFullWidth(page, 'focus', true);
   await saveBoardSettings(page);
 
   // Verify before reload
@@ -143,7 +129,7 @@ test('Сц.7 new board has default fullWidth values', async ({ page }) => {
 test('Сц.8 switching boards preserves layout per board', async ({ page }) => {
   // Board A: default (focus=half)
   await openBoardSettings(page);
-  await setFullWidth(page, 'Focus', true); // override board A
+  await setFullWidth(page, 'focus', true); // override board A
   await saveBoardSettings(page);
 
   // Create board B
@@ -166,10 +152,10 @@ test('Сц.8 switching boards preserves layout per board', async ({ page }) => {
 
 test('Сц.9 all 6 groups as half → 3 pairs', async ({ page }) => {
   await openBoardSettings(page);
-  await setFullWidth(page, 'Backlog', false);
-  await setFullWidth(page, 'Org Intentions', false);
-  await setFullWidth(page, 'Delegated', false);
-  await setFullWidth(page, 'Completed', false);
+  await setFullWidth(page, 'backlog', false);
+  await setFullWidth(page, 'orgIntentions', false);
+  await setFullWidth(page, 'delegated', false);
+  await setFullWidth(page, 'completed', false);
   await saveBoardSettings(page);
 
   // All should have --half (paired)
@@ -182,8 +168,8 @@ test('Сц.9 all 6 groups as half → 3 pairs', async ({ page }) => {
 test('Сц.10 pattern [full, half, full, half] → both half are alone', async ({ page }) => {
   // backlog=full(default), focus=half(default), orgIntentions=full(default), delegated=half
   await openBoardSettings(page);
-  await setFullWidth(page, 'In Progress', true); // make inProgress full → focus is alone
-  await setFullWidth(page, 'Delegated', false); // delegated half
+  await setFullWidth(page, 'inProgress', true); // make inProgress full → focus is alone
+  await setFullWidth(page, 'delegated', false); // delegated half
   await saveBoardSettings(page);
 
   expect(await isHalfAlone(page, 'focus')).toBe(true);
@@ -193,7 +179,7 @@ test('Сц.10 pattern [full, half, full, half] → both half are alone', async (
 test('Сц.13 disabled fullWidth checkbox for hidden group', async ({ page }) => {
   await openBoardSettings(page);
   // Hide focus
-  const focusRow = page.locator('.tm-popup__group-row').filter({ hasText: 'Focus' });
+  const focusRow = page.locator('[data-settings-group="focus"]');
   await focusRow.locator('.tm-popup__group-toggle').first().click();
   // fullWidth checkbox for focus should be disabled
   await expect(focusRow.locator('.tm-popup__group-toggle').nth(1)).toBeDisabled();
@@ -203,7 +189,7 @@ test('Сц.13 disabled fullWidth checkbox for hidden group', async ({ page }) =>
 test('Сц.14 fullWidth value preserved when group is hidden then shown', async ({ page }) => {
   // Set focus to fullWidth=false (default), hide it, show it → should still be half
   await openBoardSettings(page);
-  const focusRow = page.locator('.tm-popup__group-row').filter({ hasText: 'Focus' });
+  const focusRow = page.locator('[data-settings-group="focus"]');
   // fullWidth is already false (default)
   await focusRow.locator('.tm-popup__group-toggle').first().click(); // hide focus
   await saveBoardSettings(page);
@@ -268,7 +254,7 @@ test('Сц.16 migration v4→v5: fullWidth added with correct defaults', async (
 test('Сц.17 v5 data not overwritten on reload (idempotent)', async ({ page }) => {
   // Set custom fullWidth values
   await openBoardSettings(page);
-  await setFullWidth(page, 'Backlog', false);
+  await setFullWidth(page, 'backlog', false);
   await saveBoardSettings(page);
 
   // Verify stored
@@ -291,7 +277,7 @@ test('Сц.21 narrow viewport (<600px) → focus and inProgress take full width 
   await page.waitForTimeout(100);
 
   // At <600px, CSS media query forces all groups to full width
-  const focusEl = page.locator('.tm-task-group:has([data-group-id="focus"])').locator('..');
+  const focusEl = page.locator('[data-group-container="focus"]');
   const boundingBox = await focusEl.boundingBox();
   const viewportWidth = 500;
   // The group should span close to full viewport width

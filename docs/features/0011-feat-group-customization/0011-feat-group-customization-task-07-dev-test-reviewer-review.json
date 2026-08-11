@@ -1,0 +1,38 @@
+{
+  "reviewer": "dev-test-reviewer",
+  "status": "passed",
+  "summary": "Three new cases in tests/unit/boardLayoutUtils.test.ts covering an arbitrary group order. All three assert real computed output of the real function with no mocks anywhere, so all 8 cases in the file pass the litmus test. Both implementer claims were re-verified independently and both hold. Claim 1 (tests could not go red first): confirmed by diff — the only change to src/ui/boardLayoutUtils.ts at 3dda490 is the removal of two stale comment lines, the function body is byte-identical to 347ed31, and all 8 cases pass against the pre-implementation file (measured on 347ed31's boardLayoutUtils.ts + 3dda490's test file). The TDD Anchor documents this honestly instead of staging a fake red phase, and the implementer correctly substituted mutation testing for the impossible red step. Claim 2 (discriminating mutant): reproduced exactly — under the identity-keying mutant all 5 pre-existing cases and 2 of the 3 new cases pass, and exactly one new case ('перестановка разрывает пару — оба half становятся alone') fails (7 passed / 1 failed of 8, measured on 3dda490 in an isolated git worktree). Judging the other two new cases: 'соседние half образуют пару' earns its place — a second mutant (pair only when the half starts at an even index) is killed by that case alone, with all 5 pre-existing cases and the other 2 new cases surviving (7 passed / 1 failed, same SHA). 'одинокий half в конце' does not earn its place — it survives both mutants, and the third mutant that does kill it (trailing lone half rendered as --full) is killed simultaneously by 3 pre-existing cases (5 failed / 3 passed, same SHA); its input shape [full, trailing lone half] is already the tail of the pre-existing '[full, half, full, half]' case. Claim 3 (evidence for the wiring): adequate for this task's boundary but thin. The unit tests pin the function's contract only; the substantive change in this commit lives in BoardLayout.svelte and is covered by no automated test at this SHA. What remains unverified until Task 10: that orderedGroups is actually derived from board.groupOrder, that the computed order values match the configured sequence, that the notes block stays below all groups at order:100, and that drag & drop survives a reorder. The available automated gates were re-run on 3dda490 in the worktree: npm test 87 passed, npx playwright test 84 passed with tests/e2e/ unmodified (the 0007-dynamic-layout regression gate for the layout classes is green). Two minor findings below; neither blocks this task and one is a Task-10 handoff, not work for Task 07.",
+  "findings": [
+    {
+      "severity": "minor",
+      "category": "redundant_testing",
+      "location": "tests/unit/boardLayoutUtils.test.ts:89-94",
+      "issue": "The case 'произвольный порядок — одинокий half в конце' (input [completed(full), delegated(half)]) adds no mutant-killing power over the existing suite. Measured on 3dda490 in an isolated worktree: it survives the identity-keying mutant (computeGroupClasses re-sorting its input into GROUP_IDS order) and survives the even-index-pairing mutant; the mutant that does kill it (trailing lone half classified as --full) is killed at the same time by three pre-existing cases — '[half, half, half]' (line 32), '[full, half, full, half]' (line 40) and 'одна видимая группа с fullWidth:false' (line 54). Its local pattern is literally the tail of the case at line 40, and its expected outcome duplicates line 54. Note this is a redundancy finding, not a litmus failure: the case does assert real computed output and does fail when the pairing logic is broken.",
+      "recommendation": "Cheapest fix: delete the case (lines 89-94). Measured evidence says the suite loses nothing — the same three mutants are still killed by the remaining seven cases, and the two-groups-visible edge is already exercised by the length-1 case at line 54 and the trailing-half tail at line 40. If the team prefers to keep a two-group case for documentation value, keep it but say so in the comment (e.g. 'документирует минимальную видимую раскладку; дискриминирующей силы не добавляет') so a future reader does not mistake it for regression protection. Do NOT replace it with another arbitrary-order permutation without first checking the replacement against the identity-keying mutant — several plausible candidates (for example [delegated(half), completed(full), orgIntentions(half), focus(half)]) also survive it, because re-sorting into GROUP_IDS order happens to yield the same class assignment.",
+      "litmusTestFailed": false
+    },
+    {
+      "severity": "minor",
+      "category": "missing_coverage",
+      "location": "src/ui/BoardLayout.svelte:25-27 (orderedGroups filter, `board.groups[id]` existence guard)",
+      "issue": "This commit introduced a new decision branch that no test at 3dda490 reaches: ids present in board.groupOrder whose group object is missing are skipped rather than rendered. It is the resolution the task demanded in 'Уточнение по итогам волны 2', and its purpose is resilience — the board must open on a hand-edited data.json. tests/unit/migration.test.ts:284 establishes only the precondition (migrateData does not recreate a deleted group, so groupOrder can name a nonexistent one); it asserts nothing about rendering. Task 10's declared scope — computed order values, on-screen geometry, drag & drop across reordered groups — does not include this branch, so as things stand the branch has no owner. Silent failure mode if it regresses: a TypeError inside the reactive statement on the very board the guard exists to rescue.",
+      "recommendation": "Explicitly out of scope for Task 07 — the component is not unit-testable here (vitest.config.ts sets environment: 'node', no DOM testing library, and adding one was rejected at tech-spec level), and this task forbids creating or editing anything under tests/e2e/. This is a handoff, not a required change: add one scenario to Task 10's scope — seed a board whose groups object is missing one key that groupOrder still lists (e.g. delete groups.orgIntentions, keep 'orgIntentions' in groupOrder), then assert the board renders, that [data-group-container] resolves to exactly five wrappers, and that their computed `order` values are dense 1..5 with no gap where the missing group would have been. If Task 10's task file is already frozen, record the gap in the decisions log so it is not lost.",
+      "litmusTestFailed": false
+    }
+  ],
+  "metrics": {
+    "filesReviewed": 5,
+    "litmusTest": {
+      "checked": 8,
+      "passed": 8,
+      "failed": 0
+    },
+    "coverageAssessment": "adequate",
+    "pyramidBalance": {
+      "unit": 87,
+      "integration": 0,
+      "e2e": 84,
+      "assessment": "healthy"
+    }
+  }
+}

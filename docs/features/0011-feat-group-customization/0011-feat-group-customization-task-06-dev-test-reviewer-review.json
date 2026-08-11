@@ -1,0 +1,67 @@
+{
+  "reviewer": "dev-test-reviewer",
+  "status": "needs_improvement",
+  "summary": "The 'no new automated test' posture is structurally correct and mostly honest: the pure rule these components consume is genuinely unit-covered by Task 05, vitest really is environment:'node' with no DOM library, and every renamed-name scenario the throwaway spec exercised is explicitly and more strongly owned by Task 10 (Sc.1 names in three sites, Sc.10 40-char truncation, Sc.13 empty-state hint) — committing a seeded-state copy here would have been redundant testing, so deleting it was the right call. What does not hold up is the claim about the regression anchor. I ran mutation checks against the full 84-test Playwright suite (baseline 84/84 green): rendering the raw stored title instead of the resolved name in .tm-group-header__title AND in the .tm-popup__title group heading leaves all 84 tests green, and inverting the new EmptyState hint ternary also leaves all 84 green. Only the collapsible header is genuinely guarded (that mutant kills 11 tests). So three of the four behaviour changes in this task are invisible to every existing test, and the TDD Anchor section asserts the opposite of what the evidence shows for the normal header. Two cheap default-path assertions in core.spec.ts would close the gap without touching Task 10's territory.",
+  "findings": [
+    {
+      "severity": "major",
+      "category": "missing_coverage",
+      "location": "src/ui/GroupHeader.svelte:19 and src/ui/GroupSettingsPopup.svelte:30 (anchor: tests/e2e/core.spec.ts)",
+      "issue": "Two of the four display sites this task rewrote have zero assertion in any test, at any level. Neither '.tm-group-header__title' nor '.tm-popup__title' appears in a single file under tests/ — verified by grep across tests/e2e and tests/unit. Empirically confirmed by mutation: I replaced the resolved name with the raw stored title (which is '' for every group in the default state) in BOTH components simultaneously and ran the entire suite — 84/84 passed, including all 35 of core.spec.ts. A group header rendering an empty name and a settings popup whose heading lost its group name are both fully green regressions today. The anchor's real reach is narrower still than the task file's own Context Files paragraph admits: core.spec.ts locates the normal group only through '[data-group-id]' containers and '.tm-group-header__counter', and openGroupSettings() locates the popup by class — none of these constrain the rendered name.",
+      "recommendation": "Add two default-path assertions to tests/e2e/core.spec.ts (this task's own anchor file — not the forbidden tests/e2e/0011-group-customization.spec.ts). (1) In a test that runs after standardBeforeEach, assert the fallback renders: await expect(page.locator('.tm-task-group:has([data-group-id=\"focus\"]) .tm-group-header__title')).toHaveText('Focus'). (2) Test 8.1 already calls openGroupSettings(page,'inProgress') — add await expect(page.locator('.tm-popup__title')).toContainText('In Progress') right after it. Both assert only the empty-stored-title fallback, which is exactly the invariant this task promises ('byte-identical to $groupLabels[groupId]'), and neither overlaps Task 10, which asserts renamed values through data-group-container / data-settings-group locators. Verify the fix by re-running the two mutants above: each assertion must go red. Note for the orchestrator: Task 09 rewrites core.spec.ts off name-based locators — these are assertions about names, not locators, and must survive that refactor; say so in Task 09's file.",
+      "litmusTestFailed": true
+    },
+    {
+      "severity": "major",
+      "category": "anti_pattern",
+      "location": "docs/features/0011-feat-group-customization/0011-feat-group-customization-task-06.md — Section: TDD Anchor",
+      "issue": "The TDD Anchor states core.spec.ts 'exercises both display sites this task rewrites: .tm-group-header__counter alongside the title in the normal header, and a collapsible header located by its visible text Backlog'. The counter is a sibling element; asserting the counter constrains nothing about the title, and the mutation run above proves it. The task file then contradicts itself in Context Files ('it locates ordinary groups by their identifiers and counters, not by their names ... A broken fallback in the ordinary group header or in the group settings popup would leave this suite green') — which is the accurate statement. Two paragraphs of the same document make opposite claims about the same suite, and the execution report propagated the optimistic one ('35/35 green' presented as the regression gate). This is false confidence with a concrete downstream cost: Task 09 is about to strip the 'Backlog' text locators, and whoever does it may believe name rendering is covered elsewhere when it is covered nowhere.",
+      "recommendation": "Amend the TDD Anchor paragraph to match the Context Files paragraph: state that core.spec.ts guards exactly one of the four rewritten sites — the collapsible header, via 'hasText: Backlog' at core.spec.ts:251 and helpers.expandGroup — and that the normal header, the popup heading and the empty-state hint key are unguarded until Task 10. Record in the decisions log the three surviving mutants (raw title in GroupHeader, raw title in GroupSettingsPopup heading, inverted EmptyState ternary) as the concrete definition of the gap, so Task 10 can confirm its scenarios kill them.",
+      "litmusTestFailed": true
+    },
+    {
+      "severity": "minor",
+      "category": "missing_coverage",
+      "location": "src/ui/EmptyState.svelte:11-13",
+      "issue": "The trim()-based renamed check is the only NEW decision logic this task introduces — Task 05's unit tests cover resolveGroupTitle, not this ternary. I inverted it (trim() !== '' → trim() === '') and the full suite stayed 84/84 green, so it is unguarded from wave 3 until Task 10's Sc.13 in wave 7. Related: the acceptance criterion 'name and hint can never disagree, because both use the same emptiness rule' is enforced by no test at any level and cannot be — Task 10 itself notes a whitespace-only title is unreachable through the UI, so E2E can never construct the divergent case. The spec placed a testable pure rule inside a component the project's node-env vitest cannot reach, then cited that untestability as the reason not to test it.",
+      "recommendation": "Optional, and it needs a spec amendment rather than a fix by the executor (the task text explicitly mandates the current placement). If the orchestrator wants coverage now: extract the rule into a NEW pure module — src/ui/emptyStateKey.ts exporting emptyStateKey(groupId: GroupId, storedTitle: string): TranslationKey — which leaves Task 05's one-export constraint on groupTitle.ts untouched and creates no duplication (EmptyState becomes a one-line call). Unit test in tests/unit/emptyStateKey.test.ts: '' → 'emptyState.focus'; '   ' and '\\t' → 'emptyState.focus' (same emptiness rule as resolveGroupTitle); 'Долгострой' → 'emptyState.renamed'; each of the six GroupIds → its own template key; and a consistency assertion that pairs it with resolveGroupTitle over a shared table of inputs, so the two can never drift. If the orchestrator prefers to keep the rule in the component, accept the four-wave coverage window explicitly and make Task 10's Sc.13 a blocking scenario.",
+      "litmusTestFailed": true
+    },
+    {
+      "severity": "minor",
+      "category": "missing_coverage",
+      "location": "Verification: 'npx playwright test tests/e2e/core.spec.ts' (task file, Verification Steps)",
+      "issue": "The gate ran 35 of the 84 available E2E tests. The full suite takes 27 seconds on this machine (measured), and the three excluded files are more name-sensitive than core.spec.ts: 0006-group-visibility.spec.ts:82 and :232 assert the collapsible header renders 'Backlog', 0007-dynamic-layout.spec.ts:30 does the same for both collapsible groups, and both filter '.tm-popup__group-row' by group names. My collapsible-title mutant killed 11 tests spread across core.spec.ts AND 0008-card-columns.spec.ts — i.e. the excluded files carry real signal about the components this task rewrote. Reporting '35/35' understates the regression evidence that was available for free.",
+      "recommendation": "Run bare 'npx playwright test' (all four spec files, one webServer, ~27s) and report the total — baseline for this commit is 84/84, which I verified on the unmodified tree. Update the task's Verification Steps to name the full suite as the gate; there is no cost argument for the narrower one."
+    },
+    {
+      "severity": "minor",
+      "category": "anti_pattern",
+      "location": "Task 06 execution report — the deleted ad-hoc Playwright spec",
+      "issue": "Deleting the throwaway spec was correct (its five checks map 1:1 onto Task 10's Sc.1/Sc.10/Sc.13, and Task 10's versions are strictly stronger: real UI rename plus a persistence round-trip, versus seeded state), but its reusable content was discarded with it. The concrete numbers now exist only in prose — 'scrollWidth 286 > clientWidth 181 at a 300px viewport', 'add button keeps 24px' — unreproducible and unreviewable, and Task 10's Sc.10 will have to rediscover both the measurement technique and a viewport that actually forces truncation.",
+      "recommendation": "Before closing the task, put the recipe (not the spec file) in the decisions log next to the already-required EmptyState prop name: (a) group titles are seedable without the Task 08 UI by passing a versioned snapshot to window.__test.resetData, which routes through migrateData — tests/harness/main.ts:80-95; (b) truncation is observable as scrollWidth > clientWidth on '.tm-group-header__title' at a 300px viewport with a 38-char name; (c) the sibling controls keep their 24px box, which is what proves flex-shrink:0 rather than the truncation alone. Three bullets, and Task 10 inherits the evidence instead of the claim."
+    },
+    {
+      "severity": "minor",
+      "category": "anti_pattern",
+      "location": "tests/e2e/helpers.ts:96-110 (expandGroup, COLLAPSIBLE_GROUP_LABELS) and tests/e2e/core.spec.ts:251",
+      "issue": "The single piece of genuine coverage this task's changes have — the collapsible title — rides entirely on locators that match the group's displayed name as literal text ('Backlog'). This commit is precisely what makes that name user-mutable, so the most fragile locator in the suite is now also the only load-bearing one. It is also a substring match, so a future group renamed to anything containing 'Backlog' would match two headers.",
+      "recommendation": "No change here — Task 09 owns migrating these locators to identifiers. But Task 09 must be told that removing 'hasText: Backlog' without first landing the two assertions from finding 1 drops name coverage to exactly zero across the whole suite. Add that as an explicit precondition in Task 09's file, and have Task 09 re-run the collapsible-title mutant afterwards to prove its identifier-based replacement still fails when the title renders wrong."
+    }
+  ],
+  "metrics": {
+    "filesReviewed": 12,
+    "litmusTest": {
+      "checked": 12,
+      "passed": 7,
+      "failed": 5
+    },
+    "coverageAssessment": "insufficient",
+    "pyramidBalance": {
+      "unit": 5,
+      "integration": 0,
+      "e2e": 0,
+      "assessment": "healthy"
+    }
+  }
+}

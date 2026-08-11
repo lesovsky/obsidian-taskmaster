@@ -1,0 +1,65 @@
+{
+  "reviewer": "dev-code-reviewer",
+  "round": 2,
+  "status": "approved_with_suggestions",
+  "summary": "All three applied round-1 findings are correctly resolved and the two new tests from the test review kill the mutants they were written for. On the surrogate question I was asked to judge: the reasoning holds and the regex is correct. `/[\\uD800-\\uDBFF]$/` without the `u` flag matches exactly one trailing UTF-16 code unit in the high-surrogate range — a complete pair ends in a LOW surrogate and is never touched, and the cap can produce at most one lone high surrogate, so one strip is always enough. I probed the boundary directly (39a+emoji, 38a+emoji, 40a+emoji, 21 emoji, ZWJ family, VS16 heart, 41 Cyrillic, a pre-existing lone surrogate): every cap-produced output is well-formed UTF-16. Keeping the count in code units is the right call — it makes the loader agree with `maxlength` for every value the input field can actually produce, and it degrades a hand-edited 39a+emoji title to 39 characters instead of persisting U+FFFD. Two things the strip deliberately does not cover, both harmless: a trailing ZWJ or a dropped VS16 when the cut lands inside a grapheme cluster (valid text, just a simpler glyph), and a lone LOW surrogate that was already in the hand-edited input somewhere other than the cut point (`.toWellFormed()` would fix that, but it is Chromium 111+ and the manifest allows Obsidian 1.0, so it is correctly not used). Trailing whitespace can survive the cap (`trim` runs before `slice`) — cosmetic, and identical to what Task 8 will do. I also agree with not stripping Cf/bidi characters here: there is no trust boundary (single-user local vault, Svelte interpolation rules out injection), U+200D and U+FE0F carry meaning in emoji names, and a rule added on only one side of Decision 7 would be the very desynchronization that decision exists to prevent. The narrow bidi-control subset (U+202A-202E, U+2066-2069, U+200E/200F) is disjoint from emoji and would be safe if ever wanted — but it belongs in the shared function, decided once, not bolted onto the loader. Verified independently: `npx tsc --noEmit` exit 0, `npm run build` exit 0 (2 pre-existing esbuild-svelte warnings), `npm test` 83 passed / 6 files, migration suite 35 passed, cleanup suite 8 passed. Zero critical, zero major. Three minor items remain, none blocking; the first is the only one I would not simply carry forward, because two deliberate non-fixes currently rest on a log entry that does not exist yet.",
+  "criticalIssues": [],
+  "suggestions": [
+    {
+      "file": "docs/features/0011-feat-group-customization/0011-feat-group-customization-decisions.md",
+      "line": 81,
+      "severity": "minor",
+      "category": "maintainability",
+      "suggestion": "The decisions log has no Task 03 section at HEAD (sections exist for Tasks 01, 02, 05; the file is unmodified in `git status`). Both deliberately-unfixed findings were dispositioned as \"recorded in the decisions log\" — the wider `settings` / `tasks` aliasing in the early returns, and the refusal to strip Cf/bidi characters in `sanitizeGroupTitle` — and neither entry is there. The ZWJ rationale in particular is the kind of reasoning that gets re-litigated by the next reviewer or silently reversed in Task 8; it is worth the four lines. Add a `## Task 03` section carrying: (a) the aliasing item with its \"pre-existing, out of scope per step 7\" framing, (b) the ZWJ/bidi refusal with the emoji-sequence and Decision-7-parity rationale, (c) the code-unit vs code-point counting choice and why it matches `maxlength`.",
+      "benefit": "The two accepted risks are auditable at the point where someone would otherwise re-derive them, and Task 8 inherits the constraint instead of rediscovering it.",
+      "optional": true
+    },
+    {
+      "file": "src/data/migration.ts",
+      "line": 45,
+      "severity": "minor",
+      "category": "maintainability",
+      "suggestion": "Decision 7 requires the loader and `updateBoard` to normalize \"the same way\", but `sanitizeGroupTitle` now carries three rules (trim, cap, surrogate strip) while task-08 step 10 instructs `updateBoard` to \"trim each incoming name and cap it at 40 characters\" — a second implementation that would already be one rule behind on day one, with `40` re-hardcoded because `GROUP_TITLE_MAX_LENGTH` is module-private. Nothing is broken today (Chromium truncates paste on grapheme boundaries, so the input cannot produce a split pair), so this is a maintenance point, not a defect. `sanitizeGroupTitle` is already exported and `src/stores/dataStore.ts` already imports from `../data/`, so Task 8 can call it directly instead of reimplementing. Flag it on task-08.md — the file currently contains no mention of `sanitizeGroupTitle`, so the \"flagged to Task 8\" disposition is not yet visible in the task either.",
+      "benefit": "Decision 7 parity holds by construction rather than by two authors independently remembering the same three rules; the length constant stops being duplicated; and any future decision on invisible characters lands in both entry points at once.",
+      "optional": true
+    },
+    {
+      "file": "tests/unit/migration.test.ts",
+      "line": 263,
+      "severity": "minor",
+      "category": "error-handling",
+      "suggestion": "The new test pins the `Object.values(board.groups)` guard with the comment that a `GROUP_IDS` loop \"would throw here and leave the user with no board at all\". The guard does prevent the throw, but it does not repair the board: `sanitizeGroupOrder` is built from `GROUP_IDS`, so the result still contains `orgIntentions` while `board.groups.orgIntentions` is absent, and the render path added in Tasks 6-7 will index `board.groups[id]` and get `undefined`. `groupOrder` consumers do not exist yet (only `types.ts` and `defaults.ts` reference the field today), so nothing is broken now — but the protection stops one step short of what the comment claims. Either finish it inside the same loop (`if (!board.groups[id]) board.groups[id] = <default group>` before sanitizing, which also restores the invariant the pre-v5 blocks already assume) or narrow the comment to \"migration does not throw\" and let Tasks 6-7 own the missing-group case explicitly.",
+      "benefit": "The defensive guard's stated promise matches what it delivers, and the group-order consumers written next are not handed an order referencing a group that is not there.",
+      "optional": true
+    }
+  ],
+  "resolvedFromRound1": [
+    {
+      "finding": "cleanup.test.ts fixtures missing title / groupOrder",
+      "status": "applied",
+      "note": "`title: ''` in makeGroup, `groupOrder: [...GROUP_IDS]` in makeBoard; GROUP_IDS was already imported. Fixtures are structurally valid against the widened interfaces again."
+    },
+    {
+      "finding": "duplicated early-return literal",
+      "status": "applied",
+      "note": "Extracted as `freshDefaultData()`; the comment moved above the helper and still accurately describes why groupOrder is copied and why these paths miss the sanitization block. Both early returns and their tests (`migrateData(null)`, `migrateData({})` independence) still pass."
+    },
+    {
+      "finding": "surrogate-pair truncation",
+      "status": "applied differently, accepted",
+      "note": "Code-unit counting kept, trailing lone high surrogate stripped. Verified correct for every case the cap can produce; rationale (parity with maxlength) holds. See summary."
+    },
+    {
+      "finding": "wider aliasing of settings / tasks in the early returns",
+      "status": "deferred as pre-existing",
+      "note": "Correct call for the code; the log entry that was to carry it is still missing — see suggestion 1."
+    }
+  ],
+  "metrics": {
+    "filesReviewed": 3,
+    "criticalIssuesCount": 0,
+    "majorIssuesCount": 0,
+    "minorIssuesCount": 3,
+    "testCoverageAssessment": "excellent"
+  }
+}

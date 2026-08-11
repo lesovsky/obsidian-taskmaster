@@ -1,0 +1,52 @@
+{
+  "status": "approved",
+  "summary": {
+    "totalFindings": 3,
+    "critical": 0,
+    "major": 0,
+    "minor": 3
+  },
+  "findings": [
+    {
+      "severity": "minor",
+      "category": "A03: Injection (UI misrepresentation, non-HTML)",
+      "title": "Group title sanitizer does not strip Unicode control/format characters before the name is rendered on the board",
+      "description": "This commit turns Group.title into displayed chrome in four places (GroupHeader.svelte:19, CollapsibleGroup.svelte:42, GroupSettingsPopup.svelte:30, plus the hint switch in EmptyState.svelte:11). HTML injection is fully closed — every sink is a Svelte {} text interpolation. What is not filtered is the Unicode layer: sanitizeGroupTitle() (src/data/migration.ts:45) only applies trim() + slice(0,40) + a lone-high-surrogate repair, and String.prototype.trim() removes ECMAScript WhiteSpace/LineTerminator only, not category Cf/Cc code points. Two consequences now become visible because the value reaches the DOM: (a) a bidi override such as U+202E (RIGHT-TO-LEFT OVERRIDE) placed in the title changes the visual order of the rest of the header line, so the task counter '(3)' and the settings/add glyphs — and the whole 'Group settings: <name>' popup heading — can render reversed or repositioned relative to what the data actually says; (b) a title consisting only of zero-width characters (U+200B, U+FEFF) survives trim(), so it is 'non-empty' for both resolveGroupTitle() and the EmptyState renamed-check: the header shows a visually blank name instead of the localized default, and an empty group silently swaps its semantic hint for the neutral emptyState.renamed one. The data path is not purely self-authored — data.json travels through Obsidian Sync and shared/git-backed vaults, so the string is not guaranteed to have been typed by the person looking at the board.",
+      "location": "src/data/migration.ts:45 (sanitizeGroupTitle); rendered at src/ui/GroupHeader.svelte:19, src/ui/CollapsibleGroup.svelte:42, src/ui/GroupSettingsPopup.svelte:30",
+      "impact": "Visual misrepresentation of board chrome only — no script execution, no data access, no privilege change. Worst realistic case is a group header or settings-popup heading that reads differently from the stored data, or a group that looks unnamed while behaving as renamed. Requires a hand-edited or externally supplied data.json.",
+      "recommendation": "Filter format/control code points in the existing sanitizer rather than at the render sites, so name and hint stay derived from one rule: `return value.replace(/[\\p{Cc}\\p{Cf}]/gu, '').trim().slice(0, GROUP_TITLE_MAX_LENGTH).replace(/[\\uD800-\\uDBFF]$/, '');` — stripping before trim() also makes a zero-width-only title collapse to '' and fall back to the localized default. Note this line belongs to Task 03's file and is outside this commit's diff; raised here because Task 06 is what makes the value user-visible. Deferring it to Task 08 (where the input field lands) is acceptable — but the fix belongs in the load-side sanitizer, not only in the input.",
+      "cwe": "CWE-451"
+    },
+    {
+      "severity": "minor",
+      "category": "best-practice",
+      "title": "EmptyState dereferences the new groupTitle prop without the defensive guard its sibling components use",
+      "description": "EmptyState.svelte:11 calls `groupTitle.trim()` on a required prop declared as `export let groupTitle: string` with no default. The three header/popup sites added in the same commit all read the same field defensively (`group.title ?? ''` in GroupHeader.svelte:15, GroupSettingsPopup.svelte:11, CollapsibleGroup.svelte:31), and both current EmptyState call sites do pass `?? ''` (TaskGroup.svelte:36, CollapsibleGroup.svelte:75) — so today the value is always a string. The asymmetry is the issue: if a future render site omits the prop, or a value that is neither string nor null/undefined reaches it, the reactive statement throws during render. Because EmptyState renders inside the board tree, a TypeError there aborts the whole board render, not just one group — the exact failure mode migration.ts:9-10 explicitly designs against ('an exception on hand-edited data would leave the user with no board at all'). The Svelte compiler does not enforce prop presence at runtime, so TypeScript typing is not a runtime control here.",
+      "location": "src/ui/EmptyState.svelte:8-13",
+      "impact": "Availability of the entire board view, not just one group, if a call site or data shape ever drifts. Not reachable through the current code paths: every dataStore write goes through migrateData(), which guarantees group.title is a string (src/main.ts:52, src/settings.ts re-sets the already-migrated object, tests/harness/main.ts:94).",
+      "recommendation": "Give the prop a default and keep the trim() rule intact — `export let groupTitle = '';` — or normalize once at the top: `$: renamed = String(groupTitle ?? '').trim() !== '';`. Either keeps the single trim()-based renamed-check the task requires (still one hit for the `grep -n \"trim()\"` verification step) while matching the `?? ''` posture of the other three components.",
+      "cwe": "CWE-476"
+    },
+    {
+      "severity": "minor",
+      "category": "best-practice",
+      "title": "Group settings popup heading renders the user-supplied name with no wrapping or truncation",
+      "description": "The commit hardens both header rows against a maximum-length name (min-width:0 + overflow:hidden + text-overflow:ellipsis + white-space:nowrap on the two titles, flex-shrink:0 on the six siblings), which is exactly what the task asked for. The third new display site was not covered: `.tm-popup__title` (src/styles.css:663-668) sets only margin/font/color, and the heading concatenates a localized label with the name (GroupSettingsPopup.svelte:30) inside a container capped at max-width:420px with 1.25rem padding. A 40-character name with no break opportunity (a single unbroken word, or CJK/emoji at wider advance) can overflow the popup box horizontally, since a long unbreakable word does not wrap by default.",
+      "location": "src/ui/GroupSettingsPopup.svelte:30, src/styles.css:663-668",
+      "impact": "Cosmetic layout overflow in a modal the user opened themselves. No content is hidden or spoofed, no control becomes unreachable — the popup's action buttons live in a separate flex row. Listed for completeness because it is the one of the three new name-display sites left without the length hardening applied to the other two.",
+      "recommendation": "Add `overflow-wrap: anywhere;` (or `word-break: break-word;`) to `.tm-popup__title` in src/styles.css. Strictly speaking this is beyond Task 06's stated eight selectors, so folding it into Task 08 — which adds the editing input and will exercise long names interactively — is a reasonable call.",
+      "cwe": null
+    }
+  ],
+  "verifiedClean": [
+    "No {@html} anywhere in src/ — the only match is the prose warning in the groupTitle.ts docblock. All four new display sites use {} text interpolation, which Svelte escapes at compile time.",
+    "No innerHTML / outerHTML / insertAdjacentHTML / document.write / eval in src/.",
+    "The group name never reaches an attribute, style binding, tooltip or data-* value. Every title= attribute in the touched components carries an i18n key ($t('groupHeader.settings'), $t('groupHeader.addTask')); the only style bindings are numeric (--tm-card-columns: {columns}); data-group-id={groupId} is a fixed GroupId union member, not user text.",
+    "src/ui/groupTitle.ts is untouched by commit 8dfff69 (absent from the diff's file list) and still exports exactly one function, per Task 05's constraint.",
+    "Every path that populates dataStore runs migrateData() first (src/main.ts:52 then :21/:45; src/settings.ts re-sets the same migrated object; tests/harness/main.ts:94), and its sanitization block sits outside all version branches (src/data/migration.ts:154-159), so group.title is a trimmed string of at most 40 UTF-16 units on every load — the unbounded-length-in-DOM concern is covered, including the lone-high-surrogate repair after slicing.",
+    "The 40-char cap plus the new overflow:hidden on both title spans also clips a stacked-combining-mark ('Zalgo') title to the span's box, so that variant cannot bleed over neighbouring chrome.",
+    "The renamed-check uses the same trim() emptiness rule as resolveGroupTitle(), so the displayed name and the empty-state hint cannot disagree; it appears exactly once, in EmptyState.svelte (no duplicate in TaskGroup.svelte or CollapsibleGroup.svelte).",
+    "No hardcoded secrets, credentials, tokens or keys in the diff. No new dependencies, no network calls, no deserialization of untrusted input introduced.",
+    "npm run build succeeds; the only warnings are the pre-existing a11y notices on the popup overlay divs, unchanged by this commit."
+  ]
+}

@@ -26,6 +26,7 @@ export interface Group {
   collapsed: boolean;
   completedRetentionDays: number | null;
   fullWidth: boolean; // true = полная ширина, false = половина
+  title: string; // user-defined name of this group on this board (not Board.title); '' = use the default localized name
 }
 
 export interface Board {
@@ -37,6 +38,7 @@ export interface Board {
   notesCollapsed: boolean;
   notesHidden: boolean;
   hiddenGroups: GroupId[];
+  groupOrder: GroupId[]; // render order of the groups on this board; always a permutation of GROUP_IDS
 }
 
 export interface Settings {

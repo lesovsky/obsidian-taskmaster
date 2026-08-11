@@ -1,0 +1,141 @@
+{
+  "reviewer": "dev-test-reviewer",
+  "status": "needs_improvement",
+  "commit": "65696f7",
+  "summary": "All 6 TDD anchors of Task 08 are implemented in tests/unit/dataStore.test.ts, plus a 7th test for the missing-group guard; the whole unit suite is 94 green on 65696f7. Test isolation is sound (beforeEach re-seeds the singleton store; 3x --sequence.shuffle runs and all 7 single-test runs pass). Mutation experiments in a throwaway worktree at 65696f7 killed 15 of 21 semantically meaningful mutants of updateBoard. The two gaps that matter are both explicit Acceptance Criteria of the task and both are cheap to close: removing persist() from updateBoard (dataStore.ts:224) leaves the suite green, and 'empty title never overwrites a stored title' leaves it green too, because every test starts from a board whose titles are already empty — so the store half of 'clearing a name returns the default' is never exercised. The rest are assertion-specificity gaps (per-group title mapping, first-40-vs-last-40 cap, board selected by id, unknown boardId, the deliberate no-sanitization of groupOrder). Separately, the popup-side hardening added by this task (hiddenGroups coercion, presentGroups filter, handleMove predicate guard) is untestable at unit level per Decision 11 and is not in the Task 10 scenario list either — that is a real, currently silent gap for the next wave, not a defect of this file. Note: the E2E behaviour listed in tech-spec Testing Strategy is deferred to Task 10 (feature scenarios), not Task 09 (locator migration only, no new scenarios); Task 10 covers the Task 08 UI criteria explicitly, including the placeholder contract (Сц.2) and save-without-editing (Сц.14). The 27 failing e2e scenarios in 0006/0007/0008 are the expected pre-Task-09 state and are not counted here.",
+  "findings": [
+    {
+      "severity": "major",
+      "category": "missing_coverage",
+      "location": "tests/unit/dataStore.test.ts (no test) / src/stores/dataStore.ts:224",
+      "issue": "The acceptance criterion \"updateBoard ... calls persist()\" is not verified. Measured on 65696f7: replacing the persist() call at dataStore.ts:224 with a comment keeps tests/unit/dataStore.test.ts fully green (7/7). A dropped persist() is exactly the regression that makes the popup look correct in the session and lose everything on reload — the class of bug the whole save chain exists to prevent. The comment at the top of the test file (\"persist() is a no-op here: pluginStore holds null\") documents why nothing was written, but pluginStore is a plain writable store and a fake plugin can be injected in one line.",
+      "recommendation": "Add a persist test: `const saveData = vi.fn(); beforeEach(() => { saveData.mockClear(); pluginStore.set({ saveData } as never); }); afterEach(() => pluginStore.set(null));` then `updateBoard(board.id, fields()); expect(saveData).toHaveBeenCalledTimes(1); expect(saveData.mock.calls[0][0]).toBe(get(dataStore));`. The identity assertion on the argument also pins that persist() writes the post-update snapshot rather than a stale copy. Verified on 65696f7: this test passes on the unmutated code and fails on the persist-removed mutant. Keep the afterEach reset so the fake plugin does not leak into other tests in the file.",
+      "litmusTestFailed": false
+    },
+    {
+      "severity": "major",
+      "category": "missing_coverage",
+      "location": "tests/unit/dataStore.test.ts:12-16, 68-76",
+      "issue": "No test ever overwrites a non-empty stored title. seedBoard() always builds a board via createDefaultBoard, where every Group.title is already '', so 'keeps an empty group title empty' asserts '' == '' on a field that was never written. Measured on 65696f7: the mutant `board.groups[id].title = sanitizeGroupTitle(fields.groupTitles[id]) || board.groups[id].title;` (a very plausible defensive \"don't clobber a name with an empty value\" edit) survives the committed suite untouched — yet it breaks the acceptance criterion \"Clearing a name and saving returns the group to its default localized name\", because a cleared field would silently keep the old name. The store half of that criterion is therefore uncovered.",
+      "recommendation": "Add a test that seeds a stored title and then clears it: `const board = createDefaultBoard('Board'); board.groups.focus.title = 'Долгострой'; dataStore.set({ ...DEFAULT_DATA, boards: [board], tasks: {} }); updateBoard(board.id, fields()); expect(readBoard(board.id).groups.focus.title).toBe('');` — plus the whitespace variant `fields({ groupTitles: titlesWith('focus', '   ') })` against the same pre-seeded board, which pins \"whitespace-only equals cleared\" rather than \"whitespace-only equals still empty\". Easiest structural fix: let seedBoard take an optional per-group title map so the existing tests can start from a renamed board. Verified on 65696f7: this test passes on the unmutated code and kills the mutant above.",
+      "litmusTestFailed": true
+    },
+    {
+      "severity": "minor",
+      "category": "missing_coverage",
+      "location": "tests/unit/dataStore.test.ts:37-41, 50-66, 106-111",
+      "issue": "Every title assertion targets a single group ('focus') via titlesWith(), so the per-group mapping is not pinned. Measured on 65696f7: the mutant `board.groups[id].title = sanitizeGroupTitle(fields.groupTitles['focus'])` — one group's name written onto all six — survives the committed suite. The same shape of bug in the fullWidth loop is caught, because 'still writes the pre-existing fields' asserts two different groups with two different values (focus true / backlog false).",
+      "recommendation": "Give the titles test the same shape as the fullWidth assertion: `const titles = Object.fromEntries(GROUP_IDS.map(id => [id, `name-${id}`])) as Record<GroupId, string>; updateBoard(board.id, fields({ groupTitles: titles })); for (const id of GROUP_IDS) expect(readBoard(board.id).groups[id].title).toBe(`name-${id}`);`. Verified on 65696f7: this kills the cross-wired mutant.",
+      "litmusTestFailed": false
+    },
+    {
+      "severity": "minor",
+      "category": "missing_coverage",
+      "location": "tests/unit/dataStore.test.ts:62-66",
+      "issue": "'caps a group title at 40 characters' feeds 'x'.repeat(60) and asserts only toHaveLength(40). With a homogeneous input the assertion cannot tell which 40 characters were kept. Measured on 65696f7: the mutant `.trim().slice(-40)` (keep the last 40 instead of the first 40) survives — a truncation bug that would show users the tail of their name.",
+      "recommendation": "Use a marker string and assert content, not just length: `const long = 'a'.repeat(39) + 'Z' + 'b'.repeat(20); updateBoard(board.id, fields({ groupTitles: titlesWith('focus', long) })); expect(readBoard(board.id).groups.focus.title).toBe('a'.repeat(39) + 'Z');`. Keep a boundary case too — a title of exactly 40 characters must survive untouched.",
+      "litmusTestFailed": false
+    },
+    {
+      "severity": "minor",
+      "category": "missing_coverage",
+      "location": "tests/unit/dataStore.test.ts:12-16 (single-board fixture) / src/stores/dataStore.ts:202",
+      "issue": "Every test seeds exactly one board, so nothing pins that updateBoard writes to the board identified by boardId. Measured on 65696f7: the mutant `const board = data.boards[0];` survives the committed suite. The user-visible consequence (settings of board A leaking onto board B) is only covered later, by Task 10 Сц.9 at E2E level.",
+      "recommendation": "Seed two boards and assert both sides: `const other = createDefaultBoard('Other'); dataStore.set({ ...DEFAULT_DATA, boards: [other, board], tasks: {} }); updateBoard(board.id, fields({ title: 'Renamed', groupTitles: titlesWith('focus', 'Fokus') })); expect(readBoard(other.id).title).toBe('Other'); expect(readBoard(other.id).groups.focus.title).toBe('');`. Put the target board second so a boards[0] regression fails loudly.",
+      "litmusTestFailed": false
+    },
+    {
+      "severity": "minor",
+      "category": "missing_coverage",
+      "location": "tests/unit/dataStore.test.ts (no test) / src/stores/dataStore.ts:203",
+      "issue": "The `if (board)` guard for an unknown boardId is untested. Measured on 65696f7: removing the guard (`if (true)`) survives the committed suite, because every test passes a valid id. The guard is what keeps a stale board id — for example a settings save racing a board deletion — from throwing inside a store update and leaving the store half-written.",
+      "recommendation": "Add `it('ignores an unknown board id', () => { const before = structuredClone(get(dataStore)); expect(() => updateBoard('no-such-board', fields({ title: 'X' }))).not.toThrow(); expect(get(dataStore)).toEqual(before); });` — the deep-equality half is what actually kills a guard-removal regression, not the not.toThrow().",
+      "litmusTestFailed": false
+    },
+    {
+      "severity": "minor",
+      "category": "missing_coverage",
+      "location": "tests/unit/dataStore.test.ts:78-84 / src/stores/dataStore.ts:212",
+      "issue": "'stores the supplied group order' passes a clean permutation of the six known ids, so it does not pin Decision 6's deliberate asymmetry (\"groupOrder is written as given; the sanitizer lives at load time, duplicating it here would be a second source of truth\"). Measured on 65696f7: adding `board.groupOrder = sanitizeGroupOrder(fields.groupOrder)` inside updateBoard survives the committed suite, so the decision the code comment defends is not enforced by any test.",
+      "recommendation": "Add one test with a deliberately non-canonical array and assert verbatim storage: `const raw = ['focus', 'focus', 'backlog'] as GroupId[]; updateBoard(board.id, fields({ groupOrder: raw })); expect(readBoard(board.id).groupOrder).toEqual(raw);` with a comment naming Decision 6, so a future \"defensive\" sanitizer added here fails a test that explains why it is unwanted.",
+      "litmusTestFailed": false
+    },
+    {
+      "severity": "minor",
+      "category": "empty_test",
+      "location": "tests/unit/dataStore.test.ts:68-76",
+      "issue": "Litmus failure on 'keeps an empty group title empty': deleting the title assignment from updateBoard entirely leaves this test green (measured on 65696f7 — it is killed only by the trim/cap tests). The test still earns its place, because it does kill the substitution mutant `sanitizeGroupTitle(...) || 'Focus'`, i.e. the regression it was actually written for. But as written it asserts the fixture's initial state as much as the code's behaviour.",
+      "recommendation": "Fold this into the pre-seeded-title fixture from the finding above: seed all six groups with stored names, save fields() with all-empty groupTitles, and assert all six became ''. That keeps the anti-substitution guarantee and additionally fails when the title write disappears or is skipped for empty values.",
+      "litmusTestFailed": true
+    },
+    {
+      "severity": "minor",
+      "category": "missing_coverage",
+      "location": "src/ui/BoardSettingsPopup.svelte:20-38 (hiddenGroups coercion, presentGroups, handleMove guard)",
+      "issue": "The hardening added by this task on the popup side has no coverage at any level. The hiddenGroups coercion exists specifically because a hand-edited null crashes the spread before any arrow logic runs (the wave-2 additional requirement), presentGroups exists so a missing group object does not blank the popup, and the handleMove predicate guard exists because moveGroup returns [] on a non-array input. All three are inline in a .svelte file, so Decision 11 rules out a unit test, and none of them appears in the Task 10 scenario list either — unlike the other UI criteria, this one is not deferred anywhere, it is simply uncovered. Per the review scope this is a note for the next wave, not a demand on Task 08.",
+      "recommendation": "Two options, in order of cost. (1) Cheapest and unit-testable: extract the coercion as a pure helper next to the order utils — `export function sanitizeHiddenGroups(value: unknown): GroupId[]` in src/ui/groupOrderUtils.ts — and cover null, undefined, a non-array, an unknown id, a duplicate and a valid list; the popup then calls it in place of the inline ternary. (2) At E2E level in Task 10: seed damaged data through `window.__test.resetData({ version: 8, boards: [{ ...board, hiddenGroups: null }], ... })`, open the board settings popup and assert six [data-settings-group] rows render and an arrow still works. Record whichever is chosen in the Task 10 scenario list so the gap stops being silent.",
+      "litmusTestFailed": false
+    },
+    {
+      "severity": "minor",
+      "category": "missing_coverage",
+      "location": "src/styles.css .tm-popup__group-row--hidden / Task 10 Сц.11",
+      "issue": "The acceptance criterion \"Toggling visibility changes both the row's dimming and its arrow behavior immediately, without saving\" is only half covered downstream: Task 10 Сц.11 asserts the arrow behaviour against the unsaved state but says nothing about the row modifier class. No existing suite references .tm-popup__group-row--hidden either (grep over tests/e2e returns nothing), so the dimming half is currently planned to reach production unverified.",
+      "recommendation": "One assertion inside the existing Сц.11, no new scenario: after unchecking visibility and before saving, `await expect(page.locator('[data-settings-group=\"delegated\"]')).toHaveClass(/tm-popup__group-row--hidden/);` and the negated form after re-checking. Add it to the Task 10 scenario text so the executing agent does not have to rediscover it.",
+      "litmusTestFailed": false
+    },
+    {
+      "severity": "minor",
+      "category": "missing_coverage",
+      "location": "src/ui/BoardSettingsPopup.svelte (maxlength on the name input) / Task 10 Сц.10",
+      "issue": "\"The name input ... refuses input beyond 40 characters\" is verified nowhere. Task 10 Сц.10 types exactly 40 characters, which passes whether or not maxlength is present, and the store-side cap (unit-tested here) hides the difference in the persisted data — so a dropped maxlength attribute would only be visible as a typing experience nobody checks.",
+      "recommendation": "Extend Сц.10 by one step rather than adding a scenario: fill the input with 45 characters and assert `expect(await input.inputValue()).toHaveLength(40)` before saving. This is an attribute-level check on the editing field, distinct from the store cap already covered by tests/unit/dataStore.test.ts.",
+      "litmusTestFailed": false
+    },
+    {
+      "severity": "minor",
+      "category": "anti_pattern",
+      "location": "tests/unit/dataStore.test.ts:12-22",
+      "issue": "Isolation currently holds — 3 shuffled runs and 7 single-test runs are green on 65696f7 — but it rests on two implicit properties. seedBoard spreads DEFAULT_DATA shallowly, so the store shares the module-level settings object with the exported constant (any future test touching updateSettings would mutate DEFAULT_DATA for the rest of the file), and it returns the very board object it put into the store, so the local `board` variable aliases store state; the last test relies on that aliasing to delete a group. Neither is a defect today, but both are the kind of shared state that turns a later added test into an order-dependent failure.",
+      "recommendation": "Make the fixture explicit: `dataStore.set(structuredClone({ ...DEFAULT_DATA, boards: [board], tasks: {} }))` and read the seeded board back through readBoard() so mutations in a test are visibly store mutations, plus `afterEach(() => dataStore.set(structuredClone(DEFAULT_DATA)))` to leave the singleton in a known state. Keep the deliberate aliasing in the missing-group test but say so in its comment.",
+      "litmusTestFailed": false
+    }
+  ],
+  "metrics": {
+    "measuredOnCommit": "65696f7",
+    "filesReviewed": 9,
+    "unitSuiteOnCommit": "94 passed (7 files), tests/unit/dataStore.test.ts: 7 passed",
+    "tddAnchorCoverage": "6/6 anchors implemented, plus 1 extra test (missing-group guard)",
+    "litmusTest": {
+      "checked": 7,
+      "passed": 5,
+      "failed": 2
+    },
+    "mutationExperiments": {
+      "total": 21,
+      "killed": 15,
+      "survived": 6,
+      "survivors": [
+        "persist() removed from updateBoard (dataStore.ts:224)",
+        "empty title never overwrites a stored title (|| board.groups[id].title)",
+        "title key cross-wired to 'focus' for all groups",
+        "title capped by slice(-40) instead of slice(0,40)",
+        "board resolved as data.boards[0] instead of find(b => b.id === boardId)",
+        "sanitizeGroupOrder applied to groupOrder inside updateBoard (violates Decision 6)"
+      ],
+      "notCounted": [
+        "aliasing-only mutants (groupOrder / hiddenGroups copied vs assigned) — semantically equivalent, no defect",
+        "if (board) guard removal — survives, reported as the unknown-boardId coverage gap"
+      ]
+    },
+    "isolation": "verified: 3x vitest --sequence.shuffle green, all 7 tests green when run individually with -t",
+    "coverageAssessment": "adequate",
+    "pyramidBalance": {
+      "unit": 7,
+      "integration": 0,
+      "e2e": 0,
+      "assessment": "healthy"
+    },
+    "e2eDeferral": "Task 08 UI criteria are deferred to Task 10 (feature E2E scenarios Сц.1-Сц.14), not Task 09 — Task 09 only migrates existing locators onto data-settings-group and writes no new scenarios. Covered there: rename visible everywhere and after reload (Сц.1), placeholder/raw-value contract and clearing (Сц.2), arrow reorder on the board (Сц.3, Сц.4), drag-and-drop after reorder without reload (Сц.5), row order on reopen with a hidden group in place (Сц.6), Cancel and overlay discard (Сц.7, Сц.8), two boards independent (Сц.9), 40-character name in the header (Сц.10), unsaved visibility changes arrow behaviour (Сц.11), popup fits the viewport and scrolls (Сц.12), empty-state hint by renamed state (Сц.13), save without editing keeps all six titles empty (Сц.14). Not covered anywhere and flagged above: row dimming class, the input's own 40-character limit, and the popup's corrupted-hiddenGroups path. The 27 currently red scenarios in tests/e2e/0006, 0007 and 0008 are the expected pre-Task-09 state."
+  }
+}

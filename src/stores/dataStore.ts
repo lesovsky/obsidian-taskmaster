@@ -2,6 +2,7 @@ import { writable, get } from 'svelte/store';
 import type { PluginData, Task, GroupId, Board, Settings, Status } from '../data/types';
 import { GROUP_IDS } from '../data/types';
 import { DEFAULT_DATA, createDefaultBoard } from '../data/defaults';
+import { sanitizeGroupTitle } from '../data/migration';
 import { pluginStore } from './pluginStore';
 import { uiStore } from './uiStore';
 import { formatDate } from '../utils/dateFormat';
@@ -196,7 +197,7 @@ export function createBoard(): void {
   persist();
 }
 
-export function updateBoard(boardId: string, fields: { title: string; subtitle: string; hiddenGroups: GroupId[]; groupFullWidths: Record<GroupId, boolean>; notesHidden: boolean }): void {
+export function updateBoard(boardId: string, fields: { title: string; subtitle: string; hiddenGroups: GroupId[]; groupFullWidths: Record<GroupId, boolean>; groupTitles: Record<GroupId, string>; groupOrder: GroupId[]; notesHidden: boolean }): void {
   dataStore.update(data => {
     const board = data.boards.find(b => b.id === boardId);
     if (board) {
@@ -204,8 +205,22 @@ export function updateBoard(boardId: string, fields: { title: string; subtitle: 
       board.subtitle = fields.subtitle;
       board.hiddenGroups = fields.hiddenGroups;
       board.notesHidden = fields.notesHidden;
+      // Порядок пишется как пришёл: единственный его источник — попап, который может выдать
+      // только перестановку известных идентификаторов, а повреждённое вручную значение чинит
+      // санитайзер на каждой загрузке (Decision 6). Второй санитайзер здесь был бы дублем.
+      board.groupOrder = fields.groupOrder;
       for (const id of GROUP_IDS) {
-        board.groups[id].fullWidth = fields.groupFullWidths[id];
+        // Группа может отсутствовать в объекте после ручной правки data.json — миграция такие
+        // ключи не восстанавливает. Проверяем значение, а не наличие ключа: `"focus": null`
+        // прошло бы проверку ключа и уронило бы запись на полпути, оставив доску наполовину
+        // обновлённой и без persist().
+        const group = board.groups[id];
+        if (!group) continue;
+        // === true, а не значение как есть: неполная карта записала бы undefined в boolean-поле.
+        group.fullWidth = fields.groupFullWidths[id] === true;
+        // Нормализация названия — на границе стора, а не на maxlength поля ввода (Decision 7):
+        // тот же санитайзер, что и на загрузке, поэтому правила не расходятся между входами.
+        group.title = sanitizeGroupTitle(fields.groupTitles[id]);
       }
     }
     return data;

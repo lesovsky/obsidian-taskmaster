@@ -1,0 +1,63 @@
+{
+  "reviewer": "dev-code-reviewer",
+  "status": "approved_with_suggestions",
+  "summary": "Reviewed commit 3dda490 (parent 347ed31). The implementation does exactly what Task 07 asks and no more: the six literal {#if} blocks stay literal, DOM order of the wrappers is untouched, visual order comes from an inline `order` on the wrappers derived from board.groupOrder, and classes plus order values come from one array so pairing and position cannot diverge. All twelve Acceptance Criteria are satisfied; no critical or major findings. The three notes below are readability/robustness suggestions, chiefly about the {#if groupStyles['<id>']} construct, which is correct today but leans on the truthiness of a formatted string.",
+  "criticalIssues": [],
+  "suggestions": [
+    {
+      "file": "src/ui/BoardLayout.svelte",
+      "line": 40,
+      "severity": "minor",
+      "category": "readability",
+      "suggestion": "The render condition of the six wrappers is `{#if groupStyles['<id>']}` — the truthiness of the string \"order: N\". The implementer's rationale holds: the record has a key for exactly the groups that render, so a wrapper structurally cannot appear without an order value (task AC: 'no wrapper ever renders with an empty or undefined order'), and a board with a hand-deleted group object now opens instead of throwing. Verified: N starts at 1 and the value is always a non-empty string, so no rendered group can be dropped by an accidental falsy value today. Two things still argue for an explicit set: (1) the condition reads as 'does this group have a style?' rather than 'is this group rendered?', so the intent lives in the comment rather than in the code; (2) it depends on the value staying a non-empty *string*. The natural follow-up refactor — Svelte's `style:order={n}` directive with a numeric map, which Task 8 may reach for — turns position 0 into a falsy value and would silently delete the first group from the board, with a green unit suite (the component is not rendered in tests, vitest environment: 'node'). Concrete alternative that keeps the same single-source guarantee: `$: renderedGroups = new Set(orderedGroups.map(g => g.id));` then `{#if renderedGroups.has('backlog')}` with `style={groupStyles['backlog']}` unchanged. Both derive from `orderedGroups` on adjacent lines, so 'a wrapper cannot render without an order' stays just as evident, while the condition states the intent and stops depending on the shape of the style value. `'backlog' in groupStyles` is a cheaper variant with the same effect. Judgement: the current construct is acceptable and not a defect — do not treat this as a required change.",
+      "benefit": "Condition states intent directly; removes a latent trap where changing the order value's representation (number instead of string, 0-based instead of 1-based) would silently drop a group with no test catching it.",
+      "optional": true
+    },
+    {
+      "file": "src/ui/BoardLayout.svelte",
+      "line": 28,
+      "severity": "minor",
+      "category": "maintainability",
+      "suggestion": "`.filter(id => !hidden.has(id) && board.groups[id])` is a runtime guard that the type system cannot see: `Board.groups` is `Record<GroupId, Group>` (src/data/types.ts), so TypeScript considers `board.groups[id]` always present and the second conjunct dead. Only the comment above it explains why it exists — a lint rule such as `@typescript-eslint/no-unnecessary-condition`, or a reader trusting the types, would delete it and restore the crash on a hand-edited data.json. The comment is the right mitigation and it is accurate (sanitizeGroupOrder does live in migration.ts and does not recreate missing group objects — confirmed at src/data/migration.ts:150-158 and tests/unit/migration.test.ts:289-299). Consider making the intent machine-visible instead, e.g. `board.groups[id] as Group | undefined`, so the guard survives a tooling pass.",
+      "benefit": "The board-must-open invariant stops depending on a comment surviving future edits.",
+      "optional": true
+    },
+    {
+      "file": "src/ui/BoardLayout.svelte",
+      "line": 27,
+      "severity": "minor",
+      "category": "maintainability",
+      "suggestion": "An id present in `board.groups` but absent from `board.groupOrder` now renders nothing at all — the group and its tasks vanish from the board (data intact, but unreachable until reload). Task 3's sanitizer appends missing ids on every load, so this is unreachable from stored data; it becomes reachable only if a runtime mutation writes a short `groupOrder` without re-sanitizing. Task 8 owns that write path. Worth carrying forward as an explicit check on Task 8's reorder chain (moveGroup must always emit a full permutation) rather than fixing here — adding a defensive 'append the missing ones' pass in the component would duplicate the sanitizer, which the task explicitly forbids.",
+      "benefit": "Names the one runtime path that could turn this silent-skip policy from a robustness feature into a disappearing-group bug, and points it at the task that owns it.",
+      "optional": true
+    }
+  ],
+  "metrics": {
+    "filesReviewed": 4,
+    "criticalIssuesCount": 0,
+    "majorIssuesCount": 0,
+    "minorIssuesCount": 3,
+    "testCoverageAssessment": "adequate"
+  },
+  "verificationNotes": {
+    "measuredAt": "3dda490",
+    "npmTest": "87 passed / 6 files, re-run by this reviewer at 3dda490 (boardLayoutUtils.test.ts: 8 tests, was 5)",
+    "notRerun": "npm run build, npx playwright test — taken as reported by the orchestrator, not re-measured; the shared tree was left untouched (git status --porcelain: only the pre-existing untracked logs/).",
+    "tscNote": "npx tsc --noEmit deliberately not used as evidence — it ignores .svelte files (tech-spec Decision 11).",
+    "mutationTesting": "None injected. The one question mutation would have answered is settled analytically: git diff 347ed31..3dda490 -- src/ui/boardLayoutUtils.ts removes two comment lines and nothing else, so the three new unit cases necessarily pass at the parent commit too. They are regression guards pinning an already order-agnostic function, not tests that could go red before the implementation. This matches the task's own TDD Anchor caveat ('do not treat a green unit suite as evidence that the ordering works') but contradicts its instruction to 'watch them fail against the current file' — an inconsistency in the task file, not a defect in the implementation. Behavioural coverage of the rendered order remains owed by Task 10.",
+    "acceptanceCriteria": [
+      "AC1 order derived from board.groupOrder, filtered by hiddenGroups — met (BoardLayout.svelte:27-29); local GROUP_ORDER constant removed entirely",
+      "AC2 six literal {#if} blocks, no {#each}, DOM order unchanged — met (BoardLayout.svelte:195-285); wrappers keep their positions, only attributes changed, so Svelte does an attribute update and the SortableJS instances on the bodies (TaskGroup.svelte:32, CollapsibleGroup.svelte:70) are not torn down",
+      "AC3 every rendered wrapper carries an inline order, never empty/undefined — met by construction: the {#if} key and the style value are the same record entry",
+      "AC4 data-group-container with the group id on every wrapper — met",
+      "AC5 grep -rn 'data-group-container' src/ → 6 hits, all in BoardLayout.svelte — verified by this reviewer",
+      "AC6 data-group-id still on exactly one element per group — verified: only TaskGroup.svelte:32 and CollapsibleGroup.svelte:70, and a group renders exactly one of the two components",
+      "AC7 .tm-board-layout__notes order: 100 > max group order 6, with a comment explaining why it must not be cleaned up — met (styles.css:86-91)",
+      "AC8 computeGroupClasses body unchanged, only the stale header comment removed — verified against the diff",
+      "AC9 arbitrary-order unit cases added, npm test green — met (3 new cases, 87 passed)",
+      "AC10/AC11/AC12 build, 0007 e2e unmodified, drag across reordered groups — as reported by the orchestrator; not re-measured here"
+    ],
+    "conventions": "CLAUDE.md respected: no <style> block added to the component, the CSS change lives in src/styles.css on an existing tm--prefixed BEM class, no new class introduced, no {@html}, no direct DOM manipulation. Russian comments in .svelte/.css match existing practice in this repo (styles.css:309, 671, 888). Inline style is used only for the layout order — the styling itself stays in the stylesheet, which is the narrow exception this approach requires.",
+    "securityAndPerformance": "No user-controlled data reaches the style attribute (the value is built from an array index) and the data-group-container values are static literals — no injection surface. The three reactive statements recompute over at most six elements on every board change; cost is negligible."
+  }
+}

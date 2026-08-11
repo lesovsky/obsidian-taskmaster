@@ -9,6 +9,7 @@ import {
   saveBoardSettings,
   closeBoardSettings,
 } from './helpers';
+import type { GroupId } from '../../src/data/types';
 
 test.beforeEach(async ({ page }) => {
   await page.goto('/');
@@ -16,10 +17,10 @@ test.beforeEach(async ({ page }) => {
 });
 
 // Helper: hide a group via board settings popup
-async function hideGroup(page: Page, groupName: string) {
+async function hideGroup(page: Page, groupId: GroupId) {
   await openBoardSettings(page);
-  // Find the row by group name and uncheck visibility toggle
-  const row = page.locator('.tm-popup__group-row').filter({ hasText: groupName });
+  // Find the row by group id and uncheck visibility toggle
+  const row = page.locator(`[data-settings-group="${groupId}"]`);
   const visibilityCheckbox = row.locator('.tm-popup__group-toggle').first();
   if (await visibilityCheckbox.isChecked()) {
     await visibilityCheckbox.click();
@@ -28,9 +29,9 @@ async function hideGroup(page: Page, groupName: string) {
 }
 
 // Helper: show a group via board settings popup
-async function showGroup(page: Page, groupName: string) {
+async function showGroup(page: Page, groupId: GroupId) {
   await openBoardSettings(page);
-  const row = page.locator('.tm-popup__group-row').filter({ hasText: groupName });
+  const row = page.locator(`[data-settings-group="${groupId}"]`);
   const visibilityCheckbox = row.locator('.tm-popup__group-toggle').first();
   if (!(await visibilityCheckbox.isChecked())) {
     await visibilityCheckbox.click();
@@ -47,12 +48,12 @@ test('Сц.1 hide and restore group — tasks preserved', async ({ page }) => {
   await createTask(page, 'orgIntentions', { what: 'Org task 2' });
 
   // Hide orgIntentions
-  await hideGroup(page, 'Org Intentions');
+  await hideGroup(page, 'orgIntentions');
   // Group is gone from board
   await expect(page.locator('.tm-task-group:has([data-group-id="orgIntentions"])')).not.toBeVisible();
 
   // Restore
-  await showGroup(page, 'Org Intentions');
+  await showGroup(page, 'orgIntentions');
   // Group is back with 2 tasks
   await expect(page.locator('[data-group-id="orgIntentions"] .tm-task-card')).toHaveCount(2);
 });
@@ -63,10 +64,10 @@ test('Сц.2 task counter shown in popup for non-empty groups', async ({ page })
 
   await openBoardSettings(page);
   // Focus row should show (2)
-  const focusRow = page.locator('.tm-popup__group-row').filter({ hasText: 'Focus' });
+  const focusRow = page.locator('[data-settings-group="focus"]');
   await expect(focusRow.locator('.tm-popup__group-count')).toContainText('(2)');
   // InProgress row (no tasks) should NOT show counter
-  const inProgressRow = page.locator('.tm-popup__group-row').filter({ hasText: 'In Progress' });
+  const inProgressRow = page.locator('[data-settings-group="inProgress"]');
   await expect(inProgressRow.locator('.tm-popup__group-count')).not.toBeVisible();
   await closeBoardSettings(page);
 });
@@ -74,18 +75,18 @@ test('Сц.2 task counter shown in popup for non-empty groups', async ({ page })
 test('Сц.3 Cancel discards changes', async ({ page }) => {
   await openBoardSettings(page);
   // Uncheck backlog (but don't save)
-  const backlogRow = page.locator('.tm-popup__group-row').filter({ hasText: 'Backlog' });
+  const backlogRow = page.locator('[data-settings-group="backlog"]');
   await backlogRow.locator('.tm-popup__group-toggle').first().click();
   await closeBoardSettings(page);
 
   // Backlog group header should still be visible on board (collapsed but present)
-  await expect(page.locator('.tm-collapsible-group__header').filter({ hasText: 'Backlog' })).toBeVisible();
+  await expect(page.locator('[data-group-container="backlog"] .tm-collapsible-group__header')).toBeVisible();
 });
 
 test('Сц.4 click overlay closes without saving', async ({ page }) => {
   await openBoardSettings(page);
   // Uncheck focus
-  const focusRow = page.locator('.tm-popup__group-row').filter({ hasText: 'Focus' });
+  const focusRow = page.locator('[data-settings-group="focus"]');
   await focusRow.locator('.tm-popup__group-toggle').first().click();
   // Click overlay
   await page.locator('.tm-popup-overlay').click({ position: { x: 10, y: 10 } });
@@ -97,7 +98,7 @@ test('Сц.4 click overlay closes without saving', async ({ page }) => {
 
 test('Сц.5 per-board visibility settings', async ({ page }) => {
   // Board A: hide delegated
-  await hideGroup(page, 'Delegated');
+  await hideGroup(page, 'delegated');
   await expect(page.locator('.tm-task-group:has([data-group-id="delegated"])')).not.toBeVisible();
 
   // Create board B
@@ -108,7 +109,7 @@ test('Сц.5 per-board visibility settings', async ({ page }) => {
   await expect(page.locator('[data-group-id="delegated"]')).toBeVisible();
 
   // Hide focus on board B
-  await hideGroup(page, 'Focus');
+  await hideGroup(page, 'focus');
   await expect(page.locator('[data-group-id="focus"]')).not.toBeVisible();
 
   // Switch back to board A
@@ -127,7 +128,7 @@ test('Сц.5 per-board visibility settings', async ({ page }) => {
 
 test('Сц.7 delete task when completed is hidden → toast appears, undo works', async ({ page }) => {
   await createTask(page, 'focus', { what: 'Delete hidden completed' });
-  await hideGroup(page, 'Completed');
+  await hideGroup(page, 'completed');
 
   // Delete task
   await page.locator('[data-group-id="focus"] .tm-task-card .tm-task-card__delete').first().click();
@@ -139,7 +140,7 @@ test('Сц.7 delete task when completed is hidden → toast appears, undo works'
 });
 
 test('Сц.8 add task when backlog is hidden → task created in visible group', async ({ page }) => {
-  await hideGroup(page, 'Backlog');
+  await hideGroup(page, 'backlog');
   // Focus should still have + button
   await createTask(page, 'focus', { what: 'Task while backlog hidden' });
   await expect(page.locator('[data-group-id="focus"] .tm-task-card')).toHaveCount(1);
@@ -152,9 +153,9 @@ test('Сц.8 add task when backlog is hidden → task created in visible group',
 test('Сц.9 last visible group checkbox is disabled', async ({ page }) => {
   await openBoardSettings(page);
   // Hide 5 groups (leave only focus)
-  const groups = ['Backlog', 'In Progress', 'Org Intentions', 'Delegated', 'Completed'];
-  for (const name of groups) {
-    const row = page.locator('.tm-popup__group-row').filter({ hasText: name });
+  const groups: GroupId[] = ['backlog', 'inProgress', 'orgIntentions', 'delegated', 'completed'];
+  for (const groupId of groups) {
+    const row = page.locator(`[data-settings-group="${groupId}"]`);
     const cb = row.locator('.tm-popup__group-toggle').first();
     if (await cb.isEnabled()) {
       await cb.click();
@@ -162,7 +163,7 @@ test('Сц.9 last visible group checkbox is disabled', async ({ page }) => {
   }
 
   // Focus should now be the only visible one — checkbox disabled
-  const focusRow = page.locator('.tm-popup__group-row').filter({ hasText: 'Focus' });
+  const focusRow = page.locator('[data-settings-group="focus"]');
   await expect(focusRow.locator('.tm-popup__group-toggle').first()).toBeDisabled();
   await closeBoardSettings(page);
 });
@@ -172,7 +173,7 @@ test('Сц.9 last visible group checkbox is disabled', async ({ page }) => {
 // ────────────────────────────────────────────────────────────────────────────────
 
 test('Сц.10 hide focus → inProgress expands to full width', async ({ page }) => {
-  await hideGroup(page, 'Focus');
+  await hideGroup(page, 'focus');
   // inProgress should now be --half-alone or full width
   const inProgress = page.locator('.tm-task-group:has([data-group-id="inProgress"])').locator('..');
   // The parent div should have class containing 'full' or 'half-alone'
@@ -181,7 +182,7 @@ test('Сц.10 hide focus → inProgress expands to full width', async ({ page })
 });
 
 test('Сц.11 hide inProgress → focus expands to full width', async ({ page }) => {
-  await hideGroup(page, 'In Progress');
+  await hideGroup(page, 'inProgress');
   const focus = page.locator('.tm-task-group:has([data-group-id="focus"])').locator('..');
   const cls = await focus.getAttribute('class') ?? '';
   expect(cls).toMatch(/full|half-alone/);
@@ -189,9 +190,9 @@ test('Сц.11 hide inProgress → focus expands to full width', async ({ page })
 
 test('Сц.12 hide both focus and inProgress → no empty row', async ({ page }) => {
   await openBoardSettings(page);
-  const focusRow = page.locator('.tm-popup__group-row').filter({ hasText: 'Focus' });
+  const focusRow = page.locator('[data-settings-group="focus"]');
   await focusRow.locator('.tm-popup__group-toggle').first().click();
-  const inProgressRow = page.locator('.tm-popup__group-row').filter({ hasText: 'In Progress' });
+  const inProgressRow = page.locator('[data-settings-group="inProgress"]');
   await inProgressRow.locator('.tm-popup__group-toggle').first().click();
   await saveBoardSettings(page);
 
@@ -208,7 +209,7 @@ test('Сц.12 hide both focus and inProgress → no empty row', async ({ page })
 
 test('Сц.13 DnD between visible groups with hidden orgIntentions', async ({ page }) => {
   const taskId = await createTask(page, 'backlog', { what: 'DnD task' }, { expand: true });
-  await hideGroup(page, 'Org Intentions');
+  await hideGroup(page, 'orgIntentions');
 
   // Move backlog → focus
   await moveTask(page, taskId, 'backlog', 'focus');
@@ -222,20 +223,20 @@ test('Сц.13 DnD between visible groups with hidden orgIntentions', async ({ pa
 
 test('Сц.14 toggle checkbox multiple times → only final state saved', async ({ page }) => {
   await openBoardSettings(page);
-  const backlogRow = page.locator('.tm-popup__group-row').filter({ hasText: 'Backlog' });
+  const backlogRow = page.locator('[data-settings-group="backlog"]');
   const cb = backlogRow.locator('.tm-popup__group-toggle').first();
   // Toggle 4 times (ends checked = visible)
   for (let i = 0; i < 4; i++) await cb.click();
   await saveBoardSettings(page);
 
   // Backlog should be visible (collapsed header present)
-  await expect(page.locator('.tm-collapsible-group__header').filter({ hasText: 'Backlog' })).toBeVisible();
+  await expect(page.locator('[data-group-container="backlog"] .tm-collapsible-group__header')).toBeVisible();
 });
 
 test('Сц.15 hide then show collapsed group → collapsed state preserved', async ({ page }) => {
   // Backlog is collapsed by default
-  await hideGroup(page, 'Backlog');
-  await showGroup(page, 'Backlog');
+  await hideGroup(page, 'backlog');
+  await showGroup(page, 'backlog');
   // Backlog should still be collapsed (body not visible)
   await expect(page.locator('[data-group-id="backlog"]')).not.toBeVisible();
 });
@@ -243,8 +244,8 @@ test('Сц.15 hide then show collapsed group → collapsed state preserved', asy
 test('Сц.16 move task to group, hide then show group → task still there', async ({ page }) => {
   const taskId = await createTask(page, 'focus', { what: 'Move then hide' });
   await moveTask(page, taskId, 'focus', 'delegated');
-  await hideGroup(page, 'Delegated');
-  await showGroup(page, 'Delegated');
+  await hideGroup(page, 'delegated');
+  await showGroup(page, 'delegated');
   await expect(page.locator('[data-group-id="delegated"] .tm-task-card')).toHaveCount(1);
 });
 

@@ -1,0 +1,51 @@
+{
+  "reviewer": "dev-code-reviewer",
+  "status": "approved_with_suggestions",
+  "summary": "All three round-1 suggestions are resolved correctly and cheaply: EmptyState's prop got its default, TaskGroup now mirrors CollapsibleGroup's `$: storedTitle = group.title ?? ''` so both EmptyState parents read identically, and the decisions-log entry is the only one still outstanding. The fix commit is 12 insertions across 4 files with no collateral edits — no readability or scope regression, and the eight header selectors from round 1 are untouched. I independently confirmed both new assertions do the work claimed for them: with the header mutant live scenario 3.4 fails with Received \"\", and with the popup mutant live scenario 8.1 fails with Received \"Settings: \" — restoring the committed code turns each green. vitest is 84/84 and the production build emits only the two pre-existing a11y warnings. The ninth selector (.tm-popup__title, overflow-wrap: anywhere) is within bounds: same defect class, on a display site this very task rewrote, three lines including the comment, and it must be `anywhere` rather than the file's older `word-break: break-word` because only `anywhere` shrinks min-content and stops the popup widening past its 278px box. ONE PROCESS FINDING, not a defect in b272b83: the working tree still holds an uncommitted mutant in src/ui/GroupSettingsPopup.svelte from a mutation run that is executing while this review runs — it must be reverted before the wave is committed.",
+  "criticalIssues": [],
+  "suggestions": [
+    {
+      "file": "src/ui/GroupSettingsPopup.svelte",
+      "line": 11,
+      "severity": "major",
+      "category": "testing",
+      "suggestion": "The working tree is dirty with a live mutant, and it is not in any commit. `git status --short src/` currently reports `M src/ui/GroupSettingsPopup.svelte`, where line 11 reads `$: title = group.title ?? '';` instead of the committed `$: title = resolveGroupTitle(group.title ?? '', $groupLabels[groupId]);`. The file's mtime (16:49) is three minutes after commit b272b83 (16:46), so this is a mutation experiment still in flight — mutation runs are injecting into the shared working tree while the round-2 reviewers read it. I hit the same thing in src/ui/GroupHeader.svelte at the start of this review (`$: title = group.title ?? ''`, also uncommitted); I parked it, verified the committed code, then dropped the stash, so that file is back at HEAD and my temporary debug spec is deleted. GroupSettingsPopup I deliberately did NOT touch — reverting another agent's in-flight experiment would corrupt it. Action for whoever closes the wave: run `git checkout src/ui/GroupSettingsPopup.svelte` once the mutation run reports done, and confirm `git status --short src/` is empty before committing. Committing as-is ships a group settings popup whose heading renders `Settings:` with no group name at all. Worth noting as a canary: with the GroupHeader mutant live, `npm run build` emitted a third warning — \"GroupHeader has unused export property 'groupId'\" — because dropping the resolveGroupTitle call orphans the prop. A build that suddenly reports 3 warnings instead of 2 is a cheap signal that a display site has been reverted.",
+      "benefit": "The wave commits the code that was actually reviewed and gated, instead of a mutant that blanks the group name in the settings popup.",
+      "optional": false
+    },
+    {
+      "file": "src/styles.css",
+      "line": 670,
+      "severity": "minor",
+      "category": "best-practices",
+      "suggestion": "The ninth selector is justified and the choice of property is the right one — record both in the decisions log rather than just the fact of the deviation. Two points are worth a sentence each. First, `overflow-wrap: anywhere` is not interchangeable with the `word-break: break-word` this file already uses at lines 330 and 727: only `anywhere` reduces the element's min-content contribution, which is what actually stops `.tm-popup` (min-width 320px, max-width 420px, border-box, so a 278px content box at a 320px viewport) from being stretched by a single unbroken word. Someone later \"harmonising\" it to the older `word-break` would silently reintroduce the overflow. Second, the two headers truncate with an ellipsis while the popup wraps — deliberate and correct, since a header row must stay one line whereas a dialog heading has vertical room and truncating it would hide the very name the dialog is about, but it reads as an inconsistency to anyone diffing the three title styles. Note also that `.tm-popup__title` is shared with BoardSettingsPopup, where the content is a static localized heading, so the rule is inert there — no visual change, no need to guard it.",
+      "benefit": "The deviation survives as a decision with its reasoning attached, so the property is not 'simplified' into a version that does not fix the bug.",
+      "optional": true
+    },
+    {
+      "file": "tests/e2e/core.spec.ts",
+      "line": 267,
+      "severity": "minor",
+      "category": "maintainability",
+      "suggestion": "Both new assertions are correct and I verified they kill their mutants, but two small things about their placement. (a) `page.locator('.tm-popup__title')` is unscoped, while every other popup helper in tests/e2e/helpers.ts reaches through the container (`.tm-popup .tm-popup__btn--primary`, `page.waitForSelector('.tm-popup')`). `.tm-popup__title` is also BoardSettingsPopup's heading class, and nothing structurally prevents both popups being mounted at once — the group popup lives in BoardLayout, the board popup in BoardHeader. Today only one is open in 8.1, so the locator resolves uniquely; scoping it (e.g. `.tm-popup:has(#tm-wip) .tm-popup__title`) removes a future strict-mode surprise for one token. (b) Scenarios 3.4 (\"create 3 tasks → counter shows 3\") and 8.1 (\"set WIP=3 → counter shows (N/3)\") now also fail for a reason their names do not advertise, which costs a moment of diagnosis when they go red. That is the accepted price of Task 09's fixed count of 35/84, and it is the right trade here — but a one-line comment already present in each is doing real work, so keep it when Task 10 lands and resist folding these two assertions into the feature spec: they guard the default/fallback path, which the rename-focused suite will not cover.",
+      "benefit": "The two piggybacked assertions stay unambiguous and survive Task 10 without being mistaken for duplicates of the feature suite.",
+      "optional": true
+    },
+    {
+      "file": "docs/features/0011-feat-group-customization/0011-feat-group-customization-decisions.md",
+      "line": 0,
+      "severity": "minor",
+      "category": "maintainability",
+      "suggestion": "Still the only unresolved round-1 item — the log has sections for Tasks 01-05 and none for 06. Four things now belong in it, not one: (1) the EmptyState prop contract — name `groupTitle`, value is the stored title string `group.title`, deliberately not a boolean, the trim() check lives inside the component (Task 10 writes E2E against this); (2) that the prop now carries a default `''`, which means Svelte's dev-time \"created without expected prop\" warning no longer fires for it — a forgotten prop at a future call site degrades silently to today's semantic hint instead of throwing, which is the intended trade but should not surprise anyone; (3) the ninth selector with its measurement (39-char unbroken name, 357px of content in a 278px box at 320px, 278/278 after) and why `anywhere` and not `break-word`; (4) that the task's two untested display sites were closed by assertions added inside existing scenarios 3.4 and 8.1 rather than as new tests, to hold Task 09's count at 35/84.",
+      "benefit": "Task 08, 09 and 10 read the prop contract, the CSS deviation and the test-count constraint from one place instead of reconstructing them from the diff.",
+      "optional": true
+    }
+  ],
+  "metrics": {
+    "filesReviewed": 4,
+    "criticalIssuesCount": 0,
+    "majorIssuesCount": 1,
+    "minorIssuesCount": 3,
+    "testCoverageAssessment": "adequate"
+  }
+}

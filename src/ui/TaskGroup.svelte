@@ -21,6 +21,7 @@
   $: cardLayout = $dataStore.settings.cardLayout;
   $: isMulti = cardLayout === 'multi';
   $: columns = isMulti ? (group.fullWidth ? 4 : 2) : 1;
+  $: storedTitle = group.title ?? '';
 </script>
 
 <div class="tm-task-group">
@@ -33,7 +34,7 @@
     style="--tm-card-columns: {columns}"
   >
     {#if groupTasks.length === 0}
-      <EmptyState {groupId} />
+      <EmptyState {groupId} groupTitle={storedTitle} />
     {:else}
       {#each groupTasks as task (task.id)}
         <TaskCard

@@ -201,7 +201,7 @@ test('TC-13 change group from full to half in multi → columns 4→2', async ({
 
   // Change orgIntentions to half-width
   await openBoardSettings(page);
-  const orgRow = page.locator('.tm-popup__group-row').filter({ hasText: 'Org Intentions' });
+  const orgRow = page.locator('[data-settings-group="orgIntentions"]');
   const fullWidthCb = orgRow.locator('.tm-popup__group-toggle').nth(1);
   if (await fullWidthCb.isChecked()) await fullWidthCb.click();
   await saveBoardSettings(page);

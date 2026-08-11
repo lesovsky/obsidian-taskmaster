@@ -20,12 +20,39 @@
   let settingsGroupId: GroupId | null = null;
   $: hidden = new Set(board.hiddenGroups);
 
-  const GROUP_ORDER: GroupId[] = ['backlog', 'focus', 'inProgress', 'orgIntentions', 'delegated', 'completed'];
-
-  $: visibleGroups = GROUP_ORDER
-    .filter(id => !hidden.has(id))
+  // Порядок отрисовки берётся из board.groupOrder. Санитайзер в migration.ts гарантирует, что это
+  // перестановка известных идентификаторов на каждой загрузке, но не гарантирует, что объект группы
+  // существует: доску с вручную удалённым ключом группы миграция не восстанавливает. Такие
+  // идентификаторы просто не рисуем — доска открывается без них.
+  // Оговорка: на удалённой группе completed это не спасает. cleanupCompletedTasks (cleanup.ts:4)
+  // читает board.groups.completed.completedRetentionDays фиксированным путём и падает при загрузке,
+  // до всякого рендера. Лечится не здесь.
+  // hasOwnProperty, а не просто board.groups[id]: доступ по ключу ходит по цепочке прототипов, и
+  // идентификатор вида 'constructor' прошёл бы фильтр, заняв позицию и сдвинув order всех
+  // остальных. Сегодня недостижимо — санитайзер такие ключи режет, — но задача 08 добавляет в
+  // groupOrder второго писателя, и проверка не должна зависеть от чужой корректности.
+  // Не Object.hasOwn: это ES2022, а проект объявляет ES2021 в tsconfig.json и esbuild.config.mjs
+  // и не является desktop-only (manifest.json). Гейта на такой промах нет — tsc не читает .svelte.
+  $: orderedGroups = board.groupOrder
+    .filter(id => !hidden.has(id) && Object.prototype.hasOwnProperty.call(board.groups, id))
     .map(id => ({ id, fullWidth: board.groups[id].fullWidth }));
-  $: groupClasses = computeGroupClasses(visibleGroups);
+
+  // Классы, значения order и признак «группа рисуется» выводятся из одного и того же массива:
+  // разъедься они, «кто с кем в паре» перестало бы совпадать с «кто где стоит».
+  $: groupClasses = computeGroupClasses(orderedGroups);
+
+  // Визуальный порядок задаётся свойством order на обёртках — DOM-порядок шести блоков ниже
+  // остаётся неизменным, иначе Svelte пересоздал бы обёртки и уничтожил инстансы SortableJS
+  // внутри них. Нумерация с 1: 0 достаётся элементам без order (см. .tm-board-layout__notes).
+  $: groupStyles = Object.fromEntries(
+    orderedGroups.map((g, i) => [g.id, `order: ${i + 1}`]),
+  ) as Partial<Record<GroupId, string>>;
+
+  // Условие {#if} у каждой из шести обёрток: обёртка рисуется ровно у той группы, которая попала
+  // в orderedGroups, а значит получила и класс, и order. Отдельный Set, а не проверка
+  // groupStyles[id] на истинность: условие не должно зависеть от формы значения — при переходе на
+  // числовой order позиция 0 стала бы falsy и первая группа молча исчезла бы с доски.
+  $: renderedGroups = new Set(orderedGroups.map(g => g.id));
 
   function openGroupSettings(groupId: GroupId) {
     settingsGroupId = groupId;
@@ -178,8 +205,8 @@
 </script>
 
 <div class="tm-board-layout">
-  {#if !hidden.has('backlog')}
-    <div class={groupClasses['backlog']}>
+  {#if renderedGroups.has('backlog')}
+    <div class={groupClasses['backlog']} style={groupStyles['backlog']} data-group-container="backlog">
       <CollapsibleGroup
         groupId="backlog"
         group={board.groups.backlog}
@@ -194,8 +221,8 @@
     </div>
   {/if}
 
-  {#if !hidden.has('focus')}
-    <div class={groupClasses['focus']}>
+  {#if renderedGroups.has('focus')}
+    <div class={groupClasses['focus']} style={groupStyles['focus']} data-group-container="focus">
       <TaskGroup
         groupId="focus"
         group={board.groups.focus}
@@ -209,8 +236,8 @@
     </div>
   {/if}
 
-  {#if !hidden.has('inProgress')}
-    <div class={groupClasses['inProgress']}>
+  {#if renderedGroups.has('inProgress')}
+    <div class={groupClasses['inProgress']} style={groupStyles['inProgress']} data-group-container="inProgress">
       <TaskGroup
         groupId="inProgress"
         group={board.groups.inProgress}
@@ -224,8 +251,8 @@
     </div>
   {/if}
 
-  {#if !hidden.has('orgIntentions')}
-    <div class={groupClasses['orgIntentions']}>
+  {#if renderedGroups.has('orgIntentions')}
+    <div class={groupClasses['orgIntentions']} style={groupStyles['orgIntentions']} data-group-container="orgIntentions">
       <TaskGroup
         groupId="orgIntentions"
         group={board.groups.orgIntentions}
@@ -239,8 +266,8 @@
     </div>
   {/if}
 
-  {#if !hidden.has('delegated')}
-    <div class={groupClasses['delegated']}>
+  {#if renderedGroups.has('delegated')}
+    <div class={groupClasses['delegated']} style={groupStyles['delegated']} data-group-container="delegated">
       <TaskGroup
         groupId="delegated"
         group={board.groups.delegated}
@@ -254,8 +281,8 @@
     </div>
   {/if}
 
-  {#if !hidden.has('completed')}
-    <div class={groupClasses['completed']}>
+  {#if renderedGroups.has('completed')}
+    <div class={groupClasses['completed']} style={groupStyles['completed']} data-group-container="completed">
       <CollapsibleGroup
         groupId="completed"
         group={board.groups.completed}

@@ -1,0 +1,87 @@
+{
+  "reviewer": "dev-code-reviewer",
+  "status": "approved_with_suggestions",
+  "summary": "Both round-1 major findings are genuinely fixed, not papered over. `readSavedSnapshot` now polls an equality that is exactly the freshness invariant it claims — `persist()` hands `get(dataStore)` verbatim to `saveData()`, which stores `JSON.stringify` of that same object, so the two strings are byte-comparable and the poll can only clear once the latest write has landed. `dragCardToGroup` is now settling on the same quantity the production drop handler reads (`onEnd` takes `evt.to.dataset.groupId`; the predicate asks whether the node sits inside `[data-group-id=...]`), pays one settle wait per attempt instead of two, and the added ghost-class wait fixed a real defect — a drag that never started. The three specific questions asked check out: `ProbedElement` is a type alias, erased by Playwright's babel transform (proved by Сц.5 passing at all — a surviving reference would be a ReferenceError inside `evaluate`); `closeGroupSettings`'s selector matches exactly one element, GroupSettingsPopup.svelte renders precisely two `.tm-popup__btn`, one of them primary; `visibilityToggle`'s `.first()` claim matches the markup (two toggles per row, visibility then full-width, the notes-row toggle living outside `[data-settings-group]`). One thing is half-done: the exact-sequence assertion was applied to Сц.3/4/11 but four pairwise rank comparisons remain, including the whole of Сц.9, which is the scenario where a group most plausibly drifts. Remaining notes are minor. The `freshDefaultData()` aliasing found while building the negative control is real and broader than reported, but it is out of this task's scope and is listed here as a record only.",
+  "criticalIssues": [],
+  "suggestions": [
+    {
+      "file": "tests/e2e/0011-group-customization.spec.ts",
+      "line": 542,
+      "severity": "major",
+      "category": "maintainability",
+      "suggestion": "The switch from pairwise ranks to exact sequences was applied to Сц.3, Сц.4 and Сц.11 but not to the four remaining `groupRanks` sites — Сц.5 (line 460), Сц.7 (line 492), Сц.8 (line 509) and above all Сц.9, which makes seven pairwise comparisons across two boards and a reload (lines 535, 543, 549-550, 560, 565). The objection that motivated the change applies to them unchanged: `expect(aAfter['delegated']).toBeLessThan(aAfter['orgIntentions'])` is satisfied by any arrangement in which those two are in that relative order, so a board that came back from the snapshot with, say, `completed` promoted to the front would still pass. Сц.9 is precisely where such drift would appear — it is the only scenario that round-trips two independently configured boards through `migrateData`. The expected sequences are already determined: board A is `['backlog','focus','inProgress','delegated','orgIntentions','completed']`, board B is `['focus','backlog','inProgress','orgIntentions','delegated','completed']`. Replace the pairwise checks with `expect(await visibleGroupOrder(page)).toEqual([...])` in all four scenarios; `groupRanks` then has no caller left and can go, taking the duplicated sort with it.",
+      "benefit": "The strongest persistence scenario in the suite starts asserting the whole board arrangement rather than two adjacency facts, and the file ends up with one order helper instead of two that differ only in output shape.",
+      "optional": false
+    },
+    {
+      "file": "tests/e2e/0011-group-customization.spec.ts",
+      "line": 71,
+      "severity": "minor",
+      "category": "maintainability",
+      "suggestion": "The new `groupRanks` doc comment points at scenarios that no longer do what it says: \"a hidden group has no wrapper at all, so its rank is `undefined` — which is itself asserted (Сц.4, Сц.11)\". After this same commit neither Сц.4 nor Сц.11 calls `groupRanks` at all — both were rewritten to `visibleGroupOrder(...).toEqual([...])`, which covers the hidden group by omission instead. So `Partial` is now justified by nothing a reader can follow, and no surviving call site handles the `undefined` case: `expect(ranks['focus']).toBeLessThan(ranks['backlog'])` on an unexpectedly hidden group would fail inside the matcher with a type complaint rather than a readable message. If the previous finding is taken and `groupRanks` disappears, this resolves itself; if it is kept, point the comment at the real reason (the shape of the DOM, not an assertion) and drop the scenario references.",
+      "benefit": "The one type annotation the file argues for in prose stops citing evidence that was deleted in the same change.",
+      "optional": true
+    },
+    {
+      "file": "tests/e2e/0011-group-customization.spec.ts",
+      "line": 82,
+      "severity": "minor",
+      "category": "readability",
+      "suggestion": "`visibleGroupOrder` and `groupRanks` repeat the same three lines — read boxes, `sort((a,b) => a.order - b.order || a.domIndex - b.domIndex)`, project. The sort comparator is the file's model of how flex resolves order and should exist once: `groupRanks` can be `const order = await visibleGroupOrder(page); const ranks = {}; order.forEach((id, i) => ranks[id] = i);`. Separately, `visibleGroupOrder` is declared `Promise<string[]>` while the value it returns is `GroupId[]` (`GroupBox.id` is already `GroupId`) and every call site compares it with a `GroupId[]` literal or with `DEFAULT_ORDER`; `Promise<GroupId[]>` costs nothing and keeps the widening out.",
+      "benefit": "One statement of the layout rule instead of two copies that can drift, and the helper's signature stops throwing away a type it already has.",
+      "optional": true
+    },
+    {
+      "file": "tests/e2e/0011-group-customization.spec.ts",
+      "line": 241,
+      "severity": "minor",
+      "category": "error-handling",
+      "suggestion": "The ghost wait discards the original failure: `.waitFor({...}).catch(() => { throw new Error('SortableJS never picked up card X') })` replaces *any* rejection — timeout, strict-mode violation, closed page — with the same sentence, so a non-timeout failure is reported as a diagnosis that may be wrong. `.catch((e) => { throw new Error(`SortableJS never picked up card ${taskId}: ${e}`); })` keeps the good message and the evidence. The same applies one level down: `if (!box) break` at line 256 exits the loop and lands on `throw new Error('drag of X never settled over Y')`, which describes a card that would not stay put, when what actually happened is that the target group stopped being laid out — worth its own throw with its own sentence, since the two conditions call for different investigations.",
+      "benefit": "Each failure mode of the trickiest helper in the suite names itself, instead of three different causes producing one of two messages.",
+      "optional": true
+    },
+    {
+      "file": "tests/e2e/0011-group-customization.spec.ts",
+      "line": 234,
+      "severity": "minor",
+      "category": "best-practices",
+      "suggestion": "Carried over from round 1 and now slightly more relevant: there are three throw paths after `page.mouse.down()` (the ghost-wait rethrow at line 244, the `!box` break at 256 leading to 269, and 269 itself), and none of them releases the button. A `try { ... } finally { await page.mouse.up(); }` around everything from `mouse.down()` onward costs one line; the success path's `mouse.up()` then moves into the `try` and the `finally` becomes a no-op double-release, or drop the explicit one and let `finally` own it. Harmless today (one page per test, one drag per assertion block) but Сц.5 already drags twice, and a failure in the first drag currently leaves the virtual button pressed for whatever runs next.",
+      "benefit": "A failure inside the drag helper cannot corrupt the input state of anything that follows it.",
+      "optional": true
+    },
+    {
+      "file": "tests/e2e/0011-group-customization.spec.ts",
+      "line": 136,
+      "severity": "minor",
+      "category": "readability",
+      "suggestion": "Two small inaccuracies in `closeGroupSettings`. The comment says the button is \"picked by role instead\" — it is picked by CSS class (`:not(.tm-popup__btn--primary)`); nothing about ARIA roles is involved, and the sentence sends a reader looking for `getByRole`. And the selector is popup-agnostic (`.tm-popup ...`) while the guarantee it relies on is popup-specific: GroupSettingsPopup.svelte has exactly two buttons so the match is unique, but BoardSettingsPopup.svelte renders a `--danger` delete button whenever `canDelete` is true, so the same selector against the board popup would match two elements and fail on strict mode. Say \"the only non-primary button *of the group popup*\" and the precondition is documented rather than implied. (Failing loudly on misuse is the right behaviour; only the comment needs to reflect it.)",
+      "benefit": "The helper's one-popup precondition is written down where a future caller will read it, and the comment names the mechanism it actually uses.",
+      "optional": true
+    },
+    {
+      "file": "tests/e2e/0011-group-customization.spec.ts",
+      "line": 236,
+      "severity": "minor",
+      "category": "readability",
+      "suggestion": "On whether `dragCardToGroup` is now as simple as it can be: essentially yes — aim, nudge, one settle, one DOM check is the minimum shape for \"the board reflows under the pointer\", and the predicate is now the exact quantity `onEnd` reads (`evt.to.dataset.groupId`), which is the strongest form available. Two residual bits of ceremony, both optional. The gesture-recognition preamble is two moves to two arbitrary offsets (`+10` then `+30`) where the comment describes one idea; a single `mouse.move(startX + 30, startY + 30, { steps: 15 })` expresses it, if it still triggers the drag. And the settle is a fixed 250 ms even on the winning attempt — polling `cardIsInTarget` for up to `SORTABLE_SETTLE_MS` would return as soon as it is true, except that the comment's own reasoning (a target that slid away takes the card back out) argues the check must happen *after* the animation, not during it. If that is the intent, it is right as written and worth one clause saying so, because the fixed sleep otherwise reads as something to optimise away.",
+      "benefit": "The two places where a later reader would be tempted to 'simplify' the helper carry the reason not to.",
+      "optional": true
+    },
+    {
+      "file": "src/data/migration.ts",
+      "line": 51,
+      "severity": "major",
+      "category": "architecture",
+      "suggestion": "OUT OF SCOPE FOR THIS TASK — recorded, not to be fixed here (task 10 writes tests only). The reported aliasing is real and wider than described. `freshDefaultData()` spreads two levels shallowly and clones exactly one array: `{ ...DEFAULT_DATA, boards: [{ ...DEFAULT_DATA.boards[0], groupOrder: [...] }] }`. So every value it returns shares with the module-level constant: `tasks` (the whole task dictionary), `settings`, the board's `groups` object (hence every `title`, `taskIds`, `collapsed`, `wipLimit`), `hiddenGroups`, and even the board `id`. Any in-place mutation through `dataStore.update` — and `addTask` does `data.tasks[id] = task` and `board.groups[g].taskIds.push(...)` in place — writes into `DEFAULT_DATA`. Production hides it because `migrateData(null)` runs once per plugin load and `DEFAULT_DATA` is never read again for a board; the harness hides it because the only repeat resets in this suite (Сц.1, Сц.9) pass a versioned snapshot and take the `migrateData(partial)` branch. It is nonetheless a live trap for this suite: the first scenario that calls `standardBeforeEach(page)` or `resetData(page)` a second time in one test will inherit whatever the previous phase wrote. Fix belongs in a separate change — either deep-clone in `freshDefaultData()` (`structuredClone(DEFAULT_DATA)`), or make `DEFAULT_DATA` a factory the way `createDefaultBoard()` already is (note that `createDefaultBoard` gets this right, including the comment on `groupOrder` explaining exactly this hazard for one field).",
+      "benefit": "A documented trap instead of a silent one: whoever adds the next E2E scenario, or the next in-place store mutation, knows that 'fresh default data' is not fresh below the first level.",
+      "optional": false
+    }
+  ],
+  "metrics": {
+    "filesReviewed": 1,
+    "criticalIssuesCount": 0,
+    "majorIssuesCount": 2,
+    "minorIssuesCount": 6,
+    "testCoverageAssessment": "excellent"
+  }
+}

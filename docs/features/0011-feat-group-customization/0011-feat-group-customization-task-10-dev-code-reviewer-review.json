@@ -1,0 +1,114 @@
+{
+  "reviewer": "dev-code-reviewer",
+  "status": "approved_with_suggestions",
+  "summary": "A single new E2E file of high quality: local helpers are genuinely local, nothing duplicates tests/e2e/helpers.ts, group addressing is id-based throughout, board order is asserted via computed `order` plus geometry (never DOM index), and every test resets through the shared beforeEach so no state leaks into the neighbouring suites. Two things deserve rework: `readSavedSnapshot` polls for a condition that is already true after the first save in a test, and its comment claims a guarantee the code does not give; and the settle-and-re-aim loop in `dragCardToGroup` waits twice per attempt with nothing happening between the waits, which makes an already tricky helper harder to read than it needs to be. The rest are minor readability and type-honesty notes.",
+  "criticalIssues": [],
+  "suggestions": [
+    {
+      "file": "tests/e2e/0011-group-customization.spec.ts",
+      "line": 126,
+      "severity": "major",
+      "category": "maintainability",
+      "suggestion": "`readSavedSnapshot` polls only for the *existence* of `localStorage['tm-test-data']`, while its comment says the poll compensates for `persist()` -> `saveData()` being async. Existence is not freshness: `standardBeforeEach` removes the key once, so the very first save recreates it and from that moment `expect.poll` returns immediately regardless of whether the *latest* write has landed. In Сц.9, where four separate saves precede the snapshot read, the guard is a no-op. It happens to be harmless today only because `Plugin.saveData` in tests/harness/obsidian-mock.ts writes localStorage synchronously — i.e. the poll protects against nothing that exists, and would not protect against the thing the comment names if `persist()` ever became debounced or batched. Either poll on content (e.g. `expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('tm-test-data') ?? 'null')?.boards?.[0]?.groups?.focus?.title)).toBe('Sprint focus')`, or poll a version/marker the scenario just wrote), or drop the poll and say plainly that `saveBoardSettings` already awaits popup detach and the mock writes synchronously.",
+      "benefit": "The helper stops asserting a protection it does not provide, and a future change to persistence (debounce, async batching, real Obsidian saveData) surfaces as a red test rather than a silently stale snapshot in the persistence scenarios.",
+      "optional": false
+    },
+    {
+      "file": "tests/e2e/0011-group-customization.spec.ts",
+      "line": 196,
+      "severity": "major",
+      "category": "readability",
+      "suggestion": "The settle-and-re-aim loop in `dragCardToGroup` is justified (the comment explains the reflow problem well) but is not expressed as simply as it could be. Three concrete points. (1) Each iteration ends with `waitForTimeout(SORTABLE_SETTLE_MS)` and the next one begins with the same wait; between them only a `boundingBox()` read happens and the pointer does not move, so attempts 2..5 pay 500 ms of settling for 250 ms of actual settling. Restructure to one wait per attempt: re-aim -> wait -> measure -> decide. (2) The `landed` check tests the pre-nudge point `(x, y)` for containment while the pointer actually rests at `(x + 1, y + 1)`; since the whole purpose of the loop is 'is the pointer still inside the target after the reflow', it should test the point the pointer is really at. (3) The loop bound `5` is the only unexplained number in an otherwise well-annotated helper — `SORTABLE_SETTLE_MS` got a named constant and a rationale, the attempt budget deserves the same (`MAX_REAIM_ATTEMPTS`, plus one line on why five is enough: a board reflow settles within one or two accepts).",
+      "benefit": "Halves the worst-case cost of the helper (2.5 s -> ~1.25 s per drag, and Сц.5 drags twice), removes an off-by-one in the very predicate the loop exists for, and leaves no unnamed timing constants in the trickiest piece of the suite.",
+      "optional": false
+    },
+    {
+      "file": "tests/e2e/0011-group-customization.spec.ts",
+      "line": 22,
+      "severity": "minor",
+      "category": "readability",
+      "suggestion": "The comment above `DEFAULT_ORDER` explains something else: it talks about the harness pinning the locale to 'en' and about importing default *titles* from `src/i18n/en.ts` instead of retyping them — but the constant it annotates is a list of group *ids* and carries no titles at all. Move the locale/titles rationale next to the `import { en }` line (where it belongs) and leave `DEFAULT_ORDER` with a one-liner about what it is: the shipped order, used as the expected value in the cancel scenarios.",
+      "benefit": "Comments stay attached to what they explain; a reader looking for 'why do we import en' finds the answer at the import, not five lines below on an unrelated constant.",
+      "optional": true
+    },
+    {
+      "file": "tests/e2e/0011-group-customization.spec.ts",
+      "line": 324,
+      "severity": "minor",
+      "category": "maintainability",
+      "suggestion": "`page.locator('[data-settings-group=\"...\"] .tm-popup__group-toggle').first().click()` is repeated verbatim in Сц.4 (line 324), Сц.6 (line 342) and Сц.11 (line 526), and the `.first()` is unexplained — it is positional knowledge that the first toggle in a row is visibility and the second is full width (0007 uses `.nth(1)` for the latter). One local helper, e.g. `toggleGroupVisibility(page, groupId)` with a one-line comment naming why `.first()`, next to the other row helpers (`clickMoveArrow`, `setGroupTitle`), would match how the rest of the file is organised. The neighbouring suites keep such a helper too (`hideGroup` in 0006).",
+      "benefit": "Removes three copies of an unlabelled positional selector, so a change to the row layout in BoardSettingsPopup.svelte breaks one line instead of three, and each call site reads as intent rather than as DOM trivia.",
+      "optional": true
+    },
+    {
+      "file": "tests/e2e/0011-group-customization.spec.ts",
+      "line": 69,
+      "severity": "minor",
+      "category": "best-practices",
+      "suggestion": "Type honesty in the local helpers. `groupRanks` is declared `Promise<Record<string, number>>`, yet the assertions that matter most (`expect(before['inProgress']).toBeUndefined()` at line 328 and line 537) depend on the value being `undefined` for hidden groups — the declared type says that cannot happen. `Partial<Record<GroupId, number>>` states the contract the tests actually rely on. In the same area, `readGroupBoxes` widens through `as string` on line 50 and then re-asserts the whole result with `as Promise<GroupBox[]>` on line 61, which launders `id: string` into `id: GroupId`; a `GroupId` cast on the single field, or typing the evaluate result as `Omit<GroupBox, 'id'> & { id: string }` and narrowing once, keeps the assertion where the risk is. Note `tests/` is outside `tsconfig.json` (`include: src/**`), so none of this is compiler-checked — the types are documentation, which is exactly why they should be accurate.",
+      "benefit": "The signatures describe what the helpers really return, so a future reader (and a future move of `tests/` under tsc) does not have to reverse-engineer the hidden-group case from the assertions.",
+      "optional": true
+    },
+    {
+      "file": "tests/e2e/0011-group-customization.spec.ts",
+      "line": 149,
+      "severity": "minor",
+      "category": "best-practices",
+      "suggestion": "The DOM probes use `(el as any).__tmProbe` in four places (lines 149, 151, 162, 163). The expando itself is the right technique and the task prescribes it, but the cast can be narrowed to what is actually being done: `type Probed = Element & { __tmProbe?: 1 }` declared once inside the evaluate callback, then `(el as Probed).__tmProbe = 1` / `(el as Probed).__tmProbe === 1`. Also `readDomProbes` (line 155) is the only helper in the file without a doc comment, and its inline return type makes a 149-character signature — extracting `interface DomProbes { ... }` fixes both.",
+      "benefit": "Keeps `any` out of a file that is otherwise carefully typed, and brings the probe helpers in line with the documentation standard the rest of the local helpers set.",
+      "optional": true
+    },
+    {
+      "file": "tests/e2e/0011-group-customization.spec.ts",
+      "line": 213,
+      "severity": "minor",
+      "category": "best-practices",
+      "suggestion": "`dragCardToGroup` throws on the not-settled path (line 213) and on the `boundingBox()` null path (line 185) without ever calling `page.mouse.up()`, leaving the virtual button pressed. Harmless today because Playwright gives each test a fresh page, but a `try { ... } finally { await page.mouse.up(); }` around the drag body costs one line and makes the helper safe if it is ever called twice in a test or reused from a fixture.",
+      "benefit": "The helper cannot leave the input device in a half-state, so a failure inside it produces its own clear error instead of a confusing cascade in whatever runs next.",
+      "optional": true
+    },
+    {
+      "file": "tests/e2e/0011-group-customization.spec.ts",
+      "line": 517,
+      "severity": "minor",
+      "category": "best-practices",
+      "suggestion": "`expect(after.height).toBeCloseTo(before.height, 1)` reads as 'within 1 pixel' but the second argument is the number of decimal digits: the tolerance is 0.05 px, twenty times tighter than the comment 'No wrap onto a second line' implies. Either state the real intent (`expect(Math.abs(after.height - before.height)).toBeLessThanOrEqual(1)`) or use `toBeCloseTo(before.height, 0)` for a ±0.5 px window. The assertion passes today because both measurements come from the same element with the same line-height, but a font-metric difference on another platform would fail it for a reason that has nothing to do with wrapping.",
+      "benefit": "The assertion means what its comment says, and the height check stops being sensitive to sub-pixel rendering differences between environments.",
+      "optional": true
+    },
+    {
+      "file": "tests/e2e/0011-group-customization.spec.ts",
+      "line": 555,
+      "severity": "minor",
+      "category": "readability",
+      "suggestion": "The Сц.12 `page.evaluate` does three jobs at once: it finds the scrollable container, mutates it (`el.scrollTop = startTop + 50`) and reports the measurement. Splitting 'find the scrollable element' from 'scroll it and report' — or at least renaming the result variable to say a scroll was performed — makes the mutation visible at the call site instead of hiding it inside something named `scrollable`. Finding the container by fact rather than by class name is right and should stay; note only that `candidates.find` returns the first match in document order, so if the popup root itself ever overflows, the assertion proves 'something in the popup scrolls', not 'the body scrolls' — worth one sentence in the comment.",
+      "benefit": "A reader can see that the check has a side effect without reading the whole evaluate body, and the scope of what the scenario actually proves is stated rather than assumed.",
+      "optional": true
+    },
+    {
+      "file": "tests/e2e/0011-group-customization.spec.ts",
+      "line": 248,
+      "severity": "minor",
+      "category": "readability",
+      "suggestion": "Сц.1 opens the *group* settings popup (`openGroupSettings`) and closes it with `closeBoardSettings`. It works only because both popups render `.tm-popup__btn` with the text 'Cancel' (`groupSettings.cancel` and `boardSettings.cancel` are both 'Cancel' in en.ts), so the shared helper's text filter happens to match. Since the task forbids touching helpers.ts, add a two-line local `closeGroupSettings(page)` next to the other local helpers, or at minimum a comment at the call site explaining that the shared helper is being reused deliberately.",
+      "benefit": "The scenario stops depending on two unrelated i18n keys having identical English text; a translator or a label change to the group popup cannot turn this into a timeout with no obvious cause.",
+      "optional": true
+    },
+    {
+      "file": "tests/e2e/0011-group-customization.spec.ts",
+      "line": 136,
+      "severity": "minor",
+      "category": "maintainability",
+      "suggestion": "`reloadFromSnapshot` is a pure pass-through to `resetData(page, snapshot)` — its entire value is the doc comment explaining why `page.goto('/')` is wrong here. That is a legitimate reason to keep it, but the name currently promises behaviour the function does not have (it does not read the snapshot, and the 'read before calling' rule lives only in prose). Consider folding both steps into one helper that reads and replays — `reloadFromStorage(page)` doing `const snap = await readSavedSnapshot(page); await resetData(page, snap);` — which makes the ordering constraint unbreakable instead of documented, and removes the two-call dance repeated in Сц.1 and Сц.9.",
+      "benefit": "The 'snapshot must be read before resetData wipes the key' rule becomes structural rather than a comment a future author can miss.",
+      "optional": true
+    }
+  ],
+  "metrics": {
+    "filesReviewed": 1,
+    "criticalIssuesCount": 0,
+    "majorIssuesCount": 2,
+    "minorIssuesCount": 9,
+    "testCoverageAssessment": "excellent"
+  }
+}
