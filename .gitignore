@@ -11,3 +11,15 @@ playwright-report/
 # Test harness build artifacts
 tests/harness/harness.js
 tests/harness/styles.css
+
+# Local logs
+/logs/
+
+# Secrets
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+credentials.json
+secrets/

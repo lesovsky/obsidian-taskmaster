@@ -101,6 +101,25 @@ cd obsidian-taskmaster
 npm install
 ```
 
+### Хук проверки на секреты
+
+В репозитории лежит конфигурация [pre-commit](https://pre-commit.com), которая запускает
+[gitleaks](https://github.com/gitleaks/gitleaks) по проиндексированным изменениям. Хуки Git не
+клонируются вместе с репозиторием, поэтому после клонирования их нужно установить один раз:
+
+```bash
+pipx install pre-commit   # или: pip install --user pre-commit — версия 3.0 и новее
+pre-commit install
+```
+
+Первый коммит после установки соберёт gitleaks из исходников (около минуты), последующие проходят
+мгновенно. Коммит с секретом будет отклонён. Прогон по всей истории вместо проиндексированных
+изменений:
+
+```bash
+pre-commit run --hook-stage manual gitleaks-history
+```
+
 ### Сборка
 
 ```bash

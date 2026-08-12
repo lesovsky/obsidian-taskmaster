@@ -101,6 +101,24 @@ cd obsidian-taskmaster
 npm install
 ```
 
+### Secret Scanning Hook
+
+The repository ships a [pre-commit](https://pre-commit.com) configuration that runs
+[gitleaks](https://github.com/gitleaks/gitleaks) on staged changes. Git hooks are not cloned with the
+repository, so install them once after cloning:
+
+```bash
+pipx install pre-commit   # or: pip install --user pre-commit — 3.0 or newer
+pre-commit install
+```
+
+The first commit afterwards builds gitleaks from source (about a minute); later commits are instant.
+A commit containing a secret is rejected. To scan the whole history instead of staged changes:
+
+```bash
+pre-commit run --hook-stage manual gitleaks-history
+```
+
 ### Build
 
 ```bash
