@@ -44,8 +44,8 @@ the new field is sanitized on every load.
 - **`uiStore.CompleteToast`** — carries `spawnedTaskIds`.
 - **`src/ui/followUpNotice.ts`** (new) — shows the Obsidian `Notice` for a board: resolves the
   backlog's display name and hidden state, delegates text to the pure formatter.
-- **`BoardLayout.svelte`** — wires ☑ (notice + toast ids), Undo (revert + dismiss delete toasts
-  of reverted tasks), create and edit Save (spawn marked items + notice).
+- **`BoardLayout.svelte`** — wires ☑ (notice + toast ids), Undo (revert + dismiss delete and
+  complete toasts of reverted tasks), create and edit Save (spawn marked items + notice).
 - **`useSortable.ts`** — the drop handler goes through an exported move function that also shows
   the notice; the test harness calls the same function.
 - **`FollowUpsEditor.svelte`** (new) + **`TaskFormContent.svelte`** + **`TaskModal.ts`** — the
@@ -70,7 +70,8 @@ the new field is sanitized on every load.
 4. **Undo.** `undoQuickComplete(..., spawnedTaskIds)` restores the task as today and reverts the
    spawn: each spawned task is removed from whichever group of the board holds it and deleted
    from `tasks`; the parent's items pointing to those ids go back to pending. BoardLayout also
-   dismisses any live delete toast of a reverted task, so its Undo cannot restore a dangling id.
+   dismisses any live delete or complete toast of a reverted task, so its Undo cannot restore a
+   dangling id.
 5. **Completion by drag.** Sortable's drop calls the exported move function, which calls
    `moveTask`; `moveTask` spawns when `to === 'completed' && from !== 'completed'`, returns the ids,
    and the move function shows the notice. There is no undo for drag, as today.
