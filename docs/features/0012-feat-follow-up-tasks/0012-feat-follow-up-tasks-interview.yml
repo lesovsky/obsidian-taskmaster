@@ -7,7 +7,7 @@ meta:
   feature_base: "docs/features/0012-feat-follow-up-tasks/0012-feat-follow-up-tasks"
   work_type: "feature"
   size: "M"
-  status: "in_progress" # in_progress | completed
+  status: "completed" # in_progress | completed
   started: "2026-09-11"
   last_updated: "2026-09-11"
 
