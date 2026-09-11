@@ -1,6 +1,6 @@
 ---
 created: 2026-09-11
-status: draft
+status: approved
 branch: feature/follow-up-tasks
 size: M
 ---
@@ -139,10 +139,12 @@ parent, and the user asked for a plain notification.
 
 ### Decision 7: Notice text uses a template with safe substitution
 **Decision:** One key `followUps.noticeCreated` holding `{group}` and `{count}` placeholders, plus
-`followUps.noticeHidden` for the hidden suffix. Substitution must not use string-pattern
-`String.replace` with the group title as replacement.
-**Rationale:** The i18n layer has no interpolation. The group title is user text (feature 0011), and
-`'$&'`-style sequences in a replacement string are interpreted by `String.replace`.
+`followUps.noticeHidden` for the hidden suffix, appended after a single space. Substitution is a
+single pass over the template with a function replacer (both placeholders matched by one pattern), never
+a string-pattern `String.replace` with the group title as replacement and never two sequential passes.
+**Rationale:** The i18n layer has no interpolation. The group title is user text (feature 0011):
+`'$&'`-style sequences in a replacement string are interpreted by `String.replace`, and with two passes a
+`{count}` typed into the title would be replaced by the number in the second pass.
 **Alternatives considered:** concatenating two keys around the title — rejected: word order differs
 between languages.
 
@@ -163,11 +165,11 @@ Save keeps the list unchanged.
 would be silently deleted by retention cleanup.
 **Alternatives considered:** spawning on save for completed tasks — rejected by the user.
 
-### Decision 10: Undo also dismisses delete toasts of reverted tasks
-**Decision:** When Undo reverts a spawn, BoardLayout clears the timers and removes any live delete
-toast whose `taskId` is one of the reverted ids.
-**Rationale:** Within the 7-second window the user could delete a spawned task; its delete toast would
-outlive the revert and its Undo would push a dangling id back into a group.
+### Decision 10: Undo also dismisses toasts of reverted tasks
+**Decision:** When Undo reverts a spawn, BoardLayout clears the timers and removes any live toast — delete
+or complete — whose `taskId` is one of the reverted ids.
+**Rationale:** Within the 7-second window the user could delete a spawned task, or complete it with ☑;
+either toast would outlive the revert and its Undo would push a dangling id back into a group.
 **Alternatives considered:** leaving it — rejected: cheap to prevent, and a dangling id stays in
 `taskIds` until cleanup.
 
@@ -263,8 +265,10 @@ None.
     items back, tolerates already-deleted tasks;
   - draft finalization trims, drops empty, drops marked-but-empty, keeps order, caps 200/20 and
     returns marked ids;
-  - notice formatting substitutes safely (a title containing `$&` stays literal) and appends the
-    hidden suffix.
+  - notice formatting substitutes in one pass (a title containing `$&`, `{count}` or `{group}` stays
+    literal), appends the hidden suffix after a space, and produces the expected text from both real
+    dictionary templates (en and ru) — this is where AC-13's notice wording is proven, since the harness
+    forces the `en` locale.
 - **Migration:**
   - v8 → v9 gives every task `[]`;
   - older versions land on 9;
@@ -286,7 +290,9 @@ None — the plugin has no external services; store–UI interaction is covered 
 
 ### E2E tests
 
-New `tests/e2e/0012-follow-up-tasks.spec.ts` covering user-spec AC-1…AC-13:
+New `tests/e2e/0012-follow-up-tasks.spec.ts` covering user-spec AC-1…AC-12. AC-13 (both languages) is
+proven by the strictly typed dictionaries (compile error on a missing key) plus the unit test of the
+notice text from both dictionaries — the harness forces the `en` locale and cannot switch it.
 
 - **Form editing:** add, Enter-insert, remove, persistence after reload, Escape discard.
 - **Limits:** 200 characters per item, 20 items.
@@ -294,8 +300,9 @@ New `tests/e2e/0012-follow-up-tasks.spec.ts` covering user-spec AC-1…AC-13:
 - **☑ and Undo:** ☑ with notice and backlog contents, then Undo.
 - **Drag:** move into completed, and reorder inside completed.
 - **Form status:** status select set to completed spawns nothing.
-- **Marking:** mark + Save, mark + Escape.
-- **Backlog variants:** hidden and renamed backlog in the notice.
+- **Marking:** mark + Save in both the edit and the create form (different wiring paths), mark + Escape.
+- **Backlog variants:** hidden and renamed backlog in the notice; a markup-like backlog title and item
+  text render literally in the notice and the marker tooltip.
 - **Loading:** v8 snapshot and a damaged list.
 - **Read-only editor** for a completed task.
 
@@ -480,5 +487,5 @@ in the same wave — two agents editing one file in parallel is avoidable confli
 - **Skill:** documentation-writing
 - **Reviewers:** dev-code-reviewer
 - **Verify:** bash — `grep -n "followUps" docs/technical.md`
-- **Files to modify:** `docs/technical.md`, `docs/overview.md`, `docs/testing/infrastructure.md`, `CHANGELOG.md`, `CHANGELOG.ru.md`, `README.md`, `README.ru.md`
+- **Files to modify:** `docs/technical.md`, `docs/overview.md`, `docs/testing/infrastructure.md`, `docs/testing/test-scenarios.md`, `CHANGELOG.md`, `CHANGELOG.ru.md`, `README.md`, `README.ru.md`
 - **Files to read:** `docs/features/0012-feat-follow-up-tasks/0012-feat-follow-up-tasks-tech-spec.md`, `src/data/types.ts`

@@ -37,6 +37,8 @@ touches — a general audit is TD-06 and out of scope.
    - `__test.moveTask` now showing the notice.
 4. `CHANGELOG.md` / `CHANGELOG.ru.md` `[Unreleased]` — the feature and "Data schema migrated to version 9".
 5. `README.md` / `README.ru.md` "Task Card" section — one paragraph about follow-ups.
+6. `docs/testing/test-scenarios.md` — manual scenarios for follow-ups, and a note in the existing ☑ and drag
+   sections that completing a task with pending items now creates backlog tasks and shows a notice.
 
 ## Acceptance Criteria
 

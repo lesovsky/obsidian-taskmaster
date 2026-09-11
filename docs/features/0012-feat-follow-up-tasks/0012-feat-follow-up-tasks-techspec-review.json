@@ -1,0 +1,82 @@
+{
+  "reviewer": "dev-techspec-reviewer",
+  "status": "approved",
+  "summary": "Every user story, AC-1..AC-13 and every edge case in the user-spec maps to concrete tasks with matching unit/E2E anchors; the architecture fits the codebase (pure logic module, no obsidian import in store, notice from UI, harness routed through the same move function) and waves have no file conflicts or cycles. One major plan defect (the AC-13 ru spot check in Task 08 cannot run in the current harness) and several minor gaps should be fixed cheaply, but none blocks starting implementation.",
+  "coverage": [
+    {"requirement": "US-1: record follow-ups inside a task instead of premature cards", "status": "covered", "tasks": ["02", "03", "05"]},
+    {"requirement": "US-2: see on the board which tasks have pending follow-ups", "status": "covered", "tasks": ["03", "06"]},
+    {"requirement": "US-3: follow-ups spawn into backlog when the task is completed", "status": "covered", "tasks": ["03", "04", "07"]},
+    {"requirement": "US-4: spawn a follow-up early from the form", "status": "covered", "tasks": ["03", "04", "05", "07"]},
+    {"requirement": "US-5: undo an accidental completion without leftover cards", "status": "covered", "tasks": ["03", "04", "07"]},
+    {"requirement": "AC-1: form block add/Enter/remove, persists, Escape discards", "status": "covered", "tasks": ["02", "05", "07", "08"]},
+    {"requirement": "AC-2: empty items dropped, 200 chars, 20 items", "status": "covered", "tasks": ["03", "05", "08"]},
+    {"requirement": "AC-3: marker in both modes, with/without deadline, tooltip, hidden at N=0", "status": "covered", "tasks": ["06", "08"]},
+    {"requirement": "AC-4: quick complete spawns into end of backlog with specified fields + one notice", "status": "covered", "tasks": ["03", "04", "07", "08"]},
+    {"requirement": "AC-5: drag into completed = AC-4; reorder inside completed spawns nothing", "status": "covered", "tasks": ["04", "07", "08"]},
+    {"requirement": "AC-6: status 'completed' in form spawns nothing", "status": "covered", "tasks": ["04", "08"]},
+    {"requirement": "AC-7: Undo removes this completion's spawned tasks, items back to pending, early-created untouched", "status": "covered", "tasks": ["03", "04", "07", "08"]},
+    {"requirement": "AC-8: re-completion creates no duplicates", "status": "covered", "tasks": ["03", "04", "08"]},
+    {"requirement": "AC-9: '→ to backlog' only marks; spawn on Save with notice; Escape spawns nothing", "status": "covered", "tasks": ["03", "05", "07", "08"]},
+    {"requirement": "AC-10: hidden backlog suffix; renamed backlog name in notice", "status": "covered", "tasks": ["03", "07", "08"]},
+    {"requirement": "AC-11: v8 -> v9 migration, damaged list does not block load", "status": "covered", "tasks": ["02", "08"]},
+    {"requirement": "AC-12: read-only block for completed-group tasks, hidden when empty", "status": "covered", "tasks": ["05", "08"]},
+    {"requirement": "AC-13: all new strings in en + ru", "status": "covered", "tasks": ["01"]},
+    {"requirement": "EC: spawned task deleted/edited/moved within undo window", "status": "covered", "tasks": ["03", "07"]},
+    {"requirement": "EC: why capped at 10000 for long parent text", "status": "covered", "tasks": ["03"]},
+    {"requirement": "EC: early spawn from the create form", "status": "partial", "tasks": ["05", "07"]},
+    {"requirement": "EC: marked item with emptied text is dropped, not spawned", "status": "covered", "tasks": ["03", "05"]},
+    {"requirement": "EC: task without / with all-created items completes as before, no notice", "status": "covered", "tasks": ["04", "07"]},
+    {"requirement": "EC: delete / auto-cleanup of parent — unchanged behavior", "status": "covered", "tasks": []}
+  ],
+  "findings": [
+    {
+      "severity": "major",
+      "lens": "plan",
+      "issue": "Task 08 scenario 13 (AC-13 spot check: 'switch locale to ru and check the block title and notice wording') cannot be executed. The harness pins the locale to 'en' in resetData (tests/harness/main.ts:100-101), __test.updateSettings does not call setLocale, and window.__test exposes no locale switch — the 0011 suite documents exactly this limitation (tests/e2e/0011-group-customization.spec.ts:879-880). Task 08 may only touch the new spec and helpers.ts, so the executor will either edit the harness outside its file list or silently drop the scenario.",
+      "location": "task-08 'What to do' item 13; task-07 harness changes",
+      "fix": "Either add a small `__test.setLocale(locale)` hook to tests/harness/main.ts in Task 07 (it already owns that file) and list it in docs/testing/infrastructure.md in Task 10, or drop scenario 13 and state that AC-13 is proven by the Record<TranslationKey, string> type gate in Task 01 plus a unit test of formatFollowUpNotice with the ru template."
+    },
+    {
+      "severity": "minor",
+      "lens": "engineering-fit",
+      "issue": "Decision 10 dismisses only live DELETE toasts of reverted spawned tasks. The same dangling-id bug exists for a COMPLETE toast: if within the 7 s window the user presses ☑ on a spawned task, then Undo on the parent reverts (deletes) it; clicking Undo on the spawned task's own complete toast runs undoQuickComplete, which unconditionally splices the id back into the source group (dataStore.ts:129) even though the task is gone. Rendering filters the id out (TaskGroup.svelte:19-20), but taskIds keeps a dangling id that shifts Sortable indices against taskIds positions until the next manual cleanup.",
+      "location": "tech-spec Decision 10; task-07 step 3 (handleUndo)",
+      "fix": "Dismiss (clear timer + remove) any toast — delete or complete — whose taskId is among the reverted ids; adjust the Decision 10 text and the Task 07 AC accordingly."
+    },
+    {
+      "severity": "minor",
+      "lens": "engineering-fit",
+      "issue": "The separator between the notice text and the hidden suffix is not specified. The key `followUps.noticeHidden` is '(group hidden)' with no leading space, and formatFollowUpNotice 'appends the suffix when not null', so a literal implementation yields 'Tasks created in \"Backlog\": 2(group hidden)'. The E2E test would then pin whatever the implementation produced.",
+      "location": "task-01 key table; task-03 formatFollowUpNotice + anchor 'appends the hidden suffix'",
+      "fix": "State in Task 03 that the suffix is joined with a single space, and make the anchor assert the full string (e.g. 'Tasks created in \"Backlog\": 2 (group hidden)')."
+    },
+    {
+      "severity": "minor",
+      "lens": "traceability",
+      "issue": "The user-spec edge case 'early spawn from the create form' (mark an item in a NEW task; the follow-up task is created on Save together with the new task) has no explicit test. Task 08 scenario 9 does not say create or edit mode, and the create path goes through a different BoardLayout callback (addTask then createFollowUpTasks) than edit (updateTask), so a wiring slip in one path would go unnoticed.",
+      "location": "task-08 scenario 9; task-07 AC",
+      "fix": "In Task 08 scenario 9, cover both the create and edit forms: mark + Save in create mode must produce the parent in its group plus the follow-up at the end of backlog, with one notice."
+    },
+    {
+      "severity": "minor",
+      "lens": "plan",
+      "issue": "Task 02 anchors 'a task entry that is not an object does not throw' and 'tasks that is not an object does not throw' do not say which input version they use. On v9 input the new `version < 9` loop is skipped, so an implementation that guards only the per-load sanitize loop passes the tests while the v8 migration still throws on the same data (`Object.values(null)`, or reading `.followUps` of a null entry).",
+      "location": "task-02 TDD Anchor, steps 4-5",
+      "fix": "Run both anchors on v8 and v9 inputs (or parametrize them), and make step 4 explicitly skip non-object task entries and a non-object `tasks`, the same way step 5 does."
+    },
+    {
+      "severity": "minor",
+      "lens": "plan",
+      "issue": "Task 07 is the least atomic task: 6 files across four concerns (notice module, toast type + BoardLayout ☑/Undo/modal wiring, useSortable move routing, and two harness mock changes — Notice and modal Escape). Its gate is the full Playwright suite, so a failure is hard to localize, and any harness regression blocks the whole wiring task.",
+      "location": "tech-spec Task 7 / task-07",
+      "fix": "Optional: split into (a) followUpNotice.ts + Notice mock + useSortable/harness move routing, and (b) uiStore toast + BoardLayout ☑/Undo/form wiring + modal Escape mock. If kept as one task, run the full suite after each concern."
+    },
+    {
+      "severity": "minor",
+      "lens": "release-safety",
+      "issue": "Task 10 leaves out docs/testing/test-scenarios.md (the manual scenarios doc, sections 3-6: create/edit/delete/DnD), even though the code research lists it among the docs this feature touches. ☑ and drag into completed now have visible side effects (spawned backlog tasks, notice) that the manual checklist does not mention.",
+      "location": "task-10 'What to do'; tech-spec Task 10 files",
+      "fix": "Add docs/testing/test-scenarios.md to Task 10: one short scenario block for follow-ups (add, marker, ☑ + Undo, drag, read-only in completed)."
+    }
+  ]
+}

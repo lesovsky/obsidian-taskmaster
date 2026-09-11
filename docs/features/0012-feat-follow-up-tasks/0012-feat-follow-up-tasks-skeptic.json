@@ -1,0 +1,22 @@
+{
+  "status": "approved",
+  "summary": "Checked 94 claims across the tech-spec, task-01..10, the user-spec and code research. Found 2 mirages: 0 critical, 1 major, 1 minor. All referenced source files, functions, signatures, line ranges, CSS hooks, docs sections, ADRs, TD items and 0011 decisions exist as described. Verified in code: Notice is absent from src/ and the harness mock; useSortable imports moveTask straight from the store; the completed group gets onAdd={null}; the harness never calls loadData, and resetData clears localStorage and pins locale to 'en'; obsidian has \"main\": \"\" so it cannot be imported at runtime in vitest/node; tsconfig does not make tsc check .svelte bodies, and `npx tsc --noEmit` is clean today; 'v7 → v8: tasks are untouched' is at L160; statusTransitions has 8 cases; the complete button is opacity 0 until hover; the deadline has margin-left: auto and the top row has padding-right: 3.25rem.",
+  "findings": [
+    {
+      "severity": "major",
+      "type": "missing_pattern",
+      "claim": "task-08 says: scenario 13 'AC-13 (spot check): switch locale to ru and check the block title and notice wording'. Files to modify are only tests/e2e/0012-follow-up-tasks.spec.ts and tests/e2e/helpers.ts",
+      "reality": "The E2E harness gives no way to change the locale. window.__test.resetData always runs data.settings.language = 'en' and locale.set('en') (tests/harness/main.ts, step c). __test.updateSettings only calls the store's updateSettings, which never calls setLocale. setLocale is called only from src/main.ts and src/settings.ts, and the harness loads neither. The i18n `locale` store is bundled in ESM and not on window. tests/e2e/0011-group-customization.spec.ts:879-880 already records this: 'the harness pins locale to 'en' and exposes no way to change it'. As written, scenario 13 cannot be done without editing tests/harness/main.ts, and task-08 does not list that file.",
+      "source": "0012-feat-follow-up-tasks-task-08.md, section What to do, item 13 (also tech-spec Testing Strategy / E2E 'covering user-spec AC-1…AC-13')",
+      "fix": "Either add tests/harness/main.ts to task-08 (or task-07) with a small `__test.setLocale(locale)` hook that calls `locale.set(...)`, or drop the ru E2E spot check. AC-13 is still covered at compile time: both dictionaries are typed Record<TranslationKey, string> (task-01), and a unit test of formatFollowUpNotice can use the ru template."
+    },
+    {
+      "severity": "minor",
+      "type": "name_mismatch",
+      "claim": "code-research says: tests/unit/migration.test.ts has '12 assertions expect(result.version).toBe(8) (L27, 37, 45, 70, 87, 108, 126, 141, 149, 179, 265)'",
+      "reality": "The file has 11 toBe(8) assertions, at exactly the 11 lines listed. The count of 12 is wrong. The tech-spec and task-02 say 'every toBe(8)' without a number, so the work is not affected.",
+      "source": "0012-feat-follow-up-tasks-code-research.md, section 5 Existing Tests, Unit tests table",
+      "fix": "Change '12 assertions' to '11 assertions' in the code research."
+    }
+  ]
+}

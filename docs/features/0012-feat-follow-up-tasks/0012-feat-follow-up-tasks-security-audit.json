@@ -1,0 +1,23 @@
+{
+  "reviewer": "dev-security-auditor",
+  "status": "approved",
+  "summary": "Architecture review of feature 0012 (follow-up tasks), tech-spec mode. No secrets in the feature artifacts. The threat model is a local single-user plugin whose data.json may be hand-edited or synced from another device or collaborator. Every new rendering sink goes through escaped output: form input values via bind:value, created-item text and the card tooltip via Svelte {} interpolation (text node and attribute escaping), and the Obsidian Notice via a plain string. The spawned task's why is plain text and is shown through the existing escaped fields. The load-time sanitizer (Decision 11) never throws and bounds size: at most 20 items and 200 chars per item; a non-array becomes []; non-object tasks are skipped. The why cap of 10,000 matches the existing maxlength on What/Why. Spawn is bounded to 20 tasks per action, and the tooltip to about 4,000 chars. Undo can only delete ids generated in the same session, so a crafted createdTaskId cannot make revert delete an unrelated task. Decision 7 correctly rules out String.replace with a user-controlled replacement string ($& patterns). Two minor issues remain. First, the substitution rule as written still allows a {count} placeholder inside a user group title to be re-substituted. Second, the planned Notice mock and E2E suite do not pin down text-only rendering. Neither blocks implementation.",
+  "findings": [
+    {
+      "severity": "minor",
+      "category": "Injection (template substitution of user-controlled text)",
+      "title": "Sequential placeholder substitution lets a group title containing {count} be rewritten",
+      "description": "Decision 7 and Task 03 only forbid String.replace string patterns. They do not forbid a two-pass substitution such as split('{group}').join(title) followed by split('{count}').join(String(count)). With two passes, the second pass runs over text that already contains the user-controlled backlog title (feature 0011). A backlog renamed to '{count} items' then shows as 'Tasks created in \"2 items\": 2'. The planned unit test ('$& stays literal') would not catch this. The impact is display integrity only: Notice renders text, and the title is already capped at 40 chars. That is why this is minor, but it is exactly the class of bug Decision 7 is meant to prevent.",
+      "location": "Tech-spec Decision 7; Task 03 step 4 (formatFollowUpNotice); Task 03 TDD Anchor",
+      "recommendation": "Specify single-pass substitution with a function replacer, which is immune both to $-patterns and to re-substitution: `template.replace(/\\{(group|count)\\}/g, (_, key) => key === 'group' ? groupTitle : String(count))`. Add a TDD anchor `::formatFollowUpNotice keeps {count} and {group} inside a group title literal` next to the $& test."
+    },
+    {
+      "severity": "minor",
+      "category": "Injection (XSS) — test coverage of the framework sink",
+      "title": "Notice mock and E2E suite do not assert that user text in a notice is rendered as plain text",
+      "description": "The notice text includes the user-controlled backlog title and, through data.json, can come from a synced or hand-edited file. Real Obsidian `new Notice(string)` sets the message as text. The obsidian.d.ts typings (1.12.0) document string | DocumentFragment but do not state text-only rendering explicitly, so this relies on established framework behavior. Task 07 asks for a harness Notice that 'renders the message into a .notice element'. If the mock uses innerHTML, the E2E suite loses the ability to detect a future regression. An example is someone switching showFollowUpNotice to build a DocumentFragment from an HTML string or to use innerHTML for styling the group name. Task 08 has no scenario with markup-like user text in the notice or in the tooltip.",
+      "location": "Task 07 step 6 (tests/harness/obsidian-mock.ts Notice); Task 08 scenario 10 (AC-10); src/ui/followUpNotice.ts (planned)",
+      "recommendation": "In Task 07, require the mock to set `messageEl.textContent = message` (never innerHTML) and to keep the string-only path. In Task 08 scenario 10, rename the backlog to a markup-like value such as `<img src=x onerror=window.__xss=1>` (within the 40-char cap). Assert that the .notice text contains it literally, that no <img> element appears inside .notice, and that `window.__xss` is undefined. Optionally, add a follow-up item with the same text and assert the card marker's title attribute equals the literal string. In showFollowUpNotice, keep passing a plain string to Notice; if styled output is ever needed, build a DocumentFragment with createEl/setText, never from HTML."
+    }
+  ]
+}

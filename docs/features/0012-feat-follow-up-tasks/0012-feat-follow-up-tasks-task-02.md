@@ -38,7 +38,8 @@ boards or groups.
    `createdTaskId` → `''`; missing / non-string / empty / duplicate `id` → fresh UUID; at most 20 items,
    the first 20 kept). Never throws, does not mutate its input.
 4. Add a `version < 9` block after the `version < 8` block: every task object without `followUps` gets `[]`,
-   `result.version = 9`.
+   `result.version = 9`. The block must tolerate the same damaged shapes as the sanitization loop (non-object
+   `tasks`, non-object entries) — it is the first block that iterates `tasks`.
 5. In the unconditional sanitization block, after the existing board loop, sanitize `followUps` of every
    task. Skip task entries that are not objects; if `result.tasks` itself is not an object, leave it alone
    (TD-01 is out of scope — do not add wider hardening).
@@ -70,8 +71,9 @@ Write first in `tests/unit/migration.test.ts`, watch them fail, then implement.
   first of two duplicates keeps its id
 - `::followUps longer than 20 items is cut to the first 20`
 - `::followUps is sanitized on already-migrated v9 data` — fails if sanitization sits inside the version branch
-- `::a task entry that is not an object does not throw`
-- `::tasks that is not an object does not throw`
+- `::a task entry that is not an object does not throw` — run on a **v8** input (exercises the new
+  `version < 9` block) and on a v9 input (sanitization block only)
+- `::tasks that is not an object does not throw` — same two input versions
 
 ## Acceptance Criteria
 

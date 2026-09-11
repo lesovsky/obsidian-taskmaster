@@ -36,7 +36,7 @@ The store now reports spawned ids and the form reports marked ids; this task con
 3. `BoardLayout.svelte`:
    - `handleComplete` — put `result.spawnedTaskIds` on the toast, call the notice;
    - `handleUndo` — pass the toast's ids to `undoQuickComplete`; additionally clear the timer and remove any
-     live **delete** toast whose `taskId` is one of those ids (Decision 10);
+     live toast — **delete or complete** — whose `taskId` is one of those ids (Decision 10);
    - create and edit modal callbacks take `(task, spawnItemIds)`: save as today, then if ids were marked call
      `createFollowUpTasks(board.id, task.id, ids)` and the notice.
 4. `useSortable.ts`: export a move function that calls the store `moveTask` and then the notice for the active
@@ -45,7 +45,8 @@ The store now reports spawned ids and the form reports marked ids; this task con
    elements left by a previous test.
 6. `tests/harness/obsidian-mock.ts`:
    - add `Notice` — it renders the message into a `.notice` element inside a `.notice-container` attached to
-     `document.body` (the structure real Obsidian uses) and removes it after its timeout;
+     `document.body` (the structure real Obsidian uses) via `textContent`, never `innerHTML` (real `Notice`
+     renders a string as text; the mock must not be more or less permissive), and removes it after its timeout;
    - make `Modal.open()` close the modal on the Escape key, detaching the listener on close.
 
 ## TDD Anchor
@@ -59,7 +60,7 @@ spec).
 - [ ] ☑ on a task with pending items shows one notice with the right count and backlog name; no notice when nothing spawned
 - [ ] Drag into completed (real Sortable drop and `__test.moveTask`) shows the notice; reorder inside completed does not
 - [ ] Form Save with marked items spawns them and shows the notice; Escape spawns nothing
-- [ ] Undo removes the spawned tasks, returns items to pending and dismisses delete toasts of reverted tasks
+- [ ] Undo removes the spawned tasks, returns items to pending and dismisses delete and complete toasts of reverted tasks
 - [ ] Hidden backlog → suffix in the notice; renamed backlog → its current name
 - [ ] No `obsidian` import in `src/stores/` or `src/logic/`
 - [ ] `npm run build`, `npm test`, `npx playwright test` — all green

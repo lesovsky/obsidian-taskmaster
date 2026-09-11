@@ -17,7 +17,7 @@ reviewers: [dev-code-reviewer]
 
 ## Description
 
-Cover user-spec AC-1…AC-13 end to end in a dedicated Playwright suite. The form, the marker in two view
+Cover user-spec AC-1…AC-12 end to end in a dedicated Playwright suite (AC-13 — see the note after the list). The form, the marker in two view
 modes, ☑ with Undo, drag, the notice and the read-only editor can only be verified through the UI.
 
 ## What to do
@@ -37,12 +37,19 @@ several tests (e.g. open a task's form, add a follow-up item, read notice text).
 7. **AC-7:** ☑ then Undo → spawned tasks gone, items pending again, marker back; an item created earlier via the
    form stays created.
 8. **AC-8:** complete, move back out, complete again → no duplicates.
-9. **AC-9:** mark + Save → task spawned with notice, marker decremented; mark + Escape → nothing.
-10. **AC-10:** hidden backlog → notice with the hidden suffix; renamed backlog → notice uses the new name.
+9. **AC-9:** mark + Save in the **edit** form → task spawned with notice, marker decremented; mark + Save in
+   the **create** form of a new task → both the new task and the spawned one exist, notice shown (create and
+   edit go through different callbacks in `BoardLayout`); mark + Escape → nothing.
+10. **AC-10:** hidden backlog → notice with the hidden suffix; renamed backlog → notice uses the new name. A
+    backlog renamed to a markup-like string (e.g. `<img src=x onerror=alert(1)>`) and an item with such text
+    render literally in the notice and in the marker tooltip — no element is created.
 11. **AC-11:** a v8 snapshot loads with empty lists and unchanged board; a v9 snapshot with a damaged
     `followUps` (non-array, bad items) loads and the board renders.
 12. **AC-12:** form of a completed task shows the block read-only (no inputs/buttons); hidden when the list is empty.
-13. **AC-13 (spot check):** switch locale to ru and check the block title and notice wording.
+
+AC-13 is **not** an E2E scenario: the harness forces the `en` locale on every reset and has no way to switch it
+(see the note in `0011-group-customization.spec.ts`). It is proven by the typed dictionaries (Task 01) and the
+unit test of the notice text from both dictionaries (Task 03).
 
 ## TDD Anchor
 
@@ -51,7 +58,7 @@ names — assert behavior (stored data, visible elements, notice text), not the 
 
 ## Acceptance Criteria
 
-- [ ] Every user-spec AC-1…AC-13 has at least one scenario
+- [ ] Every user-spec AC-1…AC-12 has at least one scenario
 - [ ] `npx playwright test tests/e2e/0012-follow-up-tasks.spec.ts` green
 - [ ] `npx playwright test` — whole suite green
 

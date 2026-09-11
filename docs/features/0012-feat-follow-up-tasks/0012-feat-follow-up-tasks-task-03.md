@@ -1,6 +1,6 @@
 ---
 status: planned
-depends_on: ["02"]
+depends_on: ["01", "02"]
 wave: 2
 skills: [code-writing]
 verify: bash                       # npx vitest run tests/unit/followUps.test.ts
@@ -42,8 +42,10 @@ Downstream tasks rely on the exported API below; keep these names and shapes.
 3. Draft finalization: trim texts, drop empty drafts (marked ones too), keep order, cap text at 200 and the
    list at 20, keep `createdTaskId` of created drafts, return ids of drafts that are marked **and** still
    pending **and** survive finalization.
-4. Notice formatting must substitute without `String.replace` string patterns (Decision 7) — a group title
-   containing `$&`, `$1` or `$$` must appear literally.
+4. Notice formatting (Decision 7): one pass over the template with a single pattern matching both
+   placeholders and a function replacer — no string-pattern replacement, no two sequential passes. A group
+   title containing `$&`, `$1`, `$$`, `{count}` or `{group}` must appear literally. The hidden suffix, when
+   given, is appended after exactly one space.
 5. Write `tests/unit/followUps.test.ts` with the anchors below.
 
 ## TDD Anchor
@@ -67,7 +69,11 @@ Downstream tasks rely on the exported API below; keep these names and shapes.
 - `::finalizeFollowUpDrafts returns ids of marked pending drafts only`
 - `::formatFollowUpNotice substitutes group and count`
 - `::formatFollowUpNotice keeps $& in a group title literal`
-- `::formatFollowUpNotice appends the hidden suffix`
+- `::formatFollowUpNotice keeps {count} and {group} in a group title literal`
+- `::formatFollowUpNotice appends the hidden suffix after one space` — assert the full string
+- `::formatFollowUpNotice with the real en and ru templates` — import `en` / `ru` from `src/i18n` and assert
+  `Tasks created in "Backlog": 2` and `Заведено задач в «Бэклог»: 2`, plus the ru hidden suffix
+  (this is the AC-13 proof for the notice; the E2E harness cannot switch locale)
 
 ## Acceptance Criteria
 
@@ -99,7 +105,8 @@ Downstream tasks rely on the exported API below; keep these names and shapes.
 ## Details
 
 **Files:** `src/logic/followUps.ts` (new), `tests/unit/followUps.test.ts` (new).
-**Dependencies:** Task 02 (types).
+**Dependencies:** Task 02 (types); Task 01 (the real dictionary templates used by one test — the module
+itself still does not import i18n).
 **Edge cases:** a backlog group object missing on a damaged board; a parent whose `followUps` is absent;
 `itemIds` containing ids of created or unknown items (ignored); empty `spawnedTaskIds` (no-op).
 **Implementation hints:** `revertSpawnedFollowUps` must look in every group of the board, not only backlog —
