@@ -415,7 +415,7 @@ would drop it on the next save of that task, which is acceptable for a downgrade
 - **Skill:** code-writing
 - **Reviewers:** dev-code-reviewer
 - **Verify:** bash — `npx vitest run tests/unit/dataStore.test.ts tests/unit/followUps.test.ts`
-- **Files to modify:** `src/stores/dataStore.ts`, `src/stores/uiStore.ts`, `tests/unit/dataStore.test.ts`
+- **Files to modify:** `src/stores/dataStore.ts`, `tests/unit/dataStore.test.ts`
 - **Files to read:** `src/logic/followUps.ts`, `src/logic/statusTransitions.ts`, `src/ui/useSortable.ts`
 
 #### Task 5: Form editor
@@ -430,6 +430,9 @@ would drop it on the next save of that task, which is acceptable for a downgrade
 
 ### Wave 4 (зависит от Wave 3)
 
+Task 6 needs only Task 3, but sits here rather than in Wave 3 because Task 5 edits `src/styles.css`
+in the same wave — two agents editing one file in parallel is avoidable conflict.
+
 #### Task 6: Card marker
 - **Description:** Show `↪ N` for pending items on the card in both view modes, next to the deadline or
   in its place, with a tooltip listing the pending texts; nothing when N = 0.
@@ -442,11 +445,14 @@ would drop it on the next save of that task, which is acceptable for a downgrade
 #### Task 7: UI wiring and notice
 - **Description:** Connect the store results to the interface: notice after ☑, drag and form Save; spawned
   ids on the completion toast and their revert on Undo, including dismissal of delete toasts of reverted
-  tasks; drag and the test harness go through one move function; `Notice` mocked in the harness.
+  tasks; drag and the test harness go through one move function; `Notice` mocked in the harness, and
+  the mock modal closes on Escape like Obsidian's (no existing test depends on Escape today). The toast
+  type change lives here, next to the only code that builds toasts, because `tsc` does not check
+  `.svelte` files and a required field added earlier would go unnoticed in `BoardLayout`.
 - **Skill:** code-writing
 - **Reviewers:** dev-code-reviewer
 - **Verify:** bash — `npm run build`; `npm test`; `npx playwright test`
-- **Files to modify:** `src/ui/followUpNotice.ts`, `src/ui/BoardLayout.svelte`, `src/ui/useSortable.ts`, `tests/harness/obsidian-mock.ts`, `tests/harness/main.ts`
+- **Files to modify:** `src/ui/followUpNotice.ts`, `src/ui/BoardLayout.svelte`, `src/ui/useSortable.ts`, `src/stores/uiStore.ts`, `tests/harness/obsidian-mock.ts`, `tests/harness/main.ts`
 - **Files to read:** `src/ui/groupTitle.ts`, `src/stores/dataStore.ts`, `src/ui/FollowUpsEditor.svelte`
 
 ### Wave 5 (зависит от Wave 4)
