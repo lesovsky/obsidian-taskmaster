@@ -1,0 +1,23 @@
+{
+  "reviewer": "dev-code-reviewer",
+  "status": "approved_with_suggestions",
+  "summary": "The store changes match Task 04 and tech-spec Decisions 4-6. Each op is one dataStore.update plus one persist(). The why-prefix is read outside the callback. moveTask spawns only on entry into completed. undoQuickComplete reverts before it captures completedArr, so the array that revertSpawnedFollowUps reassigns is never stale. There is no obsidian import. The signatures match followUps.ts and the current callers. Unit suite 173/173 green, tsc clean. All TDD anchors are present and most pass the litmus test. Two of them cannot tell the intended implementation from a plausible wrong one; strengthening them is cheap.",
+  "findings": [
+    {
+      "severity": "minor",
+      "category": "tests",
+      "file": "tests/unit/dataStore.test.ts",
+      "line": 405,
+      "issue": "'spawned task why uses the locale prefix' runs only under the default 'en' locale. If whyPrefix were hardcoded as 'After: ' instead of read via get(t)('followUps.whyPrefix'), the test would still pass. It proves the prefix is concatenated, not that it comes from the current locale (tech-spec step 6: 'the prefix language is the interface language at creation time').",
+      "recommendation": "Keep the 'en' assertion and add a case that calls locale.set('ru') from src/i18n, quick-completes a parent, and asserts why === 'После: ' + parent.what. Restore the locale with locale.set('en') in a finally block or afterEach so other tests are not affected."
+    },
+    {
+      "severity": "minor",
+      "category": "tests",
+      "file": "tests/unit/dataStore.test.ts",
+      "line": 252,
+      "issue": "Every follow-up test seeds one board and makes it the active board. quickCompleteTask and createFollowUpTasks take an explicit boardId and must spawn into that board's backlog (AC: 'the same board's backlog'). If either one resolved the board via getActiveBoard (as moveTask does) or passed the wrong id to spawnFollowUps, no test would fail.",
+      "recommendation": "Add one case with seedBoards(2): leave activeBoardId on board 1, put the parent on board 2, and call quickCompleteTask (and/or createFollowUpTasks) with board 2's id. Assert that board 2's backlog gets the spawned ids and board 1's backlog stays empty."
+    }
+  ]
+}

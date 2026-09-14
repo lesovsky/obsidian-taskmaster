@@ -21,6 +21,7 @@ type CompleteToast = {
   expiresAt: number;
   previousStatus: Status;
   previousCompletedAt: string;
+  spawnedTaskIds: string[];
 };
 
 export type Toast = DeleteToast | CompleteToast;

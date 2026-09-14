@@ -2,14 +2,24 @@
   import type { Task, Priority, GroupId } from '../data/types';
   import { formatDate } from '../utils/dateFormat';
   import { t } from '../i18n';
+  import { finalizeFollowUpDrafts } from '../logic/followUps';
+  import type { FollowUpDraft } from '../logic/followUps';
+  import FollowUpsEditor from './FollowUpsEditor.svelte';
 
   export let task: Task | null = null;
   export let groupId: GroupId;
   export let defaultPriority: Priority = 'medium';
-  export let onSave: (task: Task) => void;
+  export let onSave: (task: Task, spawnItemIds: string[]) => void;
   export let onDelete: (() => void) | null = null;
 
   const isEdit = !!task;
+  // A task in the completed group only shows its list (Decision 9).
+  const followUpsReadOnly = groupId === 'completed';
+
+  // Drafts are built from a copy: `task` is the live store object, and Escape must discard edits.
+  let followUpDrafts: FollowUpDraft[] = task
+    ? task.followUps.map(item => ({ id: item.id, text: item.text, createdTaskId: item.createdTaskId, marked: false }))
+    : [];
 
   let what = task?.what ?? '';
   let why = task?.why ?? '';
@@ -22,6 +32,13 @@
 
   function handleSave() {
     if (!canSave) return;
+    const { followUps, spawnItemIds } = followUpsReadOnly
+      ? {
+          // a copy: the saved task must not share the list with the stored one
+          followUps: task ? task.followUps.map(item => ({ ...item })) : [],
+          spawnItemIds: [],
+        }
+      : finalizeFollowUpDrafts(followUpDrafts);
     const saved: Task = {
       id: task?.id ?? crypto.randomUUID(),
       what: what.trim(),
@@ -32,8 +49,9 @@
       completedAt: task?.completedAt ?? '',
       priority,
       status,
+      followUps,
     };
-    onSave(saved);
+    onSave(saved, spawnItemIds);
   }
 </script>
 
@@ -61,6 +79,8 @@
       placeholder={$t('form.whyPlaceholder')}
     ></textarea>
   </div>
+
+  <FollowUpsEditor bind:drafts={followUpDrafts} readOnly={followUpsReadOnly} />
 
   <div class="tm-task-form__row">
     <div class="tm-task-form__field tm-task-form__field--half">

@@ -84,6 +84,71 @@ export async function moveTask(
   );
 }
 
+/** How long SortableJS animates an insertion (`animation: 150` in useSortable.ts) plus slack. */
+const SORTABLE_SETTLE_MS = 250;
+/** Re-aim attempts before giving up. Two suffice in practice; the rest is headroom. */
+const DRAG_AIM_ATTEMPTS = 5;
+
+/**
+ * Real mouse drag of a card into a group body — through SortableJS, not through the store.
+ *
+ * Two things make a single `mouse.move` insufficient. The library needs a small initial
+ * displacement before it recognises the gesture at all. And every list the pointer crosses accepts
+ * the card on the way, which pulls it out of its previous list and reflows the whole board — so the
+ * target keeps sliding out from under the pointer. Hence the loop: aim at the target's current
+ * centre, let the insertion animation settle, then check whether the pointer is still inside the
+ * target. Only when it is has the drag actually arrived.
+ */
+export async function dragCardToGroup(page: Page, taskId: string, toGroupId: GroupId): Promise<void> {
+  const card = page.locator(`[data-task-id="${taskId}"]`);
+  const target = page.locator(`[data-group-id="${toGroupId}"]`);
+  const cardBox = await card.boundingBox();
+  if (!cardBox) throw new Error(`cannot drag ${taskId}: card is not laid out`);
+
+  // Left third of the card: the delete button sits on the right and is in SortableJS `filter`.
+  const startX = cardBox.x + cardBox.width * 0.3;
+  const startY = cardBox.y + cardBox.height / 2;
+  await page.mouse.move(startX, startY);
+  await page.mouse.down();
+  // Gesture recognition: the library ignores a press that never moves, and a native drag only
+  // starts once the browser has seen enough displacement.
+  await page.mouse.move(startX + 10, startY + 10, { steps: 5 });
+  await page.mouse.move(startX + 30, startY + 30, { steps: 10 });
+  // The ghost class is SortableJS acknowledging the gesture. Without this wait a drag that never
+  // started would be reported as "the card refused to land", pointing at the wrong end of the problem.
+  await page
+    .locator(`[data-task-id="${taskId}"].tm-sortable-ghost`)
+    .waitFor({ state: 'attached', timeout: 2000 })
+    .catch(() => { throw new Error(`SortableJS never picked up card ${taskId}`); });
+
+  // Where the card currently sits in the DOM answers "where would this drop land" directly:
+  // SortableJS moves the real node into the receiving list while the drag is still in flight.
+  const cardIsInTarget = () => page
+    .locator(`[data-group-id="${toGroupId}"] [data-task-id="${taskId}"]`)
+    .count()
+    .then(n => n > 0);
+
+  let landed = false;
+  for (let attempt = 0; attempt < DRAG_AIM_ATTEMPTS && !landed; attempt++) {
+    const box = await target.boundingBox();
+    if (!box) break;
+    const x = box.x + box.width / 2;
+    const y = box.y + box.height / 2;
+    await page.mouse.move(x - 1, y - 1, { steps: 5 });
+    // A one-pixel nudge: without a position change there is no fresh dragover, and the library
+    // would keep the decision it made while the board was still reflowing.
+    await page.mouse.move(x, y);
+
+    // Believe the arrival only after the insertion animation and the reflow it causes: `dragover`
+    // keeps firing under a motionless pointer, so a target that slid away takes the card back out.
+    await page.waitForTimeout(SORTABLE_SETTLE_MS);
+    landed = await cardIsInTarget();
+  }
+  if (!landed) throw new Error(`drag of ${taskId} never settled over ${toGroupId}`);
+
+  await page.mouse.up();
+}
+
 // ─── Group helpers ─────────────────────────────────────────────────────────────
 
 /**
@@ -101,7 +166,7 @@ export async function expandGroup(page: Page, groupId: GroupId): Promise<void> {
 }
 
 /** Return the add-task button locator for a group. */
-function groupAddButton(page: Page, groupId: GroupId): Locator {
+export function groupAddButton(page: Page, groupId: GroupId): Locator {
   // For non-collapsible groups: .tm-task-group contains data-group-id body
   // For collapsible groups: .tm-collapsible-group
   // Both have an add button (+) in the header

@@ -1,0 +1,23 @@
+{
+  "reviewer": "dev-code-reviewer",
+  "status": "approved_with_suggestions",
+  "summary": "The module matches the task's export table in names, signatures and shapes. Spawn and revert behave as specified, including on damaged boards (missing backlog, backlog without taskIds, missing followUps), and the one-pass function-replacer notice and draft normalization match Decision 7 and sanitizeFollowUps. All 22 TDD anchors are present and meaningful, 31/31 tests pass, tsc is clean, and there are no stores/i18n/obsidian imports. Two minor test-side gaps: the 'inherited property' cases do not actually exercise the hasOwnProperty guard, and nothing pins the finalize/sanitize normalization equivalence against future drift.",
+  "findings": [
+    {
+      "severity": "minor",
+      "category": "tests",
+      "file": "tests/unit/followUps.test.ts",
+      "line": 238,
+      "issue": "The 'inherited property as parent id' case (and 'revertSpawnedFollowUps ignores inherited property names in the ids', line 316) passes even without the hasOwnProperty guard. For 'constructor' / '__proto__', a plain lookup returns Object / Object.prototype, whose `followUps` is undefined, so pendingFollowUps returns [] and the parent flip loop is skipped. `delete data.tasks['constructor']` and `delete data.tasks['__proto__']` are no-ops on an object that does not own them (verified empirically). So replacing hasTask with a truthiness lookup would keep both tests green: they document intent but do not protect the own-property rule the lead made binding.",
+      "recommendation": "Add a test that can tell the two apart: build `data.tasks` as `Object.assign(Object.create({ ghost: makeTask('ghost', { followUps: [item('a', 'A')] }) }), { p1, o1 })` and assert that `spawnFollowUps(data, 'b1', 'ghost', OPTS)` returns [] and leaves data unchanged (without the guard it would spawn one task). Do the same for revert, with 'ghost' as parentTaskId and with a spawned id. Or keep the current cases but label them as smoke tests, so they are not taken as coverage of the guard."
+    },
+    {
+      "severity": "minor",
+      "category": "maintainability",
+      "file": "src/logic/followUps.ts",
+      "line": 131,
+      "issue": "finalizeFollowUpDrafts repeats the text normalization chain of sanitizeFollowUps (`trim().slice(0, FOLLOW_UP_TEXT_MAX_LENGTH).replace(/[\\s\\uD800-\\uDBFF]+$/, '')`) by copy. The comment says the two must stay identical so that the next load leaves saved text unchanged, but nothing enforces it. If either copy changes, saved text silently shifts on the next load. The duplication was likely deliberate, since the lead allowed only a one-line change in migration.ts.",
+      "recommendation": "Cheapest guard, no source change: add a test asserting `sanitizeFollowUps(result.followUps)` equals `result.followUps` for a mixed draft set (padding, 250-char text, emoji at the cut, space at the cut, created ids). Alternatively, once migration.ts may be touched again, export one `normalizeFollowUpText(s: string): string` from migration.ts and use it in both places."
+    }
+  ]
+}

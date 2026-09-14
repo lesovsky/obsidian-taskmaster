@@ -1,5 +1,5 @@
 ---
-status: planned
+status: done
 depends_on: ["01", "02"]
 wave: 2
 skills: [code-writing]
@@ -77,10 +77,10 @@ Downstream tasks rely on the exported API below; keep these names and shapes.
 
 ## Acceptance Criteria
 
-- [ ] Module exports the API from the table; no imports of stores, i18n or `obsidian`
-- [ ] Spawn/revert/finalize/format behave as specified; all anchors pass
-- [ ] `npx vitest run tests/unit/followUps.test.ts` — green
-- [ ] `npx tsc --noEmit` — clean
+- [x] Module exports the API from the table; no imports of stores, i18n or `obsidian`
+- [x] Spawn/revert/finalize/format behave as specified; all anchors pass
+- [x] `npx vitest run tests/unit/followUps.test.ts` — green
+- [x] `npx tsc --noEmit` — clean
 
 ## Context Files
 
@@ -105,6 +105,15 @@ Downstream tasks rely on the exported API below; keep these names and shapes.
 ## Details
 
 **Files:** `src/logic/followUps.ts` (new), `tests/unit/followUps.test.ts` (new).
+**Lead notes after Wave 1:**
+- Limits: Task 02 declared `FOLLOW_UP_TEXT_MAX_LENGTH` and `MAX_FOLLOW_UPS` as local constants in
+  `src/data/migration.ts`. Export them from there (a one-line change in `migration.ts`, allowed for this
+  task) and have `followUps.ts` import and re-export them, so there is one source of truth and the editor
+  still imports from the logic module. No new cycle: `migration.ts` does not import the logic module.
+- Any lookup of a task by an id that comes from data (`createdTaskId`, `parentTaskId`, spawned ids) must
+  check own properties with `Object.prototype.hasOwnProperty.call(data.tasks, id)` — a hand-edited
+  `'constructor'` would otherwise hit an inherited property. Not `Object.hasOwn`: the project targets ES2021.
+
 **Dependencies:** Task 02 (types); Task 01 (the real dictionary templates used by one test — the module
 itself still does not import i18n).
 **Edge cases:** a backlog group object missing on a damaged board; a parent whose `followUps` is absent;
@@ -119,6 +128,6 @@ the user may have dragged a spawned task elsewhere within the undo window (user-
 
 ## Post-completion
 
-- [ ] Записать краткий отчёт в [0012-feat-follow-up-tasks-decisions.md](0012-feat-follow-up-tasks-decisions.md) (Summary: 1-3 предложения, ревью со ссылками на JSON, без таблиц файндингов и дампов)
-- [ ] Если отклонились от спека — описать отклонение и причину
-- [ ] Обновить user-spec/tech-spec если что-то изменилось
+- [x] Записать краткий отчёт в [0012-feat-follow-up-tasks-decisions.md](0012-feat-follow-up-tasks-decisions.md) (Summary: 1-3 предложения, ревью со ссылками на JSON, без таблиц файндингов и дампов)
+- [x] Если отклонились от спека — описать отклонение и причину
+- [x] Обновить user-spec/tech-spec если что-то изменилось

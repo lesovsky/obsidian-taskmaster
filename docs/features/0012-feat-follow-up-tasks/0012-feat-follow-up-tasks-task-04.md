@@ -1,5 +1,5 @@
 ---
-status: planned
+status: done
 depends_on: ["01", "03"]
 wave: 3
 skills: [code-writing]
@@ -55,13 +55,13 @@ notices are shown by UI code in Task 07 using the returned ids.
 
 ## Acceptance Criteria
 
-- [ ] ☑ and drag into completed spawn pending items into the same board's backlog and return the ids
-- [ ] Reorder inside completed and moves between other groups spawn nothing
-- [ ] Undo reverts exactly the ids it is given; earlier-created items stay created
-- [ ] `createFollowUpTasks` exists and spawns only the given items
-- [ ] No `obsidian` import in `src/stores/`
-- [ ] `npx vitest run tests/unit/dataStore.test.ts tests/unit/followUps.test.ts` — green; `npm test` green
-- [ ] `npx tsc --noEmit` — clean
+- [x] ☑ and drag into completed spawn pending items into the same board's backlog and return the ids
+- [x] Reorder inside completed and moves between other groups spawn nothing
+- [x] Undo reverts exactly the ids it is given; earlier-created items stay created
+- [x] `createFollowUpTasks` exists and spawns only the given items
+- [x] No `obsidian` import in `src/stores/`
+- [x] `npx vitest run tests/unit/dataStore.test.ts tests/unit/followUps.test.ts` — green; `npm test` green
+- [x] `npx tsc --noEmit` — clean
 
 ## Context Files
 
@@ -99,6 +99,6 @@ unknown board or task → existing `null` / no-op behavior preserved.
 
 ## Post-completion
 
-- [ ] Записать краткий отчёт в [0012-feat-follow-up-tasks-decisions.md](0012-feat-follow-up-tasks-decisions.md) (Summary: 1-3 предложения, ревью со ссылками на JSON, без таблиц файндингов и дампов)
-- [ ] Если отклонились от спека — описать отклонение и причину
-- [ ] Обновить user-spec/tech-spec если что-то изменилось
+- [x] Записать краткий отчёт в [0012-feat-follow-up-tasks-decisions.md](0012-feat-follow-up-tasks-decisions.md) (Summary: 1-3 предложения, ревью со ссылками на JSON, без таблиц файндингов и дампов)
+- [x] Если отклонились от спека — описать отклонение и причину
+- [x] Обновить user-spec/tech-spec если что-то изменилось

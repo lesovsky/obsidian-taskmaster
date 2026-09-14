@@ -1,11 +1,21 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { get } from 'svelte/store';
-import { dataStore, updateBoard } from '../../src/stores/dataStore';
+import {
+  dataStore,
+  updateBoard,
+  updateTask,
+  quickCompleteTask,
+  undoQuickComplete,
+  moveTask,
+  createFollowUpTasks,
+} from '../../src/stores/dataStore';
 import { pluginStore } from '../../src/stores/pluginStore';
+import { uiStore } from '../../src/stores/uiStore';
+import { locale } from '../../src/i18n';
 import { DEFAULT_DATA, createDefaultBoard } from '../../src/data/defaults';
 import { GROUP_IDS } from '../../src/data/types';
 import type { Plugin } from 'obsidian';
-import type { Board, GroupId, PluginData } from '../../src/data/types';
+import type { Board, GroupId, PluginData, Task } from '../../src/data/types';
 
 // `persist()` only reaches Obsidian when `pluginStore` holds a plugin, so most tests need no mock;
 // the one that checks persistence injects a fake with a `saveData` method and puts `null` back.
@@ -203,5 +213,229 @@ describe('updateBoard', () => {
 
     expect(() => updateBoard(board.id, fields({ groupTitles: titles({ focus: 'Fokus' }) }))).not.toThrow();
     expect(readBoard(board.id).groups.focus.title).toBe('Fokus');
+  });
+});
+
+describe('follow-up spawning', () => {
+  let board: Board;
+
+  /** Puts a task with follow-up items `texts` (all pending) at the end of `groupId`. */
+  function seedTask(groupId: GroupId, texts: string[], what = 'Parent'): Task {
+    const task: Task = {
+      id: crypto.randomUUID(),
+      what,
+      why: '',
+      who: '',
+      deadline: '',
+      createdAt: '2026-01-01',
+      completedAt: groupId === 'completed' ? '2026-01-02' : '',
+      priority: 'high',
+      status: groupId === 'completed' ? 'completed' : 'inProgress',
+      followUps: texts.map(text => ({ id: crypto.randomUUID(), text, createdTaskId: '' })),
+    };
+    dataStore.update(data => {
+      data.tasks[task.id] = task;
+      data.boards.find(b => b.id === board.id)!.groups[groupId].taskIds.push(task.id);
+      return data;
+    });
+    return task;
+  }
+
+  function stored(taskId: string): Task {
+    return get(dataStore).tasks[taskId];
+  }
+
+  function backlogIds(): string[] {
+    return readBoard(board.id).groups.backlog.taskIds;
+  }
+
+  beforeEach(() => {
+    board = seedBoards()[0];
+    // moveTask resolves its board through the active board id.
+    uiStore.update(ui => ({ ...ui, activeBoardId: board.id }));
+  });
+
+  it('quickCompleteTask spawns pending items into backlog and returns their ids', () => {
+    const parent = seedTask('focus', ['Call client', 'Send invoice']);
+
+    const result = quickCompleteTask(parent.id, 'focus', board.id);
+
+    expect(result).not.toBeNull();
+    expect(result!.spawnedTaskIds).toHaveLength(2);
+    expect(backlogIds()).toEqual(result!.spawnedTaskIds);
+    expect(result!.spawnedTaskIds.map(id => stored(id).what)).toEqual(['Call client', 'Send invoice']);
+    expect(stored(parent.id).followUps.map(item => item.createdTaskId)).toEqual(result!.spawnedTaskIds);
+    expect(readBoard(board.id).groups.completed.taskIds).toEqual([parent.id]);
+  });
+
+  it('quickCompleteTask on a task without pending items returns an empty spawnedTaskIds', () => {
+    const parent = seedTask('focus', []);
+
+    const result = quickCompleteTask(parent.id, 'focus', board.id);
+
+    expect(result!.spawnedTaskIds).toEqual([]);
+    expect(backlogIds()).toEqual([]);
+  });
+
+  it('undoQuickComplete with spawnedTaskIds removes those tasks and returns items to pending', () => {
+    const parent = seedTask('focus', ['Call client', 'Send invoice']);
+    const result = quickCompleteTask(parent.id, 'focus', board.id)!;
+
+    undoQuickComplete(
+      parent.id, 'focus', board.id, result.position,
+      result.previousStatus, result.previousCompletedAt, result.spawnedTaskIds,
+    );
+
+    expect(backlogIds()).toEqual([]);
+    for (const id of result.spawnedTaskIds) {
+      expect(get(dataStore).tasks).not.toHaveProperty(id);
+    }
+    expect(stored(parent.id).followUps.map(item => item.createdTaskId)).toEqual(['', '']);
+    expect(readBoard(board.id).groups.focus.taskIds).toEqual([parent.id]);
+    expect(stored(parent.id).status).toBe('inProgress');
+  });
+
+  it('undoQuickComplete leaves an item created earlier via the form untouched', () => {
+    const parent = seedTask('focus', ['Early', 'Late']);
+    const [early, late] = parent.followUps.map(item => item.id);
+    const [earlyTaskId] = createFollowUpTasks(board.id, parent.id, [early]);
+    const result = quickCompleteTask(parent.id, 'focus', board.id)!;
+
+    undoQuickComplete(
+      parent.id, 'focus', board.id, result.position,
+      result.previousStatus, result.previousCompletedAt, result.spawnedTaskIds,
+    );
+
+    const items = stored(parent.id).followUps;
+    expect(items.find(item => item.id === early)!.createdTaskId).toBe(earlyTaskId);
+    expect(items.find(item => item.id === late)!.createdTaskId).toBe('');
+    expect(backlogIds()).toEqual([earlyTaskId]);
+    expect(stored(earlyTaskId).what).toBe('Early');
+  });
+
+  it('moveTask into completed from a working group spawns and returns ids', () => {
+    const parent = seedTask('inProgress', ['Retro']);
+
+    const spawned = moveTask(parent.id, 'inProgress', 'completed', 0);
+
+    expect(spawned).toHaveLength(1);
+    expect(backlogIds()).toEqual(spawned);
+    expect(stored(spawned[0]).what).toBe('Retro');
+    expect(stored(parent.id).followUps[0].createdTaskId).toBe(spawned[0]);
+  });
+
+  it('moveTask inside completed spawns nothing', () => {
+    // Decision 4: applyStatusTransition runs for in-group reorders too, so only `from` tells them apart.
+    seedTask('completed', []);
+    const parent = seedTask('completed', ['Would be spawned by mistake']);
+
+    const spawned = moveTask(parent.id, 'completed', 'completed', 0);
+
+    expect(spawned).toEqual([]);
+    expect(backlogIds()).toEqual([]);
+    expect(stored(parent.id).followUps[0].createdTaskId).toBe('');
+    expect(readBoard(board.id).groups.completed.taskIds[0]).toBe(parent.id);
+  });
+
+  it('moveTask between working groups spawns nothing', () => {
+    const parent = seedTask('focus', ['Not yet']);
+
+    const spawned = moveTask(parent.id, 'focus', 'delegated', 0);
+
+    expect(spawned).toEqual([]);
+    expect(backlogIds()).toEqual([]);
+    expect(stored(parent.id).followUps[0].createdTaskId).toBe('');
+  });
+
+  it('completing again after moving back out creates no duplicates', () => {
+    const parent = seedTask('focus', ['Once']);
+    const first = moveTask(parent.id, 'focus', 'completed', 0);
+
+    moveTask(parent.id, 'completed', 'focus', 0);
+    const byDrag = moveTask(parent.id, 'focus', 'completed', 0);
+    moveTask(parent.id, 'completed', 'focus', 0);
+    const byButton = quickCompleteTask(parent.id, 'focus', board.id)!;
+
+    expect(first).toHaveLength(1);
+    expect(byDrag).toEqual([]);
+    expect(byButton.spawnedTaskIds).toEqual([]);
+    expect(backlogIds()).toEqual(first);
+  });
+
+  it('createFollowUpTasks spawns only the given items and returns their ids', () => {
+    const parent = seedTask('focus', ['A', 'B', 'C']);
+    const [a, b, c] = parent.followUps.map(item => item.id);
+
+    const spawned = createFollowUpTasks(board.id, parent.id, [c, a]);
+
+    // List order, not the order of itemIds.
+    expect(spawned.map(id => stored(id).what)).toEqual(['A', 'C']);
+    expect(backlogIds()).toEqual(spawned);
+    const items = stored(parent.id).followUps;
+    expect(items.find(item => item.id === b)!.createdTaskId).toBe('');
+    expect(readBoard(board.id).groups.focus.taskIds).toEqual([parent.id]);
+  });
+
+  it('createFollowUpTasks persists the spawn', () => {
+    const parent = seedTask('focus', ['A']);
+    const saved: PluginData[] = [];
+    pluginStore.set({
+      saveData: (data: PluginData) => { saved.push(JSON.parse(JSON.stringify(data))); },
+    } as unknown as Plugin);
+
+    try {
+      const [spawned] = createFollowUpTasks(board.id, parent.id, [parent.followUps[0].id]);
+
+      expect(saved).toHaveLength(1);
+      expect(saved[0].tasks[spawned].what).toBe('A');
+    } finally {
+      pluginStore.set(null);
+    }
+  });
+
+  it('updateTask with status completed spawns nothing', () => {
+    const parent = seedTask('focus', ['Stays pending']);
+
+    updateTask({ ...parent, status: 'completed' });
+
+    expect(backlogIds()).toEqual([]);
+    expect(stored(parent.id).followUps[0].createdTaskId).toBe('');
+    expect(readBoard(board.id).groups.focus.taskIds).toEqual([parent.id]);
+  });
+
+  it('spawned task why uses the locale prefix', () => {
+    const parent = seedTask('focus', ['Follow up'], 'Ship release');
+
+    const { spawnedTaskIds } = quickCompleteTask(parent.id, 'focus', board.id)!;
+
+    expect(stored(spawnedTaskIds[0]).why).toBe('After: Ship release');
+  });
+
+  it('spawned task why follows the current locale', () => {
+    // Without this a hard-coded 'After: ' would pass the en-only test above.
+    const parent = seedTask('focus', ['Follow up'], 'Ship release');
+    locale.set('ru');
+
+    try {
+      const { spawnedTaskIds } = quickCompleteTask(parent.id, 'focus', board.id)!;
+
+      expect(stored(spawnedTaskIds[0]).why).toBe('После: Ship release');
+    } finally {
+      locale.set('en');
+    }
+  });
+
+  it('quickCompleteTask and createFollowUpTasks spawn into the board they are given, not the active one', () => {
+    const [active, other] = seedBoards(2);
+    uiStore.update(ui => ({ ...ui, activeBoardId: active.id }));
+    board = other;
+    const first = seedTask('focus', ['By button']);
+    const second = seedTask('focus', ['From form']);
+
+    const { spawnedTaskIds } = quickCompleteTask(first.id, 'focus', other.id)!;
+    const created = createFollowUpTasks(other.id, second.id, [second.followUps[0].id]);
+
+    expect(readBoard(other.id).groups.backlog.taskIds).toEqual([...spawnedTaskIds, ...created]);
+    expect(readBoard(active.id).groups.backlog.taskIds).toEqual([]);
   });
 });

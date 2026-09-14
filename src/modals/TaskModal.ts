@@ -9,14 +9,14 @@ export class TaskModal extends Modal {
   private groupId: GroupId;
   private task: Task | null;
   private defaultPriority: Priority;
-  private onSaveCallback: (task: Task) => void;
+  private onSaveCallback: (task: Task, spawnItemIds: string[]) => void;
   private onDeleteCallback: (() => void) | null;
 
   constructor(
     app: App,
     groupId: GroupId,
     defaultPriority: Priority = 'medium',
-    onSave: (task: Task) => void,
+    onSave: (task: Task, spawnItemIds: string[]) => void,
     task: Task | null = null,
     onDelete: (() => void) | null = null,
   ) {
@@ -41,8 +41,8 @@ export class TaskModal extends Modal {
         task: this.task,
         groupId: this.groupId,
         defaultPriority: this.defaultPriority,
-        onSave: (task: Task) => {
-          this.onSaveCallback(task);
+        onSave: (task: Task, spawnItemIds: string[]) => {
+          this.onSaveCallback(task, spawnItemIds);
           this.close();
         },
         onDelete: this.onDeleteCallback

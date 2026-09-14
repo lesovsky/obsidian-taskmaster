@@ -1,0 +1,15 @@
+{
+  "reviewer": "dev-code-reviewer",
+  "status": "approved_with_suggestions",
+  "summary": "All ten followUps.* keys are in the TranslationKey union and in both dictionaries, and every string matches the task-01 table exactly in both languages. whyPrefix ends with exactly one space ('After: ' / 'После: ', checked with cat -A), noticeCreated contains literal {group} and {count} in both languages, the quotes are \"\" in English and «» in Russian, the new keys sit in one trailing block after notes.* in the existing layout, src/i18n/index.ts is unchanged, and npx tsc --noEmit passes. The one note: the task table's Russian toBacklogHint wording ('Будет заведена…', agreeing with an implied 'задача') differs from the state the user-spec quotes for the item ('будет заведён при сохранении', agreeing with 'пункт'). The code faithfully follows the task, so this is a spec-alignment question, not a coding error.",
+  "findings": [
+    {
+      "severity": "minor",
+      "category": "correctness",
+      "file": "src/i18n/ru.ts",
+      "line": 114,
+      "issue": "followUps.toBacklogHint is 'Будет заведена в бэклог при сохранении'. The user-spec quotes the marked state twice (Scenario 4, line 63; the 'Блок «После выполнения»' section, line 87) as «будет заведён при сохранении», in the masculine, agreeing with 'пункт'. The task-01 table introduced the feminine form, implying 'задача', and added 'в бэклог'. The task says 'Wording is fixed by the user-spec where it quotes UI text'. I am not sure the user-spec phrase was meant as literal UI copy rather than a description of the state, but read literally the two disagree. Both wordings are grammatical and understandable. The English 'Will be created in the backlog on save' is fine either way.",
+      "recommendation": "Pick one wording and record it. Either change the ru value to 'Будет заведён в бэклог при сохранении' (or exactly 'Будет заведён при сохранении') so it agrees with 'пункт' as the user-spec says, or keep the task wording and note the deliberate deviation in 0012-feat-follow-up-tasks-decisions.md, so Task 05 (which renders this hint) and manual QA don't flag it later."
+    }
+  ]
+}

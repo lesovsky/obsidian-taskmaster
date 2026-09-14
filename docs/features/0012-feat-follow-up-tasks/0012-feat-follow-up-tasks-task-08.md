@@ -1,5 +1,5 @@
 ---
-status: planned
+status: done
 depends_on: ["06", "07"]
 wave: 5
 skills: [code-writing]
@@ -58,9 +58,9 @@ names — assert behavior (stored data, visible elements, notice text), not the 
 
 ## Acceptance Criteria
 
-- [ ] Every user-spec AC-1…AC-12 has at least one scenario
-- [ ] `npx playwright test tests/e2e/0012-follow-up-tasks.spec.ts` green
-- [ ] `npx playwright test` — whole suite green
+- [x] Every user-spec AC-1…AC-12 has at least one scenario
+- [x] `npx playwright test tests/e2e/0012-follow-up-tasks.spec.ts` green
+- [x] `npx playwright test` — whole suite green
 
 ## Context Files
 
@@ -96,6 +96,6 @@ round trip; the complete button is hover-revealed but clickable (see 0008 EC-4).
 
 ## Post-completion
 
-- [ ] Записать краткий отчёт в [0012-feat-follow-up-tasks-decisions.md](0012-feat-follow-up-tasks-decisions.md) (Summary: 1-3 предложения, ревью со ссылками на JSON, без таблиц файндингов и дампов)
-- [ ] Если отклонились от спека — описать отклонение и причину
-- [ ] Обновить user-spec/tech-spec если что-то изменилось
+- [x] Записать краткий отчёт в [0012-feat-follow-up-tasks-decisions.md](0012-feat-follow-up-tasks-decisions.md) (Summary: 1-3 предложения, ревью со ссылками на JSON, без таблиц файндингов и дампов)
+- [x] Если отклонились от спека — описать отклонение и причину
+- [x] Обновить user-spec/tech-spec если что-то изменилось

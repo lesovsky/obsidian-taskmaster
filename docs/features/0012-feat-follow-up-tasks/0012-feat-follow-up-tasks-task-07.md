@@ -1,5 +1,5 @@
 ---
-status: planned
+status: done
 depends_on: ["04", "05"]
 wave: 4
 skills: [code-writing]
@@ -57,13 +57,13 @@ spec).
 
 ## Acceptance Criteria
 
-- [ ] ☑ on a task with pending items shows one notice with the right count and backlog name; no notice when nothing spawned
-- [ ] Drag into completed (real Sortable drop and `__test.moveTask`) shows the notice; reorder inside completed does not
-- [ ] Form Save with marked items spawns them and shows the notice; Escape spawns nothing
-- [ ] Undo removes the spawned tasks, returns items to pending and dismisses delete and complete toasts of reverted tasks
-- [ ] Hidden backlog → suffix in the notice; renamed backlog → its current name
-- [ ] No `obsidian` import in `src/stores/` or `src/logic/`
-- [ ] `npm run build`, `npm test`, `npx playwright test` — all green
+- [x] ☑ on a task with pending items shows one notice with the right count and backlog name; no notice when nothing spawned
+- [x] Drag into completed (real Sortable drop and `__test.moveTask`) shows the notice; reorder inside completed does not
+- [x] Form Save with marked items spawns them and shows the notice; Escape spawns nothing
+- [x] Undo removes the spawned tasks, returns items to pending and dismisses delete and complete toasts of reverted tasks
+- [x] Hidden backlog → suffix in the notice; renamed backlog → its current name
+- [x] No `obsidian` import in `src/stores/` or `src/logic/`
+- [x] `npm run build`, `npm test`, `npx playwright test` — all green
 
 ## Context Files
 
@@ -105,6 +105,6 @@ longer exists is a no-op.
 
 ## Post-completion
 
-- [ ] Записать краткий отчёт в [0012-feat-follow-up-tasks-decisions.md](0012-feat-follow-up-tasks-decisions.md) (Summary: 1-3 предложения, ревью со ссылками на JSON, без таблиц файндингов и дампов)
-- [ ] Если отклонились от спека — описать отклонение и причину
-- [ ] Обновить user-spec/tech-spec если что-то изменилось
+- [x] Записать краткий отчёт в [0012-feat-follow-up-tasks-decisions.md](0012-feat-follow-up-tasks-decisions.md) (Summary: 1-3 предложения, ревью со ссылками на JSON, без таблиц файндингов и дампов)
+- [x] Если отклонились от спека — описать отклонение и причину
+- [x] Обновить user-spec/tech-spec если что-то изменилось

@@ -1,0 +1,15 @@
+{
+  "reviewer": "dev-code-reviewer",
+  "status": "approved_with_suggestions",
+  "summary": "Commit 5c3572d implements the follow-up marker as specified by Decision 14 and the user-spec: a plain non-focusable span with no handlers, `↪ N` / `↪N` placed before the deadline or in its place, a title with the pending texts one per line, nothing rendered at N = 0. The `pendingFollowUps` call matches its signature, reactivity is correct with the store's mutate-and-return updates (object props always invalidate in Svelte 4), the CSS follows the tm-/BEM/Obsidian-variable rules, and the adjacent-sibling rule correctly hands `margin-left: auto` from the deadline to the marker (specificity 0,2,0 over 0,1,0; Svelte's text anchors don't break `+`). One minor layout concern about narrow multi-column cards in default mode.",
+  "findings": [
+    {
+      "severity": "minor",
+      "category": "correctness",
+      "file": "src/styles.css",
+      "line": 330,
+      "issue": "In default card mode with multi-column layout (full-width group = 4 columns, TaskGroup.svelte:23), the top row is made only of non-shrinking items: priority 1rem + status 1rem + gaps + marker (~1.9rem for `↪ 20`) + full deadline `📅 YYYY-MM-DD` (~6rem) + the 3.25rem padding reserved for ☑/✕. That is roughly 14.5rem against a card content width of about 12-14rem on a typical 800-1000px board. The row overflows its content box to the right, so the deadline slides into the reserved padding and under the absolutely positioned ☑/✕ buttons, which appear on hover. The deadline alone could already overflow at the narrowest widths; the marker adds about 2.25rem and makes it much more likely. The user-spec risk section defers the multi-column check to manual testing, and the magnitude here is an estimate, not measured.",
+      "recommendation": "Check a 4-column default-mode board with a deadline and `↪ 20` during the planned manual check. If it overlaps, the smallest fix is a multi-layout rule that lets the deadline give way instead of spilling: `.tm-task-group__body--multi .tm-task-card__deadline, .tm-collapsible-group__body--multi .tm-task-card__deadline { flex-shrink: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }`. This keeps the marker fully visible, which matches the spec's decision not to hide it in narrow columns. Alternatively, record it in tech-debt as a known narrow-width limitation."
+    }
+  ]
+}

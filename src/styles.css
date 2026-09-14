@@ -326,6 +326,23 @@
   color: var(--text-error);
   font-weight: 600;
 }
+/* Маркер пост-задач: забирает у дедлайна margin-left:auto, пара стоит справа вместе */
+.tm-task-card__follow-ups {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-left: auto;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+/* В узкой карточке (4 колонки) дата с маркером сжимается с многоточием, а не уезжает под ☑/✕ */
+.tm-task-card__follow-ups + .tm-task-card__deadline {
+  margin-left: 0;
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .tm-task-card__what {
   font-size: 0.85rem;
   line-height: 1.3;
@@ -458,6 +475,16 @@
   text-align: right;
 }
 
+/* Маркер пост-задач в компактном виде — фиксированная ширина (до «↪20») */
+.tm-task-card__follow-ups-compact {
+  flex-shrink: 0;
+  width: 1.75rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-align: right;
+  white-space: nowrap;
+}
+
 .tm-task-card__delete-compact {
   flex-shrink: 0;
   width: 1.25rem;
@@ -587,6 +614,90 @@
   font-size: 0.75rem;
   color: var(--text-muted);
   padding: 0.25rem 0;
+}
+
+/* FollowUpsEditor — button rules are scoped under .tm-follow-ups to outrank
+   Obsidian's `button:not(.clickable-icon)` / `button:hover` (0,1,1) without !important */
+.tm-follow-ups {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.tm-follow-ups__title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-normal);
+}
+.tm-follow-ups__row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.15rem;
+  border: 1px solid transparent;
+  border-radius: 4px;
+}
+.tm-follow-ups__row--marked {
+  background: var(--background-modifier-hover);
+  border-color: var(--interactive-accent);
+}
+.tm-follow-ups__row--created {
+  color: var(--text-muted);
+}
+.tm-follow-ups__input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  background: var(--background-primary);
+  color: var(--text-normal);
+  font-size: 0.9rem;
+  font-family: inherit;
+}
+.tm-follow-ups__text {
+  flex: 1;
+  min-width: 0;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+.tm-follow-ups__created-label {
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+.tm-follow-ups__to-backlog,
+.tm-follow-ups__remove,
+.tm-follow-ups__add {
+  flex-shrink: 0;
+  padding: 0.3rem 0.6rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.tm-follow-ups .tm-follow-ups__to-backlog--pressed,
+.tm-follow-ups .tm-follow-ups__to-backlog--pressed:hover {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+}
+.tm-follow-ups .tm-follow-ups__remove,
+.tm-follow-ups .tm-follow-ups__remove:hover {
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-muted);
+}
+.tm-follow-ups .tm-follow-ups__remove:hover {
+  color: var(--text-error);
+}
+.tm-follow-ups .tm-follow-ups__remove:focus-visible {
+  box-shadow: 0 0 0 3px var(--background-modifier-border-focus);
+}
+.tm-follow-ups__add {
+  align-self: flex-start;
+}
+.tm-follow-ups__add:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* DeleteToast */

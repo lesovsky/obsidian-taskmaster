@@ -2,10 +2,10 @@
 
 Плагин Obsidian TaskMaster тестируется двумя инструментами:
 
-- **Vitest** — unit-тесты (111 тестов в 7 файлах, среда Node.js, ~300 мс)
-- **Playwright** — E2E-тесты (102 теста в 5 файлах, реальный браузер)
+- **Vitest** — unit-тесты (175 тестов в 8 файлах, среда Node.js, ~0,5 с на сами тесты)
+- **Playwright** — E2E-тесты (123 теста в 6 файлах, реальный браузер)
 
-Итого: 213 тестов.
+Итого: 298 тестов.
 
 ## Требуемая версия Node
 
@@ -26,7 +26,7 @@ npm test
 ```
 tests/
 ├── harness/
-│   ├── obsidian-mock.ts    — Мок Obsidian API (Plugin, Modal, App, WorkspaceLeaf, Setting)
+│   ├── obsidian-mock.ts    — Мок Obsidian API (Plugin, Modal, Notice, App, WorkspaceLeaf, ItemView, Setting)
 │   ├── main.ts             — Инициализация харнесса + window.__test API
 │   ├── index.html          — HTML-обёртка для харнесса
 │   ├── obsidian-vars.css   — Obsidian CSS-переменные (фон, текст, акценты)
@@ -37,12 +37,14 @@ tests/
 │   ├── 0006-group-visibility.spec.ts
 │   ├── 0007-dynamic-layout.spec.ts
 │   ├── 0008-card-columns.spec.ts
-│   └── 0011-group-customization.spec.ts
+│   ├── 0011-group-customization.spec.ts
+│   └── 0012-follow-up-tasks.spec.ts
 └── unit/
     ├── statusTransitions.test.ts
     ├── migration.test.ts
     ├── cleanup.test.ts
     ├── dataStore.test.ts
+    ├── followUps.test.ts
     ├── boardLayoutUtils.test.ts
     ├── groupOrderUtils.test.ts
     └── groupTitle.test.ts
@@ -55,8 +57,8 @@ vitest.config.ts
 ## Команды запуска
 
 ```bash
-npm run test:unit          # vitest — unit-тесты (111 тестов, ~300 мс)
-npm run test:e2e           # playwright — E2E тесты (102 теста)
+npm run test:unit          # vitest — unit-тесты (175 тестов)
+npm run test:e2e           # playwright — E2E тесты (123 теста)
 npm run test:e2e:ui        # playwright --ui — интерактивный режим
 npm run test:all           # unit + E2E
 npm run test:harness       # собрать харнесс без запуска тестов
@@ -90,7 +92,8 @@ esbuild.harness.mjs
 | Класс | Что мокируется |
 |-------|----------------|
 | `Plugin` | `loadData()` / `saveData()` через `localStorage` (`tm-test-data`) |
-| `Modal` | Создаёт overlay `div.tm-test-modal-overlay` в `document.body` |
+| `Modal` | Создаёт overlay `div.tm-test-modal-overlay` в `document.body`. Закрывается по Escape, как в Obsidian: вызывается `close()` → `onClose()`, форма уничтожается без сохранения. Мок рассчитан на одно открытое окно: при нескольких мок-окнах Escape закрыл бы все, а Obsidian закрывает только верхнее |
+| `Notice` | Та же DOM-структура, что в Obsidian: `div.notice` внутри `div.notice-container` на `document.body`. Строка вставляется через `textContent` (как текст, не разметка), `DocumentFragment` — через `appendChild`. Уведомление удаляется само через `duration` мс, по умолчанию 5000. Настоящую длительность `obsidian.d.ts` не документирует, значение мока выбрано произвольно |
 | `App` | Заглушки `workspace.getLeavesOfType`, `getLeaf` |
 | `WorkspaceLeaf` | Заглушка `setViewState` |
 | `ItemView` | `containerEl` с двумя дочерними элементами (как в Obsidian) |
@@ -104,9 +107,9 @@ esbuild.harness.mjs
 
 | Метод | Описание |
 |-------|----------|
-| `resetData(partial?)` | Сбрасывает все сторы в чистое состояние. Если `partial` содержит поле `version` — вызывает `migrateData(partial)`. Иначе `migrateData(null)` + deepMerge. Всегда форсирует `language: 'en'`. |
+| `resetData(partial?)` | Сбрасывает все сторы в чистое состояние и удаляет оставшиеся с прошлого теста уведомления (`.notice-container`). Если `partial` содержит поле `version` — вызывает `migrateData(partial)`. Иначе `migrateData(null)` + deepMerge. Всегда форсирует `language: 'en'`. |
 | `getDataStore()` | Возвращает текущее значение `dataStore` |
-| `moveTask(id, from, to, index?)` | Перемещает задачу напрямую через `dataStore`, минуя SortableJS |
+| `moveTask(id, from, to, index?)` | Перемещает задачу на активной доске через `moveTaskAndNotify` из `src/ui/useSortable.ts`, минуя SortableJS. Это та же функция, которую вызывает обработчик drop: перемещение в store и уведомление о заведённых пост-задачах |
 | `updateSettings(settings)` | Обновляет `settings` в `dataStore` |
 
 ### Два режима `resetData`
@@ -132,6 +135,8 @@ await page.evaluate(() => window.__test.resetData({ settings: { defaultPriority:
 | `standardBeforeEach(page, partial?)` | Удаляет оставшиеся модальные окна + `resetData` |
 | `createTask(page, groupId, data, options?)` | Открывает modal, заполняет форму, сохраняет. Возвращает `taskId`. |
 | `moveTask(page, taskId, from, to, index?)` | Вызывает `window.__test.moveTask` (не drag-and-drop) |
+| `dragCardToGroup(page, taskId, toGroupId)` | Настоящее перетаскивание мышью через SortableJS в тело группы (см. «Drag-and-drop»). Используется в 0011 и 0012 |
+| `groupAddButton(page, groupId)` | Локатор кнопки «+» группы (для рабочих и сворачиваемых групп) |
 | `expandGroup(page, groupId)` | Раскрывает collapsible-группу (backlog/completed) если свёрнута |
 | `openBoardSettings(page)` | Кликает кнопку настроек доски → ждёт popup |
 | `saveBoardSettings(page)` | Кликает Save → ждёт закрытия popup |
@@ -163,9 +168,10 @@ test('перемещение задачи в completed меняет статус
 | Файл | Что тестирует |
 |------|---------------|
 | `statusTransitions.test.ts` | 8 тестов: правила смены статуса при перемещении задачи между группами |
-| `migration.test.ts` | 36 тестов: миграция с каждой версии (0→8), идемпотентность v8→v8, null и пустой объект, санация `groupOrder` и `title` на повреждённых данных |
+| `migration.test.ts` | 52 теста: миграция с каждой версии (0→9), идемпотентность v9→v9, null и пустой объект, санация `groupOrder`, `title` и `followUps` на повреждённых данных |
 | `cleanup.test.ts` | 8 тестов: `cleanupCompletedTasks` (retention), `cleanupOrphanedTasks` |
-| `dataStore.test.ts` | 15 тестов: `updateBoard` — запись названий, порядка, ширин и видимости, нормализация названия, устойчивость к повреждённой доске |
+| `dataStore.test.ts` | 29 тестов: `updateBoard` — запись названий, порядка, ширин и видимости, нормализация названия, устойчивость к повреждённой доске; заведение пост-задач — ☑ и отмена, `moveTask` (вход в «Завершённые» против перестановки внутри них), `createFollowUpTasks`, отсутствие заведения из `updateTask` |
+| `followUps.test.ts` | 34 теста: `src/logic/followUps.ts` — незаведённые пункты, поля заведённой задачи и обрезка «Зачем», заведение и откат, черновики формы и лимиты, текст уведомления (однопроходная подстановка, оба словаря en и ru) |
 | `boardLayoutUtils.test.ts` | 8 тестов: `computeGroupClasses` — пары half, одинокая half, произвольный порядок групп |
 | `groupOrderUtils.test.ts` | 31 тест: перемещение стрелками (видимая и скрытая строка), состояние стрелок, согласованность `canMoveGroup` и `moveGroup`, `sanitizeHiddenGroups`, `moveGroupWithinPresent` |
 | `groupTitle.test.ts` | 5 тестов: `resolveGroupTitle` — пустое и пробельное название → дефолтная подпись |
@@ -181,6 +187,7 @@ test('перемещение задачи в completed меняет статус
 | `0007-dynamic-layout.spec.ts` | 16 | `fullWidth` настройки, алгоритм pairing (half/full/half-alone), миграция v4→v5 |
 | `0008-card-columns.spec.ts` | 16 | single/multi `cardLayout`, CSS vars, DnD в multi-режиме, миграция v5→v6 |
 | `0011-group-customization.spec.ts` | 18 | Переименование групп, порядок групп на доске (вычисленный `order` + геометрия), стрелки в попапе, выживание DOM-узлов и DnD сразу после перестановки, прокрутка попапа, независимость настроек досок, одинаковые названия у двух групп, приглушение строки до сохранения, длинное название в поле попапа |
+| `0012-follow-up-tasks.spec.ts` | 21 | Пост-задачи: редактор в форме и лимиты, маркер `↪ N` в обоих режимах, ☑ с уведомлением и отменой, перетаскивание мышью в «Завершённые», статус в форме, «→ в бэклог» + Save/Escape, скрытый и переименованный бэклог, загрузка v8 и повреждённого списка, форма задачи из «Завершённых» только для чтения. Проверка на двух языках (AC-13) — в unit-тестах: стенд закрепляет `en` |
 
 ## Особенности и паттерны
 
@@ -190,12 +197,14 @@ test('перемещение задачи в completed меняет статус
 
 Каждый тест начинается с `standardBeforeEach`, который:
 1. Удаляет оставшиеся `.tm-test-modal-overlay` из DOM
-2. Вызывает `window.__test.resetData()` — сбрасывает все три стора
+2. Вызывает `window.__test.resetData()` — сбрасывает все три стора и удаляет оставшиеся уведомления `Notice`
 3. Отменяет pending toast-таймеры через `clearTimeout`, чтобы они не утекали между тестами
 
 ### Drag-and-drop
 
-SortableJS не поддерживает программный drag-and-drop в Playwright. Вместо этого используется `window.__test.moveTask()`, который напрямую вызывает `dataStore.moveTask()`.
+Большинство тестов перемещает задачи через `window.__test.moveTask()`. Он идёт в обход SortableJS, но через ту же функцию `moveTaskAndNotify`, что и обработчик drop, поэтому уведомление о пост-задачах проверяется и на этом пути.
+
+Там, где важен сам жест (обработчик `onEnd`, выживание инстансов SortableJS), используется `dragCardToGroup()` из `helpers.ts` — настоящее перетаскивание мышью. Одного `mouse.move` не хватает по двум причинам. Библиотеке нужно начальное смещение, чтобы распознать жест. Кроме того, каждый список на пути курсора принимает карточку и перестраивает доску, и цель уезжает из-под курсора. Поэтому хелпер ждёт класс `tm-sortable-ghost`, затем в цикле наводится на центр цели. После каждого наведения он ждёт окончания анимации вставки и проверяет, что карточка уже в DOM целевой группы.
 
 Playwright-ассерции с retry (`expect(...).toHaveCount(N)`) обеспечивают детерминированное ожидание DOM-обновления после изменения стора.
 
@@ -210,6 +219,10 @@ await page.clock.fastForward(8000); // вместо реального ожид�
 ```
 
 Тест 5.4 делает повторный `goto` после `beforeEach` — это намеренно, не ошибка.
+
+### Уведомления Obsidian (Notice)
+
+Уведомления мока локейтятся как `.notice-container > .notice`, текст проверяется через `toHaveText`. Мок удаляет уведомление через 5000 мс, этого хватает на проверку сразу после действия. Для проверки «уведомления нет» используется `toHaveCount(0)` сразу после действия. Уведомления прошлого теста убирает `resetData`.
 
 ### Collapsible-группы (backlog, completed)
 

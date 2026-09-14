@@ -1,5 +1,5 @@
 ---
-status: planned
+status: done
 depends_on: ["08"]
 wave: 6
 skills: [pre-deploy-qa]
@@ -31,9 +31,9 @@ the user.
 
 ## Acceptance Criteria
 
-- [ ] All commands green
-- [ ] Every AC mapped to evidence
-- [ ] Report written with any findings and the manual-check list
+- [x] All commands green
+- [x] Every AC mapped to evidence
+- [x] Report written with any findings and the manual-check list
 
 ## Context Files
 
@@ -57,5 +57,5 @@ None — QA is its own verification.
 
 ## Post-completion
 
-- [ ] Записать краткий отчёт в [0012-feat-follow-up-tasks-decisions.md](0012-feat-follow-up-tasks-decisions.md)
-- [ ] Если отклонились от спека — описать отклонение и причину
+- [x] Записать краткий отчёт в [0012-feat-follow-up-tasks-decisions.md](0012-feat-follow-up-tasks-decisions.md)
+- [x] Если отклонились от спека — описать отклонение и причину

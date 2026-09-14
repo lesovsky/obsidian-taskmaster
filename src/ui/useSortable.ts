@@ -1,6 +1,18 @@
 import Sortable from 'sortablejs';
+import { get } from 'svelte/store';
 import { moveTask } from '../stores/dataStore';
+import { uiStore } from '../stores/uiStore';
+import { showFollowUpNotice } from './followUpNotice';
 import type { GroupId } from '../data/types';
+
+/**
+ * Moves a task on the active board and shows the follow-up notice when the move spawned tasks.
+ * The Sortable drop handler and the test harness both go through here, so E2E covers the notice.
+ */
+export function moveTaskAndNotify(taskId: string, fromGroupId: GroupId, toGroupId: GroupId, newIndex: number): void {
+  const spawned = moveTask(taskId, fromGroupId, toGroupId, newIndex);
+  showFollowUpNotice(get(uiStore).activeBoardId, spawned.length);
+}
 
 interface SortableOptions {
   groupId: GroupId;
@@ -40,7 +52,7 @@ export function useSortable(node: HTMLElement, opts: SortableOptions) {
             evt.from.appendChild(evt.item);
           }
 
-          moveTask(taskId, fromGroupId, toGroupId, newIndex);
+          moveTaskAndNotify(taskId, fromGroupId, toGroupId, newIndex);
         },
       });
     } catch (e) {

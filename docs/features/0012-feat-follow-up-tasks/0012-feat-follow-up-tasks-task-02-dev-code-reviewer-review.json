@@ -1,0 +1,31 @@
+{
+  "reviewer": "dev-code-reviewer",
+  "status": "approved_with_suggestions",
+  "summary": "The change matches Decisions 1, 2, 11 and 12. The v9 block and the per-load sanitization loop sit in the right places and tolerate damaged `tasks` shapes. The form carries a copy of followUps, and valid v9 data passes through byte-identical. The TDD anchors are meaningful: each one would fail on a plausible bug (sanitization inside the version branch, regenerated ids, in-place mutation, surrogate split, invalid entries counted toward the cap). Gates are green (52 tests, tsc clean). The remaining findings are minor: one idempotency edge case in the text chain, a limits-drift risk, and a small test gap. Executor choices 1-5 are sound on merit; choice 1 (trimEnd) is right but needs the refinement described below.",
+  "findings": [
+    {
+      "severity": "minor",
+      "category": "correctness",
+      "file": "src/data/migration.ts",
+      "line": 45,
+      "issue": "The text chain `.trim().slice(0, 200).replace(/[\\uD800-\\uDBFF]$/, '').trimEnd()` runs the surrogate strip before trimEnd, so trimEnd can expose a lone high surrogate. Verified: 'a'*198 + '\\uD83D' + ' tail' -> first load leaves 199 chars ending in a lone high surrogate; the second load strips it to 198. The result breaks the invariant (no broken trailing glyph) and the rewrite-on-next-load property that choice 1 was added to guarantee. Reaching it takes hand-crafted invalid UTF-16 in data.json, so the real-world impact is low.",
+      "recommendation": "Strip both in one step, so neither leaves the other exposed: `item.text.trim().slice(0, FOLLOW_UP_TEXT_MAX_LENGTH).replace(/[\\s\\uD800-\\uDBFF]+$/, '')`. JS `\\s` covers the same set as `trim`, and a high surrogate followed by whitespace or at the end is always lone, so valid pairs are untouched (verified: 198 'a' + emoji stays intact). Add one case to 'followUps text cap does not leave a lone high surrogate': 'a'.repeat(198) + '\\uD83D' + ' tail' -> 'a'.repeat(198), and a second sanitizeFollowUps pass returns the same value."
+    },
+    {
+      "severity": "minor",
+      "category": "maintainability",
+      "file": "src/data/migration.ts",
+      "line": 10,
+      "issue": "FOLLOW_UP_TEXT_MAX_LENGTH and MAX_FOLLOW_UPS are local copies (choice 4). Task 03 defines the shared exported constants in src/logic/followUps.ts but lists migration.ts only as a read reference, not as a file to update. As planned, the load-side and editor-side limits stay in two independent places, and the comment says 'the form enforces the same values' without anything enforcing that. GROUP_TITLE_MAX_LENGTH has the same duplication by design (input maxlength vs load cap), so this follows precedent, but here both sides are TypeScript and can share one value.",
+      "recommendation": "Keep the local constants for this task. Note in the decisions log (or Task 03's 'What to do') that Task 03 must replace them with imports from src/logic/followUps.ts. followUps.ts must not import migration.ts, so the import only goes migration -> logic and there is no cycle. If that is not wanted, record the duplication as intentional next to the existing GROUP_TITLE_MAX_LENGTH comment."
+    },
+    {
+      "severity": "minor",
+      "category": "tests",
+      "file": "tests/unit/migration.test.ts",
+      "line": 598,
+      "issue": "'tasks that is not an object does not throw' covers null, a string and a number, but not an array. Choice 3 explicitly treats an array `tasks` as not-an-object and leaves it alone. That is the one case where the `!Array.isArray` guard in isObject changes behavior for `tasks`, and no test pins it: dropping the guard would silently add followUps to array elements with no failure.",
+      "recommendation": "Add `[makeTask('t1')]` (or `[]`) to the `tasks` loop and assert that `result.tasks` is the same reference and its element has no `followUps` key (e.g. `expect((result.tasks as any)[0].followUps).toBeUndefined()`). That pins the choice-3 behavior for both v8 and v9 inputs."
+    }
+  ]
+}

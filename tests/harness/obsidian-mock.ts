@@ -42,6 +42,7 @@ export class Modal {
   contentEl: HTMLElement;
   titleEl: HTMLElement;
   private _overlay: HTMLElement | null = null;
+  private _onKeydown: ((e: KeyboardEvent) => void) | null = null;
 
   constructor(app: App) {
     this.app = app;
@@ -68,10 +69,22 @@ export class Modal {
     document.body.appendChild(overlay);
     this._overlay = overlay;
 
+    // Obsidian closes a modal on Escape (discarding whatever the form holds). Assumes one open
+    // modal at a time, as the plugin does today: stacked mock modals would all close on one Escape,
+    // while Obsidian closes only the top one.
+    this._onKeydown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') this.close();
+    };
+    document.addEventListener('keydown', this._onKeydown);
+
     this.onOpen();
   }
 
   close(): void {
+    if (this._onKeydown) {
+      document.removeEventListener('keydown', this._onKeydown);
+      this._onKeydown = null;
+    }
     this.onClose();
     if (this._overlay) {
       this._overlay.remove();
@@ -81,6 +94,36 @@ export class Modal {
 
   onOpen(): void {}
   onClose(): void {}
+}
+
+// Same DOM shape as Obsidian: a `.notice` inside a `.notice-container` on document.body.
+// A string message goes in as text (textContent), never as markup — exactly as the real Notice.
+export class Notice {
+  noticeEl: HTMLElement;
+
+  constructor(message: string | DocumentFragment, duration = 5000) {
+    let container = document.body.querySelector<HTMLElement>(':scope > .notice-container');
+    if (!container) {
+      container = document.createElement('div');
+      container.className = 'notice-container';
+      document.body.appendChild(container);
+    }
+
+    this.noticeEl = document.createElement('div');
+    this.noticeEl.className = 'notice';
+    if (typeof message === 'string') {
+      this.noticeEl.textContent = message;
+    } else {
+      this.noticeEl.appendChild(message);
+    }
+    container.appendChild(this.noticeEl);
+
+    if (duration > 0) setTimeout(() => this.hide(), duration);
+  }
+
+  hide(): void {
+    this.noticeEl.remove();
+  }
 }
 
 export class ItemView {

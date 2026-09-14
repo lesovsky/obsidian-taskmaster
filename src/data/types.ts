@@ -8,6 +8,12 @@ export type CardLayout = 'single' | 'multi';
 
 export const GROUP_IDS: GroupId[] = ['backlog', 'focus', 'inProgress', 'orgIntentions', 'delegated', 'completed'];
 
+export interface FollowUp {
+  id: string; // UUID of the item itself
+  text: string; // trimmed, 1..200 characters
+  createdTaskId: string; // '' = pending; otherwise the id of the task spawned from this item
+}
+
 export interface Task {
   id: string;
   what: string;
@@ -18,6 +24,7 @@ export interface Task {
   completedAt: string;
   priority: Priority;
   status: Status;
+  followUps: FollowUp[]; // at most 20 items
 }
 
 export interface Group {

@@ -1,5 +1,5 @@
 ---
-status: planned
+status: done
 depends_on: []
 wave: 1
 skills: [code-writing]
@@ -77,14 +77,14 @@ Write first in `tests/unit/migration.test.ts`, watch them fail, then implement.
 
 ## Acceptance Criteria
 
-- [ ] `FollowUp` and `Task.followUps` exist in `src/data/types.ts`
-- [ ] `DEFAULT_DATA.version` is 9; `migrateData` yields version 9 for every migrating input
-- [ ] Data from v8 gains `followUps: []` on every task and is otherwise unchanged
-- [ ] A damaged `followUps` of any shape yields a valid list per Decision 11 — no throw
-- [ ] Sanitization runs on every load, outside version branches; valid v9 data passes byte-identical
-- [ ] Saving a task through the form keeps its `followUps`
-- [ ] `npx vitest run tests/unit/migration.test.ts` — green
-- [ ] `npx tsc --noEmit` — no errors
+- [x] `FollowUp` and `Task.followUps` exist in `src/data/types.ts`
+- [x] `DEFAULT_DATA.version` is 9; `migrateData` yields version 9 for every migrating input
+- [x] Data from v8 gains `followUps: []` on every task and is otherwise unchanged
+- [x] A damaged `followUps` of any shape yields a valid list per Decision 11 — no throw
+- [x] Sanitization runs on every load, outside version branches; valid v9 data passes byte-identical
+- [x] Saving a task through the form keeps its `followUps`
+- [x] `npx vitest run tests/unit/migration.test.ts` — green
+- [x] `npx tsc --noEmit` — no errors
 
 ## Context Files
 
@@ -132,6 +132,6 @@ new field; no HTML escaping at this layer — rendering uses `{}` interpolation.
 
 ## Post-completion
 
-- [ ] Записать краткий отчёт в [0012-feat-follow-up-tasks-decisions.md](0012-feat-follow-up-tasks-decisions.md) (Summary: 1-3 предложения, ревью со ссылками на JSON, без таблиц файндингов и дампов)
-- [ ] Если отклонились от спека — описать отклонение и причину
-- [ ] Обновить user-spec/tech-spec если что-то изменилось
+- [x] Записать краткий отчёт в [0012-feat-follow-up-tasks-decisions.md](0012-feat-follow-up-tasks-decisions.md) (Summary: 1-3 предложения, ревью со ссылками на JSON, без таблиц файндингов и дампов)
+- [x] Если отклонились от спека — описать отклонение и причину
+- [x] Обновить user-spec/tech-spec если что-то изменилось

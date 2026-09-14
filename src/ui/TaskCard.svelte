@@ -2,6 +2,7 @@
   import type { Task } from '../data/types';
   import { t } from '../i18n';
   import { dataStore } from '../stores/dataStore';
+  import { pendingFollowUps } from '../logic/followUps';
   import { formatDeadlineShort } from '../utils/dateFormat';
 
   export let task: Task;
@@ -29,6 +30,8 @@
   $: isOverdue = task.deadline && new Date(task.deadline) < new Date() && task.status !== 'completed';
   $: isLowPriority = task.priority === 'low';
   $: isCompact = $dataStore.settings.cardView === 'compact';
+  $: pending = pendingFollowUps(task);
+  $: pendingTitle = pending.map(item => item.text).join('\n');
 </script>
 
 {#if isCompact}
@@ -50,6 +53,9 @@
       <div class="tm-task-card__who-compact" title={task.who}>{task.who}</div>
     {/if}
     <div class="tm-task-card__what-compact" title={task.what}>{task.what}</div>
+    {#if pending.length > 0}
+      <span class="tm-task-card__follow-ups-compact" title={pendingTitle}>↪{pending.length}</span>
+    {/if}
     {#if task.deadline}
       <span class="tm-task-card__deadline-compact" class:tm-task-card__deadline--overdue={isOverdue}>
         📅 {formatDeadlineShort(task.deadline)}
@@ -82,8 +88,11 @@
     <div class="tm-task-card__top">
       <span class="tm-task-card__priority">{icon}</span>
       <span class="tm-task-card__status">{statusIcon}</span>
+      {#if pending.length > 0}
+        <span class="tm-task-card__follow-ups" title={pendingTitle}>↪ {pending.length}</span>
+      {/if}
       {#if task.deadline}
-        <span class="tm-task-card__deadline" class:tm-task-card__deadline--overdue={isOverdue}>
+        <span class="tm-task-card__deadline" class:tm-task-card__deadline--overdue={isOverdue} title={task.deadline}>
           📅 {task.deadline}
         </span>
       {/if}

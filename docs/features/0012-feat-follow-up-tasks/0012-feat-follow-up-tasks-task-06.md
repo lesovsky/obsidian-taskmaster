@@ -1,5 +1,5 @@
 ---
-status: planned
+status: done
 depends_on: ["03", "05"]
 wave: 4
 skills: [code-writing]
@@ -44,11 +44,11 @@ plus the existing card-display and multi-column suites, which must stay green.
 
 ## Acceptance Criteria
 
-- [ ] Marker shown with the pending count in default and compact modes, with and without a deadline
-- [ ] Tooltip lists the pending texts, each on its own line
-- [ ] No marker when N = 0 (no items, or all created)
-- [ ] Card click, Enter and drag behave as before, including when started on the marker
-- [ ] `npm run build` succeeds; `npx playwright test tests/e2e/core.spec.ts tests/e2e/0008-card-columns.spec.ts` green
+- [x] Marker shown with the pending count in default and compact modes, with and without a deadline
+- [x] Tooltip lists the pending texts, each on its own line
+- [x] No marker when N = 0 (no items, or all created)
+- [x] Card click, Enter and drag behave as before, including when started on the marker
+- [x] `npm run build` succeeds; `npx playwright test tests/e2e/core.spec.ts tests/e2e/0008-card-columns.spec.ts` green
 
 ## Context Files
 
@@ -83,6 +83,6 @@ unaffected; cards in the completed group normally have no pending items.
 
 ## Post-completion
 
-- [ ] Записать краткий отчёт в [0012-feat-follow-up-tasks-decisions.md](0012-feat-follow-up-tasks-decisions.md) (Summary: 1-3 предложения, ревью со ссылками на JSON, без таблиц файндингов и дампов)
-- [ ] Если отклонились от спека — описать отклонение и причину
-- [ ] Обновить user-spec/tech-spec если что-то изменилось
+- [x] Записать краткий отчёт в [0012-feat-follow-up-tasks-decisions.md](0012-feat-follow-up-tasks-decisions.md) (Summary: 1-3 предложения, ревью со ссылками на JSON, без таблиц файндингов и дампов)
+- [x] Если отклонились от спека — описать отклонение и причину
+- [x] Обновить user-spec/tech-spec если что-то изменилось

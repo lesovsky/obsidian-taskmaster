@@ -1,0 +1,39 @@
+{
+  "reviewer": "dev-code-reviewer",
+  "status": "approved_with_suggestions",
+  "summary": "The documentation matches the code on every point that matters. That covers: FollowUp/Task types; the v9 branch and sanitizeFollowUps rules; the spawn triggers (quickCompleteTask, the moveTask `from !== 'completed'` guard, createFollowUpTasks); updateTask not spawning; the spawned-task fields; the required spawnedTaskIds on undoQuickComplete and the toast dismissal in BoardLayout.handleUndo; showFollowUpNotice being the only Notice importer, with moveTaskAndNotify shared by the drop handler and __test.moveTask; onSave(task, spawnItemIds); read-only in completed; the card marker placement, CSS widths and ellipsis; the i18n strings; the Notice mock, Escape handling and resetData notice cleanup in the harness; and the dragCardToGroup/groupAddButton helpers. Test counts were verified by running the suites: vitest shows 175 tests in 8 files (per-file 8/52/8/29/34/8/31/5, as documented), and playwright --list shows 123 tests in 6 files (0012 has 21). The en/ru CHANGELOG and README entries state the same facts, every file keeps its language, and no unrelated section was rewritten. Four minor findings, none blocking: one internally inconsistent example, one code snippet that differs from the real loop, and three manual scenarios whose steps do not set up what their expectations check. On task item 6: test-scenarios.md has no pre-existing ☑ section, so only the drag section (6.4) got the note, and ☑ is covered by the new 21.4. That is acceptable.",
+  "findings": [
+    {
+      "severity": "minor",
+      "category": "maintainability",
+      "file": "docs/technical.md",
+      "line": 101,
+      "issue": "In the data.json example, the second follow-up item has `\"createdTaskId\": \"uuid-task-9\"`, but uuid-task-9 is not in any group's taskIds (backlog holds uuid-task-5 and uuid-task-8) and not in `tasks`. A spawned item always points at a real task that was appended to the end of the backlog. Read literally, the example shows a dangling reference, which is exactly the state the docs elsewhere say cannot happen.",
+      "recommendation": "Point the item at a task that exists in the example, e.g. `\"createdTaskId\": \"uuid-task-8\"` (uuid-task-8 is already last in the backlog, which is where a spawned task lands). Alternatively, add uuid-task-9 to backlog.taskIds and to `tasks`."
+    },
+    {
+      "severity": "minor",
+      "category": "correctness",
+      "file": "docs/technical.md",
+      "line": 421,
+      "issue": "The migrateData sketch shows the per-load sanitization as `for (const task of Object.values(data.tasks)) { task.followUps = sanitizeFollowUps(task.followUps); }`. The real code (src/data/migration.ts:216) iterates `taskObjects(result.tasks)`, which skips a non-object `tasks` value and non-object entries. The sketch as written would throw on a `null` task entry, which contradicts the paragraph below saying the load path never throws. The v9 paragraph (line 490) mentions the skip only for the version branch, not for this unconditional loop.",
+      "recommendation": "Change the sketch to `for (const task of taskObjects(data.tasks))`, or add a comment on that line: `// taskObjects(): skips a damaged tasks value or entry (TD-01)`. In the v9 paragraph, say that both the v9 branch and the per-load loop skip non-object entries."
+    },
+    {
+      "severity": "minor",
+      "category": "tests",
+      "file": "docs/testing/test-scenarios.md",
+      "line": 823,
+      "issue": "Scenario 21.5 has one step, 'Выполнить 21.4, в течение 7 секунд нажать «Отменить»'. Two of its expectations need setup that neither 21.4 nor 21.5 performs: (a) spawned tasks removed 'даже если их успели перетащить в другую группу' requires dragging one of them first; (b) 'Пункт, заведённый раньше через «→ в бэклог», остался заведённым' requires an item spawned from the form before the ☑. In 21.4 both items are pending. A tester following the steps cannot check either point.",
+      "recommendation": "Rewrite the steps: 1) Give the task three items; mark one '→ в бэклог' and save (one backlog task appears). 2) Press ☑ (two more tasks spawn). 3) Expand the backlog and drag one of the two new tasks into «Фокус». 4) Press «Отменить» within 7 seconds. In the expectations, say 'маркер `↪ 2` вернулся', and state that the task spawned from the form is still in the backlog."
+    },
+    {
+      "severity": "minor",
+      "category": "tests",
+      "file": "docs/testing/test-scenarios.md",
+      "line": 799,
+      "issue": "Two scenarios have gaps. (1) Scenario 21.3 switches to Compact before Multi, so the case the new CSS rule `.tm-task-card__follow-ups + .tm-task-card__deadline` exists for is never checked: default view, 4 columns, marker plus deadline, where the deadline must shrink with an ellipsis instead of sliding under ☑/✕ (technical.md line 316 documents this). (2) Scenario 21.8 step 4, 'Повторить шаг 3 в форме создания новой задачи', cannot be followed literally: a new-task form has no existing item to mark.",
+      "recommendation": "21.3: add a step 'Card view = Default, Card layout = Multi, карточка с пунктами и дедлайном в полноширинной группе' with the expectation 'маркер стоит вплотную слева от даты, дата обрезается многоточием, полная дата — в подсказке, ☑ и ✕ не перекрыты'. 21.8 step 4: 'В форме создания новой задачи ввести «Что», добавить пункт, нажать у него «→ в бэклог» и сохранить'."
+    }
+  ]
+}

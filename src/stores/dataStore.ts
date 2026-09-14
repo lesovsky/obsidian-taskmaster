@@ -7,6 +7,7 @@ import { pluginStore } from './pluginStore';
 import { uiStore } from './uiStore';
 import { formatDate } from '../utils/dateFormat';
 import { applyStatusTransition } from '../logic/statusTransitions';
+import { spawnFollowUps, revertSpawnedFollowUps } from '../logic/followUps';
 import { t } from '../i18n';
 
 export const dataStore = writable<PluginData>({ ...DEFAULT_DATA });
@@ -77,8 +78,10 @@ export function quickCompleteTask(
   taskId: string,
   sourceGroupId: GroupId,
   boardId: string,
-): { position: number; previousStatus: Status; previousCompletedAt: string } | null {
-  let result: { position: number; previousStatus: Status; previousCompletedAt: string } | null = null;
+): { position: number; previousStatus: Status; previousCompletedAt: string; spawnedTaskIds: string[] } | null {
+  let result: { position: number; previousStatus: Status; previousCompletedAt: string; spawnedTaskIds: string[] } | null = null;
+  const whyPrefix = get(t)('followUps.whyPrefix');
+  const today = formatDate(new Date());
 
   dataStore.update(data => {
     const board = data.boards.find(b => b.id === boardId);
@@ -91,17 +94,21 @@ export function quickCompleteTask(
     const task = data.tasks[taskId];
     if (!task) return data;
 
-    result = {
-      position: idx,
-      previousStatus: task.status,
-      previousCompletedAt: task.completedAt,
-    };
+    const previousStatus = task.status;
+    const previousCompletedAt = task.completedAt;
 
     sourceArr.splice(idx, 1);
     board.groups.completed.taskIds.unshift(taskId);
 
     task.status = 'completed';
-    task.completedAt = formatDate(new Date());
+    task.completedAt = today;
+
+    result = {
+      position: idx,
+      previousStatus,
+      previousCompletedAt,
+      spawnedTaskIds: spawnFollowUps(data, boardId, taskId, { whyPrefix, today }),
+    };
 
     return data;
   });
@@ -117,10 +124,13 @@ export function undoQuickComplete(
   position: number,
   previousStatus: Status,
   previousCompletedAt: string,
+  spawnedTaskIds: string[],
 ): void {
   dataStore.update(data => {
     const board = data.boards.find(b => b.id === boardId);
     if (!board) return data;
+
+    revertSpawnedFollowUps(data, boardId, taskId, spawnedTaskIds);
 
     const completedArr = board.groups.completed.taskIds;
     const completedIdx = completedArr.indexOf(taskId);
@@ -140,7 +150,11 @@ export function undoQuickComplete(
   persist();
 }
 
-export function moveTask(taskId: string, fromGroupId: GroupId, toGroupId: GroupId, newIndex: number): void {
+/** Returns the ids of follow-up tasks spawned when the task entered the completed group, else []. */
+export function moveTask(taskId: string, fromGroupId: GroupId, toGroupId: GroupId, newIndex: number): string[] {
+  let spawned: string[] = [];
+  const whyPrefix = get(t)('followUps.whyPrefix');
+
   dataStore.update(data => {
     const board = getActiveBoard(data);
     if (!board) return data;
@@ -158,9 +172,29 @@ export function moveTask(taskId: string, fromGroupId: GroupId, toGroupId: GroupI
       applyStatusTransition(task, fromGroupId, toGroupId);
     }
 
+    // A reorder inside completed also passes through here; only entering the group completes a task.
+    if (toGroupId === 'completed' && fromGroupId !== 'completed') {
+      spawned = spawnFollowUps(data, board.id, taskId, { whyPrefix, today: formatDate(new Date()) });
+    }
+
     return data;
   });
   persist();
+  return spawned;
+}
+
+/** Spawns the given pending items of the parent into the board's backlog; returns the new task ids. */
+export function createFollowUpTasks(boardId: string, parentTaskId: string, itemIds: string[]): string[] {
+  let spawned: string[] = [];
+  const whyPrefix = get(t)('followUps.whyPrefix');
+  const today = formatDate(new Date());
+
+  dataStore.update(data => {
+    spawned = spawnFollowUps(data, boardId, parentTaskId, { whyPrefix, today }, itemIds);
+    return data;
+  });
+  persist();
+  return spawned;
 }
 
 export function toggleGroupCollapsed(boardId: string, groupId: GroupId): void {

@@ -1,5 +1,5 @@
 ---
-status: planned
+status: done
 depends_on: ["09"]
 wave: 7
 skills: [documentation-writing]
@@ -42,9 +42,9 @@ touches — a general audit is TD-06 and out of scope.
 
 ## Acceptance Criteria
 
-- [ ] Every item above updated and consistent with the code
-- [ ] `grep -n "followUps" docs/technical.md` shows the field documented
-- [ ] No sections unrelated to this feature rewritten
+- [x] Every item above updated and consistent with the code
+- [x] `grep -n "followUps" docs/technical.md` shows the field documented
+- [x] No sections unrelated to this feature rewritten
 
 ## Context Files
 
@@ -70,5 +70,5 @@ touches — a general audit is TD-06 and out of scope.
 
 ## Post-completion
 
-- [ ] Записать краткий отчёт в [0012-feat-follow-up-tasks-decisions.md](0012-feat-follow-up-tasks-decisions.md)
-- [ ] Если отклонились от спека — описать отклонение и причину
+- [x] Записать краткий отчёт в [0012-feat-follow-up-tasks-decisions.md](0012-feat-follow-up-tasks-decisions.md)
+- [x] Если отклонились от спека — описать отклонение и причину

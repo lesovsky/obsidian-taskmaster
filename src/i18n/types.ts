@@ -41,6 +41,11 @@ export type TranslationKey =
   | 'emptyState.renamed'
   | 'toast.deleted' | 'toast.completed' | 'toast.seconds' | 'toast.undo'
   | 'fallback.task'
-  | 'notes.title' | 'notes.placeholder';
+  | 'notes.title' | 'notes.placeholder'
+  | 'followUps.title' | 'followUps.add' | 'followUps.placeholder'
+  | 'followUps.toBacklog' | 'followUps.toBacklogHint'
+  | 'followUps.created' | 'followUps.remove'
+  | 'followUps.whyPrefix'
+  | 'followUps.noticeCreated' | 'followUps.noticeHidden';
 
 export type Translations = Record<TranslationKey, string>;

@@ -106,4 +106,15 @@ export const en: Translations = {
 
   'notes.title': 'Notes',
   'notes.placeholder': 'Quick notes, links, thoughts...',
+
+  'followUps.title': 'After completion',
+  'followUps.add': '+ Add item',
+  'followUps.placeholder': 'What to do afterwards',
+  'followUps.toBacklog': '→ to backlog',
+  'followUps.toBacklogHint': 'Will be created in the backlog on save',
+  'followUps.created': '✓ created',
+  'followUps.remove': 'Remove item',
+  'followUps.whyPrefix': 'After: ',
+  'followUps.noticeCreated': 'Tasks created in "{group}": {count}',
+  'followUps.noticeHidden': '(group hidden)',
 };

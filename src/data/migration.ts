@@ -1,4 +1,4 @@
-import type { GroupId, PluginData } from './types';
+import type { FollowUp, GroupId, PluginData } from './types';
 import { GROUP_IDS } from './types';
 import { DEFAULT_DATA, DEFAULT_SETTINGS, DEFAULT_FULL_WIDTH } from './defaults';
 
@@ -6,8 +6,54 @@ import { DEFAULT_DATA, DEFAULT_SETTINGS, DEFAULT_FULL_WIDTH } from './defaults';
 // Both limits exist on purpose: the input guards fresh typing, this one guards hand-edited files.
 const GROUP_TITLE_MAX_LENGTH = 40;
 
-// Both sanitizers take `unknown` and never throw: migrateData runs before the board is rendered,
+// Load-side limits of a task's follow-up list; the form enforces the same values while typing.
+export const FOLLOW_UP_TEXT_MAX_LENGTH = 200;
+export const MAX_FOLLOW_UPS = 20;
+
+// All sanitizers take `unknown` and never throw: migrateData runs before the board is rendered,
 // so an exception on hand-edited data would leave the user with no board at all.
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+// The task entries that can safely receive a field. A damaged `tasks` value or entry is skipped,
+// not repaired — wider load hardening is TD-01.
+function taskObjects(tasks: unknown): Record<string, unknown>[] {
+  return isObject(tasks) ? Object.values(tasks).filter(isObject) : [];
+}
+
+/**
+ * Always returns a valid list: at most MAX_FOLLOW_UPS items, each with a unique non-empty id,
+ * a trimmed non-empty text of at most FOLLOW_UP_TEXT_MAX_LENGTH characters and a string
+ * createdTaskId. Items without usable text are dropped; a bad id is replaced, since the text is
+ * the user's content and the id only an implementation detail. Valid input comes back equal, ids
+ * included. The input is never mutated.
+ */
+export function sanitizeFollowUps(value: unknown): FollowUp[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const seen = new Set<string>();
+  const list: FollowUp[] = [];
+  for (const item of value as unknown[]) {
+    if (list.length >= MAX_FOLLOW_UPS) break;
+    if (!isObject(item) || typeof item.text !== 'string') continue;
+    // Same cap as sanitizeGroupTitle, but trailing whitespace and lone high surrogates are stripped
+    // together: the cut may land after a space, and a surrogate may hide behind one. A valid pair
+    // ends with a low surrogate, so whole emoji survive. A second load then changes nothing.
+    const text = item.text
+      .trim()
+      .slice(0, FOLLOW_UP_TEXT_MAX_LENGTH)
+      .replace(/[\s\uD800-\uDBFF]+$/, '');
+    if (text === '') continue;
+    const id = typeof item.id === 'string' && item.id !== '' && !seen.has(item.id) ? item.id : crypto.randomUUID();
+    seen.add(id);
+    list.push({ id, text, createdTaskId: typeof item.createdTaskId === 'string' ? item.createdTaskId : '' });
+  }
+  return list;
+}
 
 /**
  * Always returns a permutation of GROUP_IDS: unknown ids are dropped, duplicates collapse onto
@@ -148,6 +194,16 @@ export function migrateData(data: unknown): PluginData {
     result.version = 8;
   }
 
+  if (version < 9) {
+    // The first block that iterates tasks: it skips damaged entries exactly like the loop below.
+    for (const task of taskObjects(result.tasks)) {
+      if (task.followUps === undefined) {
+        task.followUps = [];
+      }
+    }
+    result.version = 9;
+  }
+
   // Sanitization deliberately sits outside every version branch, so data damaged after the
   // migration already ran is repaired too. Iterating the groups that exist (rather than
   // GROUP_IDS) keeps a board with a missing group from throwing on every load.
@@ -156,6 +212,9 @@ export function migrateData(data: unknown): PluginData {
     for (const group of Object.values(board.groups)) {
       group.title = sanitizeGroupTitle(group.title);
     }
+  }
+  for (const task of taskObjects(result.tasks)) {
+    task.followUps = sanitizeFollowUps(task.followUps);
   }
 
   return result;

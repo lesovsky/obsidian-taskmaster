@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Board, GroupId, Task } from '../data/types';
   import { t } from '../i18n';
-  import { addTask, updateTask, removeTaskFromGroup, restoreTaskToGroup, finalDeleteTask, updateGroupSettings, quickCompleteTask, undoQuickComplete } from '../stores/dataStore';
+  import { addTask, updateTask, removeTaskFromGroup, restoreTaskToGroup, finalDeleteTask, updateGroupSettings, quickCompleteTask, undoQuickComplete, createFollowUpTasks } from '../stores/dataStore';
   import { dataStore } from '../stores/dataStore';
   import { uiStore } from '../stores/uiStore';
   import { pluginStore } from '../stores/pluginStore';
@@ -13,6 +13,7 @@
   import GroupSettingsPopup from './GroupSettingsPopup.svelte';
   import NotesSection from './NotesSection.svelte';
   import { computeGroupClasses } from './boardLayoutUtils';
+  import { showFollowUpNotice } from './followUpNotice';
 
   export let board: Board;
   export let tasks: Record<string, Task>;
@@ -78,7 +79,10 @@
       plugin.app,
       groupId,
       data.settings.defaultPriority,
-      (task) => addTask(task, groupId),
+      (task, spawnItemIds) => {
+        addTask(task, groupId);
+        spawnMarkedFollowUps(task.id, spawnItemIds);
+      },
     ).open();
   }
 
@@ -90,10 +94,20 @@
       plugin.app,
       groupId,
       data.settings.defaultPriority,
-      (updated) => updateTask(updated),
+      (updated, spawnItemIds) => {
+        updateTask(updated);
+        spawnMarkedFollowUps(updated.id, spawnItemIds);
+      },
       task,
       () => handleDelete(task.id, groupId),
     ).open();
+  }
+
+  // Runs after the task itself is saved: the items marked "→ to backlog" in the form.
+  function spawnMarkedFollowUps(taskId: string, itemIds: string[]) {
+    if (itemIds.length === 0) return;
+    const spawned = createFollowUpTasks(board.id, taskId, itemIds);
+    showFollowUpNotice(board.id, spawned.length);
   }
 
   function evictOldestToastIfNeeded(): void {
@@ -172,9 +186,12 @@
           expiresAt,
           previousStatus: result.previousStatus,
           previousCompletedAt: result.previousCompletedAt,
+          spawnedTaskIds: result.spawnedTaskIds,
         },
       ],
     }));
+
+    showFollowUpNotice(board.id, result.spawnedTaskIds.length);
   }
 
   function handleUndo(taskId: string) {
@@ -184,15 +201,24 @@
 
     clearTimeout(toast.timerId);
 
+    // Tasks whose toasts go away with this one. Undo of a completion also deletes the tasks it
+    // spawned; a live delete or complete toast of one of them would push a dangling id back into a
+    // group on its own Undo, so those toasts are dismissed too.
+    const dismissed = new Set([taskId]);
+
     if (toast.type === 'delete') {
       restoreTaskToGroup(taskId, toast.groupId, toast.boardId, toast.position);
     } else {
-      undoQuickComplete(taskId, toast.groupId, toast.boardId, toast.position, toast.previousStatus, toast.previousCompletedAt);
+      undoQuickComplete(taskId, toast.groupId, toast.boardId, toast.position, toast.previousStatus, toast.previousCompletedAt, toast.spawnedTaskIds);
+      for (const id of toast.spawnedTaskIds) dismissed.add(id);
+      for (const other of ui.toasts) {
+        if (other !== toast && dismissed.has(other.taskId)) clearTimeout(other.timerId);
+      }
     }
 
     uiStore.update(u => ({
       ...u,
-      toasts: u.toasts.filter(t => t.taskId !== taskId),
+      toasts: u.toasts.filter(t => !dismissed.has(t.taskId)),
     }));
   }
 

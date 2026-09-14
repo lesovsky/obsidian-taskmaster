@@ -51,7 +51,7 @@ export const DEFAULT_SETTINGS: Settings = {
 };
 
 export const DEFAULT_DATA: PluginData = {
-  version: 8,
+  version: 9,
   settings: { ...DEFAULT_SETTINGS },
   boards: [createDefaultBoard('My Project')],
   tasks: {},

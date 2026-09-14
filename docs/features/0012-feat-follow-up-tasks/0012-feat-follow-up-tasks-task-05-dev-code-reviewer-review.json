@@ -1,0 +1,23 @@
+{
+  "reviewer": "dev-code-reviewer",
+  "status": "approved_with_suggestions",
+  "summary": "The editor meets the task. Drafts are built from fresh objects mapped out of task.followUps, so neither the live store object nor its items are touched before Save, and the editor never imports a store. The {#each} is keyed by draft id. Enter inserts after the current row and focuses it, skips IME composition and does nothing at the 20-item limit. Inputs carry maxlength=FOLLOW_UP_TEXT_MAX_LENGTH, and finalizeFollowUpDrafts handles trimming, capping and dropping empty or marked-empty rows. Read-only mode (groupId === 'completed') renders nothing for an empty list, and Save keeps a copy of the original list with no spawn ids. The completed group has onAdd=null, so read-only with task === null cannot happen. TaskModal passes both arguments through, and the one-argument BoardLayout callbacks stay assignable (fewer parameters is fine in TS). I checked CSS specificity against Obsidian's real rules in /opt/Obsidian/resources/obsidian.asar: `button` (0,0,1) sets padding/font/height, `button:not(.clickable-icon)` (0,1,1) sets only background and box-shadow, and `button:hover` (0,1,1) sets the hover background. The scoped (0,2,0)/(0,3,0) rules beat these where needed, and the unscoped base rule (0,1,0) beats bare `button`. Two minor accessibility points remain. There are no tm- prefix, BEM, <style> or {@html} violations.",
+  "findings": [
+    {
+      "severity": "minor",
+      "category": "correctness",
+      "file": "src/styles.css",
+      "line": 656,
+      "issue": "`.tm-follow-ups .tm-follow-ups__remove { box-shadow: none }` has specificity (0,2,0), which beats Obsidian's `button:focus-visible { box-shadow: 0 0 0 3px var(--background-modifier-border-focus) }` (0,1,1). Obsidian's base `button` rule also sets `outline: none`, so the box-shadow is the only focus indicator. The result: the ✕ button shows no focus ring when reached with Tab, in both pending and created rows. The other two editor buttons keep their focus ring, because they do not override box-shadow.",
+      "recommendation": "Restore the ring after the remove rules: `.tm-follow-ups .tm-follow-ups__remove:focus-visible { box-shadow: 0 0 0 3px var(--background-modifier-border-focus); }` (0,3,0). Or limit `box-shadow: none` to `:not(:focus-visible)`."
+    },
+    {
+      "severity": "minor",
+      "category": "maintainability",
+      "file": "src/ui/FollowUpsEditor.svelte",
+      "line": 74,
+      "issue": "The pending-row input has no accessible name. Its only label is the placeholder ('What to do afterwards'), and the block title is a plain <div> with no link to the inputs. Every other form field uses <label for=...>. This makes the rows harder to identify with a screen reader, and E2E locators cannot use getByLabel/getByRole with a name.",
+      "recommendation": "Add `aria-label={$t('followUps.placeholder')}` to the input, or give the block `role=\"group\"` plus `aria-labelledby` pointing to an id on `.tm-follow-ups__title`. No new i18n keys are needed."
+    }
+  ]
+}

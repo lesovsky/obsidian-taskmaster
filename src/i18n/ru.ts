@@ -106,4 +106,15 @@ export const ru: Translations = {
 
   'notes.title': 'Заметки',
   'notes.placeholder': 'Быстрые заметки, ссылки, мысли...',
+
+  'followUps.title': 'После выполнения',
+  'followUps.add': '+ Добавить пункт',
+  'followUps.placeholder': 'Что сделать после',
+  'followUps.toBacklog': '→ в бэклог',
+  'followUps.toBacklogHint': 'Будет заведена в бэклог при сохранении',
+  'followUps.created': '✓ заведено',
+  'followUps.remove': 'Удалить пункт',
+  'followUps.whyPrefix': 'После: ',
+  'followUps.noticeCreated': 'Заведено задач в «{group}»: {count}',
+  'followUps.noticeHidden': '(группа скрыта)',
 };

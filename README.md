@@ -47,6 +47,8 @@ Each task contains structured SMART fields:
 
 Card indicators: priority icon, status icon, deadline, overdue border, assignee.
 
+**Follow-ups.** The "After completion" block of the task form holds short items for what to do once the task is done (up to 20, 200 characters each). The card shows `↪ N` for items not yet created. When the task lands in Completed — via ☑ or drag & drop — each pending item becomes a new task at the end of the board's backlog, and a notice tells you how many were created. "→ to backlog" creates an item early when you save the form, and Undo of ☑ takes the created tasks back.
+
 ## Why TaskMaster?
 
 There are several task management plugins for Obsidian, but none of them offer an out-of-the-box combination of:

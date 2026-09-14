@@ -1,0 +1,39 @@
+{
+  "reviewer": "dev-code-reviewer",
+  "status": "approved_with_suggestions",
+  "summary": "Static review only; Playwright was not run, as instructed. Every AC from AC-1 to AC-12 has at least one scenario, and the AC-13 exclusion is documented in the file. Assertions check stored data, notice text, visible text and `title` attributes. Class names serve only as locators, never as the only evidence. Groups are located by data-group-id and data-group-container only. The negative notice assertions (`toHaveCount(0)`) are not vacuous, because showFollowUpNotice runs synchronously in the click handler and in moveTaskAndNotify. The `seed` helper builds a snapshot from the live v9 store and feeds it through migrateData. The hand-built v8 fixture matches the real v8 schema (group title and fullWidth, groupOrder, notesHidden, cardLayout). `reloadFromStorage` waits for localStorage to match the store before the round trip, so it would fail if a persist() call were missing. The helpers.ts change is only an `export`, and createTask already relied on that function. Four minor findings, none blocking: one notice-timing dependency, two scenarios that could protect more, and two misleading comments.",
+  "findings": [
+    {
+      "severity": "minor",
+      "category": "tests",
+      "file": "tests/e2e/0012-follow-up-tasks.spec.ts",
+      "line": 480,
+      "issue": "At the end of AC-8, `await expect(notices(page)).toHaveCount(1)` depends on the first notice still being on screen. The mock Notice removes itself after 5000 ms, so a slow run would fail here for a reason unrelated to AC-8. The assertion also adds little. Duplicates are already caught by the task-key and backlog checks above it, and the count-0 guard is covered by the second AC-4 test.",
+      "recommendation": "Make the check about the second completion itself. Before the two moves on lines 472-473, remove the first notice: `await page.evaluate(() => document.querySelectorAll('.notice-container').forEach(el => el.remove()));`. After the second completion, assert `await expect(notices(page)).toHaveCount(0);`. This matches the comment's intent ('the second one had nothing to announce') and no longer depends on the 5 s timeout."
+    },
+    {
+      "severity": "minor",
+      "category": "tests",
+      "file": "tests/e2e/0012-follow-up-tasks.spec.ts",
+      "line": 487,
+      "issue": "Nothing covers the Decision 10 wiring in BoardLayout.handleUndo: clearing the timers and removing the delete/complete toasts of spawned tasks when the parent's completion is undone. The code lives in a .svelte file, so no unit test reaches it, and the Task 07 probe that exercised it was not committed. It also backs the user-spec edge case 'if the spawned task was already deleted, it is simply skipped'. If the dismissal broke, Undo on the leftover delete toast would push a dangling id back into the backlog, and this suite would stay green.",
+      "recommendation": "Add a scenario. Seed a parent with two pending items, press ☑, and expand the backlog. Delete one spawned task through its form's Delete button. Assert two toasts (`.tm-toast` count 2). Click the Undo of the complete toast: `page.locator('.tm-toast').filter({ hasText: 'Ship release' }).locator('.tm-toast__undo')`, or pick it by position. Then assert: `.tm-toast` count 0; `backlog.taskIds` equal to the pre-☑ list; neither spawned id in `data.tasks`; the parent's `createdTaskId`s equal to `['', '']`. If the toast text does not identify the task, give the toast a data-task-id attribute, or locate it by order: the complete toast is first."
+    },
+    {
+      "severity": "minor",
+      "category": "tests",
+      "file": "tests/e2e/0012-follow-up-tasks.spec.ts",
+      "line": 407,
+      "issue": "AC-5 is about drag and drop, but every move in the suite goes through `__test.moveTask`. That covers moveTaskAndNotify, but not the Sortable `onEnd` in useSortable.ts. `onEnd` reads the from/to group ids from `dataset.groupId` and returns early when `from === to && oldIndex === newIndex`, and a real reorder inside completed also goes through it. The Task 07 probe proved a real drag into completed works in the harness, but it was not committed, so a regression in the drop handler would not show up here.",
+      "recommendation": "Add one real-gesture assertion to AC-5. Move `dragCardToGroup` from 0011-group-customization.spec.ts into helpers.ts; it already waits for the `.tm-sortable-ghost` acknowledgement. Then drag the `parent` card into the expanded completed group and assert the same stored result and notice text as the programmatic step: backlog `what` equal to ['Run retro', 'Send release notes'], plus `Tasks created in \"Backlog\": 2`. Keep the programmatic reorder check. A pixel-exact reorder by mouse is harder to make stable than it is worth."
+    },
+    {
+      "severity": "minor",
+      "category": "maintainability",
+      "file": "tests/e2e/0012-follow-up-tasks.spec.ts",
+      "line": 413,
+      "issue": "Two comments describe the code incorrectly. (1) The AC-5 fixture comment says pending items inside completed 'can only come from data (e.g. an older version)'. Migration v8→v9 gives every task `[]`, and every path into completed spawns all pending items, so such items can only come from a hand-edited or badly synced data.json. The fixture is still correct and needed: without it, removing the `fromGroupId !== 'completed'` guard would go unnoticed. (2) The `markItem` doc comment (line 127) says 'The row (pending or created) whose text or input value is `text`'. The helper only looks at rows that have an input, meaning pending rows, and throws 'no pending row' otherwise.",
+      "recommendation": "Line 413: 'Pending items inside completed can only come from hand-edited or badly synced data (no app path leaves them there); they are exactly what a reorder would wrongly spawn.' Line 127: '/** Press \"→ to backlog\" on the pending row whose input value is `text`. */'."
+    }
+  ]
+}

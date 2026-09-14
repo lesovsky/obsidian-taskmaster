@@ -42,7 +42,8 @@
 // 3. Imports (after polyfills)
 import { get } from 'svelte/store';
 import { Plugin as MockPlugin } from './obsidian-mock';
-import { dataStore, moveTask as storeMoveTask, updateSettings as storeUpdateSettings } from '../../src/stores/dataStore';
+import { dataStore, updateSettings as storeUpdateSettings } from '../../src/stores/dataStore';
+import { moveTaskAndNotify } from '../../src/ui/useSortable';
 import { uiStore } from '../../src/stores/uiStore';
 import { pluginStore } from '../../src/stores/pluginStore';
 import { migrateData } from '../../src/data/migration';
@@ -83,8 +84,9 @@ window.__test = {
       clearTimeout(toast.timerId);
     }
 
-    // b) Clear persisted data
+    // b) Clear persisted data and notices left by a previous test
     localStorage.removeItem('tm-test-data');
+    document.querySelectorAll('.notice-container').forEach(el => el.remove());
 
     // c) Build data:
     //    - versioned snapshots (have 'version' field) → migrate directly so all migration steps run
@@ -115,8 +117,9 @@ window.__test = {
     return get(dataStore);
   },
 
+  // Same function as the Sortable drop handler: store move + follow-up notice.
   moveTask(taskId: string, from: GroupId, to: GroupId, index = 0): void {
-    storeMoveTask(taskId, from, to, index);
+    moveTaskAndNotify(taskId, from, to, index);
   },
 
   updateSettings(settings: Partial<Settings>): void {

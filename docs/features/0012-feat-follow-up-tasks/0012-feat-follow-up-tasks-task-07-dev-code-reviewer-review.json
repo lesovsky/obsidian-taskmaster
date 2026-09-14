@@ -1,0 +1,23 @@
+{
+  "reviewer": "dev-code-reviewer",
+  "status": "approved_with_suggestions",
+  "summary": "The wiring matches the task and Decisions 6, 7, 8 and 10. Undo passes the toast's spawnedTaskIds to undoQuickComplete. It then clears the timers of, and removes, only those delete/complete toasts whose taskId is the undone task or one of its spawned ids; unrelated toasts are untouched. The notice fires once per action, only for count > 0, and always after the store call returns. The Sortable drop handler and __test.moveTask share moveTaskAndNotify. The Notice mock uses textContent inside body > .notice-container and removes itself after its timeout. The mock Modal detaches its Escape listener on close, and src/stores and src/logic have no runtime obsidian import (pluginStore.ts has a pre-existing type-only import). Signatures match across files (TaskModal onSave(task, spawnItemIds), quickCompleteTask/undoQuickComplete/moveTask/createFollowUpTasks, formatFollowUpNotice, resolveGroupTitle, groupLabels). `npx tsc --noEmit` is clean. `vitest run` passes (175/175) under Node 22 but crashes at startup with ERR_REQUIRE_ESM under the default Node 18.19.1: an environment issue, not a code one. I did not run the esbuild or Playwright builds, because another agent is editing TaskCard.svelte concurrently and those builds write artifacts. Two minor, non-blocking suggestions follow.",
+  "findings": [
+    {
+      "severity": "minor",
+      "category": "maintainability",
+      "file": "src/stores/dataStore.ts",
+      "line": 127,
+      "issue": "undoQuickComplete still has `spawnedTaskIds: string[] = []` and the comment 'Defaults to [] only so the current caller compiles until it passes the toast's ids.' This task made the only caller (BoardLayout.handleUndo) pass the ids, so the comment is now stale. The default also means any future caller that forgets the argument silently skips the spawn revert and leaves the spawned tasks on the board. This file is outside the reviewed list, but the comment explicitly points at this task.",
+      "recommendation": "Make the parameter required (`spawnedTaskIds: string[]`) and delete the comment. tsc does not check .svelte files, so this guards only TS callers and unit tests, not BoardLayout itself. It still removes a misleading transitional note. If dataStore.ts is frozen for this task, record it as a follow-up in the decisions log instead."
+    },
+    {
+      "severity": "minor",
+      "category": "tests",
+      "file": "tests/harness/obsidian-mock.ts",
+      "line": 73,
+      "issue": "Each mock Modal adds its own document-level keydown listener, so one Escape closes every open mock modal at once. Real Obsidian closes only the topmost one. This cannot happen today (TaskModal is the only Modal subclass and nothing opens a second modal on top of it), so this is a latent fidelity gap rather than a current bug. I'm flagging it because the harness is shared by every E2E spec, and a future stacked modal (for example a confirm dialog) would pass in the harness while behaving differently in Obsidian.",
+      "recommendation": "Either add a one-line comment noting that the mock assumes a single open modal, or track open modals in a module-level stack and close only the last one on Escape, e.g. `if (e.key === 'Escape' && openModals[openModals.length - 1] === this) this.close();`, pushing in open() and splicing out in close()."
+    }
+  ]
+}

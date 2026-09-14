@@ -1,0 +1,15 @@
+{
+  "reviewer": "dev-code-reviewer",
+  "status": "approved_with_suggestions",
+  "summary": "Commit a430587 resolves the round 1 finding. The deadline is now the only shrinkable item in the top row, and only when the marker is present: priority, status and marker keep flex-shrink: 0, so the row gives way at the deadline and no longer spills into the 3.25rem reserved for the ☑/✕ buttons. Flex items are blockified, so overflow/text-overflow on the span work. The adjacent-sibling selector (0,2,0) overrides the base deadline rule (0,1,0), cards without a marker are unaffected, and wide layouts have enough room that the shrink never applies. The executor's measurements (12.3px overlap before, 12px clearance after, same as a card without a marker) match this analysis. One minor follow-up: once cut off, the date cannot be recovered on the card.",
+  "findings": [
+    {
+      "severity": "minor",
+      "category": "maintainability",
+      "file": "src/ui/TaskCard.svelte",
+      "line": 95,
+      "issue": "When the deadline is cut off (the measured case shows '📅 209…'), the card no longer shows the date at all: only the year prefix is left, and nothing on the card reveals the full value short of opening the task modal. The deadline is arguably the more important piece of information in that row. Elsewhere the card gives a native title to every text that can be cut off (`.tm-task-card__what`, `.tm-task-card__what-compact`, `.tm-task-card__who-compact`), but the default-mode deadline span has none.",
+      "recommendation": "Add `title={task.deadline}` to the default-mode `<span class=\"tm-task-card__deadline\">` so hovering shows the full date when it is cut off. It is harmless when the date isn't cut off, and it follows the existing truncation pattern. No CSS change needed."
+    }
+  ]
+}

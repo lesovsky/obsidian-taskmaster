@@ -1,5 +1,5 @@
 ---
-status: planned
+status: done
 depends_on: ["01", "03"]
 wave: 3
 skills: [code-writing]
@@ -54,14 +54,14 @@ prove the form still creates and edits tasks.
 
 ## Acceptance Criteria
 
-- [ ] Block appears between "Why" and Who/When in create and edit modes
-- [ ] Add, Enter-insert, remove, mark/unmark work; limits 200 / 20 enforced in the UI
-- [ ] Created items are not editable and have no toggle; can be removed (editable mode)
-- [ ] Read-only for a task in the completed group; hidden when its list is empty
-- [ ] Escape discards list edits — the store is not mutated before Save
-- [ ] Save calls `onSave(task, spawnItemIds)`; existing one-argument callers keep working
-- [ ] All new classes use the `tm-` prefix; no `<style>` blocks; no `{@html}`
-- [ ] `npm run build` succeeds; `npx playwright test tests/e2e/core.spec.ts` green
+- [x] Block appears between "Why" and Who/When in create and edit modes
+- [x] Add, Enter-insert, remove, mark/unmark work; limits 200 / 20 enforced in the UI
+- [x] Created items are not editable and have no toggle; can be removed (editable mode)
+- [x] Read-only for a task in the completed group; hidden when its list is empty
+- [x] Escape discards list edits — the store is not mutated before Save
+- [x] Save calls `onSave(task, spawnItemIds)`; existing one-argument callers keep working
+- [x] All new classes use the `tm-` prefix; no `<style>` blocks; no `{@html}`
+- [x] `npm run build` succeeds; `npx playwright test tests/e2e/core.spec.ts` green
 
 ## Context Files
 
@@ -105,6 +105,6 @@ or closes the modal.
 
 ## Post-completion
 
-- [ ] Записать краткий отчёт в [0012-feat-follow-up-tasks-decisions.md](0012-feat-follow-up-tasks-decisions.md) (Summary: 1-3 предложения, ревью со ссылками на JSON, без таблиц файндингов и дампов)
-- [ ] Если отклонились от спека — описать отклонение и причину
-- [ ] Обновить user-spec/tech-spec если что-то изменилось
+- [x] Записать краткий отчёт в [0012-feat-follow-up-tasks-decisions.md](0012-feat-follow-up-tasks-decisions.md) (Summary: 1-3 предложения, ревью со ссылками на JSON, без таблиц файндингов и дампов)
+- [x] Если отклонились от спека — описать отклонение и причину
+- [x] Обновить user-spec/tech-spec если что-то изменилось
